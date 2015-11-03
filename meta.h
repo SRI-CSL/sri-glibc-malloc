@@ -1,4 +1,5 @@
 #ifndef _META_H
+#define _META_H
 
 
 extern void meta_init(void);

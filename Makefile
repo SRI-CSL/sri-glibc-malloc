@@ -1,9 +1,13 @@
 
 
+CFLAGS = -Wall 
 
 
-all:
-	CC -Wall meta.c -c
+
+all: linhash.o meta.o  memcxt.o dynahash.o
+
+%.o: %.c %.h 
+	${CC} ${CFLAGS} $< -c 
 
 
 clean:

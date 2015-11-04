@@ -85,6 +85,15 @@
 #include "memcxt.h"
 #include "dynahash.h"
 
+
+#define MAXIMUM_ALIGNOF 8
+
+#define TYPEALIGN(ALIGNVAL,LEN) (((intptr_t) (LEN) + ((ALIGNVAL) - 1)) & ~((intptr_t) ((ALIGNVAL) - 1)))
+
+#define MAXALIGN(LEN) TYPEALIGN(MAXIMUM_ALIGNOF, (LEN))
+
+
+
 /*
  * Constants
  *
@@ -226,7 +235,7 @@ static void *
 DynaHashAlloc(size_t size)
 {
   assert(CurrentDynaHashCxt != NULL);
-  return CurrentDynaHashCxt->alloc(size);
+  return CurrentDynaHashCxt->malloc(size);
 }
 
 

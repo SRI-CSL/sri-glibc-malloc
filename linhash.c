@@ -10,7 +10,7 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
 static uint32_t linhash_offset(linhash_t* htbl, const void *p);
 
 static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
-static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt);
+static void linhash_expand_table(linhash_t* lhtbl);
 
 
 /* stolen from BD's opus */
@@ -28,11 +28,11 @@ static bool is_power_of_two(uint32_t n) {
 
 
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
-  cfg->multithreaded          = false;
-  cfg->segment_size           = 256;
-  cfg->initial_directory_size = 256;
-  cfg->min_load               = 2;   
-  cfg->max_load               = 5;
+  cfg->multithreaded          = linhash_multithreaded;
+  cfg->segment_size           = linhash_segment_size;
+  cfg->initial_directory_size = linhash_initial_directory_size;
+  cfg->min_load               = linhash_min_load;   /* used ?? */
+  cfg->max_load               = linhash_max_load;
   cfg->memcxt                 = *memcxt; 
 }
 
@@ -53,17 +53,16 @@ void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
   assert(is_power_of_two(lhtbl_cfg->initial_directory_size));
 
   
-
   // lock for resolving contention  (only when cfg->multithreaded)      
   if(lhtbl_cfg->multithreaded){
     pthread_mutex_init(&lhtbl->mutex, NULL);
   }
 
   lhtbl->directory_size = lhtbl_cfg->initial_directory_size;
-  lhtbl->directory_current = lhtbl->directory_size;
+  lhtbl->directory_current = linhash_initial_directory_size;
   
   // the array of segment pointers
-  lhtbl->directory = memcxt->calloc(lhtbl->directory_size, sizeof(segmentptr));
+  lhtbl->directory = memcxt->calloc(DIRECTORY, lhtbl->directory_size, sizeof(segmentptr));
 
   // mininum number of bins    [{ N }]                                     
   lhtbl->N = mul_size(lhtbl_cfg->segment_size, lhtbl->directory_current);
@@ -85,7 +84,7 @@ void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
 
   // create the segments needed by the current directory
   for(index = 0; index < lhtbl->directory_current; index++){
-    lhtbl->directory[index] = memcxt->calloc(lhtbl_cfg->segment_size, sizeof(bucketptr));
+    lhtbl->directory[index] = memcxt->calloc(SEGMENT, lhtbl_cfg->segment_size, sizeof(bucketptr));
   }
 
   
@@ -117,7 +116,7 @@ void delete_linhash(linhash_t* lhtbl){
 	while(current_bucket != NULL){
 
 	  next_bucket = current_bucket->next_bucket;
-	  memcxt->free( current_bucket );
+	  memcxt->free(BUCKET, current_bucket );
 	  current_bucket = next_bucket;
 	  
 
@@ -126,10 +125,10 @@ void delete_linhash(linhash_t* lhtbl){
 
       }
     //now free the segment
-    memcxt->free( current_segment );
+      memcxt->free(SEGMENT, current_segment );
   }
 
-  memcxt->free(lhtbl->directory);
+  memcxt->free(DIRECTORY, lhtbl->directory);
   
 }
 
@@ -227,7 +226,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t newsz;
   segmentptr* olddir;
   segmentptr* newdir;
-  
+
   oldsz = lhtbl->directory_size;
   
   /* we should be full */
@@ -237,7 +236,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  newdir = lhtbl->cfg.memcxt.calloc(newsz, sizeof(segmentptr));
+  newdir = lhtbl->cfg.memcxt.calloc(DIRECTORY, newsz, sizeof(segmentptr));
 
   for(index = 0; index < oldsz; index++){
     newdir[index] = olddir[index];
@@ -246,12 +245,12 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_size = newsz;
 
-  lhtbl->cfg.memcxt.free(olddir);
+  lhtbl->cfg.memcxt.free(DIRECTORY, olddir);
 
 }
 
 
-static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
+static void linhash_expand_table(linhash_t* lhtbl){
   size_t segsz;
 
   size_t newaddr;
@@ -267,6 +266,17 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
 
   size_t newsegindex;
 
+  memcxt_t *memcxt;
+
+  memcxt = &lhtbl->cfg.memcxt;
+
+
+  /* see if the directory needs to grow  */
+  if(lhtbl->directory_size  ==  lhtbl->directory_current){
+    linhash_expand_directory(lhtbl,  memcxt);
+  }
+
+  
   newaddr = add_size(lhtbl->maxp, lhtbl->p);
  
   if(newaddr < mul_size(lhtbl->directory_current, lhtbl->cfg.segment_size)){
@@ -280,7 +290,7 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
     /* expand address space; if necessary create new segment */
     if(MOD(newaddr, segsz) == 0){
       if(lhtbl->directory[newindex] == NULL){
-	lhtbl->directory[newindex] = lhtbl->cfg.memcxt.calloc(segsz, sizeof(bucketptr));
+	lhtbl->directory[newindex] = lhtbl->cfg.memcxt.calloc(SEGMENT, segsz, sizeof(bucketptr));
       }
     }
 
@@ -352,16 +362,67 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
   
 }
 
+/* Q1: what should we do if the thing is already in the table ?            */
+/* Q2: should we insert at the front or back or ...                        */
+/* Q3: how often should we check to see if the table needs to be expanded  */
 
-void linhash_insert(linhash_t* htbl, const void *key, const void *value){
+void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
+  bucketptr newbucket;
+  bucketptr* binp;
 
+  binp = linhash_fetch_bucket(lhtbl, key);
 
+  newbucket = lhtbl->cfg.memcxt.malloc(BUCKET, sizeof(bucket_t));
+
+  newbucket->key = (void *)key;
+  newbucket->value = (void *)value;
+
+  /* for the time being we insert the bucket at the front */
+  newbucket->next_bucket = *binp;
+  *binp = newbucket;
+
+  /* census adjustments */
+  lhtbl->count++;
+
+  /* check to see if we need to exand the table */
+  if(lhtbl->count / lhtbl->currentsize > lhtbl->cfg.max_load){
+    linhash_expand_table(lhtbl);
+  }
+  
 }
 
-void *linhash_lookup(linhash_t* htbl, const void *key){
+void *linhash_lookup(linhash_t* lhtbl, const void *key){
+  void* value;
+  bucketptr* binp;
+  bucketptr bucketp;
 
+  value = NULL;
+  binp = linhash_fetch_bucket(lhtbl, key);
+  bucketp = *binp;
 
-  return NULL;
+  while(bucketp != NULL){
+    if(key == bucketp->key){
+      value = bucketp->value;
+      break;
+    }
+    bucketp = bucketp->next_bucket;
+  }
+
+  return value;
+}
+
+bool linhash_delete(linhash_t* htbl, const void *key){
+  bool found = false;
+
+  return found;
+}
+
+size_t linhash_delete_all(linhash_t* htbl, const void *key){
+  size_t count;
+
+  count = 0;
+
+  return count;
 }
 
 

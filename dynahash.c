@@ -235,7 +235,7 @@ static void *
 DynaHashAlloc(size_t size)
 {
   assert(CurrentDynaHashCxt != NULL);
-  return CurrentDynaHashCxt->malloc(size);
+  return malloc(size);
 }
 
 
@@ -307,7 +307,7 @@ hash_create(const char *tabname, long nelem, HASHCTL *info, int flags)
 	}
 
   /* Initialize the hash header, plus a copy of the table name */
-  hashp = (HTAB *) DynaHashAlloc(sizeof(HTAB) + strlen(tabname) +1);
+  hashp = (HTAB *) malloc (sizeof(HTAB) + strlen(tabname) +1);
   memset(hashp, 0, sizeof(HTAB));
 
   hashp->tabname = (char *) (hashp + 1);

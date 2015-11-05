@@ -26,6 +26,19 @@
 
  */
 
+const bool     linhash_multithreaded           = false;
+
+const size_t   linhash_segment_size            = 256;
+const size_t   linhash_initial_directory_size  = 256;
+const size_t   linhash_segments_at_startup     = 256;
+
+const int16_t  linhash_min_load                = 2;   
+const int16_t  linhash_max_load                = 5;
+
+
+
+
+
 typedef struct bucket_s {
   void *key;
   void *value;
@@ -52,6 +65,9 @@ typedef struct linhash_cfg_s {
 
 } linhash_cfg_t;
 
+
+
+/* need to make a distinction between bins and buckets */
 
 typedef struct linhash_s {
 
@@ -85,11 +101,18 @@ typedef struct linhash_s {
 
 extern void init_linhash(linhash_t* lhash, memcxt_t* memcxt);
 
+extern void delete_linhash(linhash_t* htbl);
+
 extern void linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
 extern void *linhash_lookup(linhash_t* htbl, const void *key);
 
-extern void delete_linhash(linhash_t* htbl);
+/* deletes the first buckets keyed by key; returns true if such a bucket was found; false otherwise */
+extern bool linhash_delete(linhash_t* htbl, const void *key);
+
+/* deletes all buckets keyed by key; returns the number of buckets deleted */
+extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
+
 
 
 

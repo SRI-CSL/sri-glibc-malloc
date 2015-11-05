@@ -5,17 +5,17 @@
 #include <string.h>
 
 
-static void *default_malloc(size_t size){
+static void *default_malloc(memtype_t type, size_t size){
   void* retval = malloc(size);
   memset(retval, 0, size);
   return retval;
 }
 
-static void *default_calloc(size_t count, size_t size){
+static void *default_calloc(memtype_t type, size_t count, size_t size){
   return calloc(count, size);
 }
 
-static void default_free(void *ptr){
+static void default_free(memtype_t type, void *ptr){
   free(ptr);
 }
 

@@ -7,7 +7,7 @@
 typedef struct memcxt_s {
   void *(*malloc)(size_t);
   void *(*calloc)(size_t, size_t);
-  void (*free);
+  void (*free)(void*);
 } memcxt_t;
 
 typedef memcxt_t* memcxt_p;

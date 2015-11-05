@@ -80,11 +80,13 @@ typedef struct linhash_s {
 
 
 
-/* returns the address on the bucket that should contain p */
-extern uint32_t linhash_bucket(linhash_t* htbl, const void *p);
+extern void init_linhash(linhash_t* lhash, memcxt_t* memcxt);
 
+extern void linhash_insert(linhash_t* htbl, const void *p);
 
-extern void linhash_init(linhash_t* lhash, memcxt_t* memcxt);
+extern void *linhash_lookup(linhash_t* htbl, const void *p);
+
+extern void delete_linhash(linhash_t* htbl);
 
 
 

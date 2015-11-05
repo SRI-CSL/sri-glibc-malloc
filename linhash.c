@@ -216,21 +216,14 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t newindex;
 
   bucketptr* oldbucketp;
-  bucketptr* newbucketp;
-
-  bucketptr oldbucket;
-  bucketptr newbucket;
 
   bucketptr current;
   bucketptr previous;
   bucketptr lastofnew;
   
-  segmentptr oldseg;
   segmentptr newseg;
 
   size_t newsegindex;
-
-  
 
   newaddr = add_size(lhtbl->maxp, lhtbl->p);
  
@@ -268,17 +261,44 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
     previous = NULL;
     lastofnew = NULL;
 
-    assert( newseg[newsegindex] == NULL);
+    assert( newseg[newsegindex] == NULL );
 
     while( current != NULL ){
 
       if(linhash_offset(lhtbl, current->value) == newaddr){
+	/* it belongs in the new bucket */
 
+	if( lastofnew == NULL ){
 
+	  newseg[newsegindex] = current;
+	  
+	} else {
 
+	  lastofnew->next_bucket = current;
+	  
+	}
+
+	if( previous == NULL ){
+
+	  *oldbucketp = current->next_bucket;
+	  
+	  
+	} else {
+
+	  previous->next_bucket = current->next_bucket;
+
+	}
+
+	lastofnew = current;
+	current = current->next_bucket;
+	lastofnew->next_bucket = NULL;
+	
 
       } else {
+	/* it belongs in the old bucket */
 
+	previous = current;
+	current = current->next_bucket;
 
 
       }

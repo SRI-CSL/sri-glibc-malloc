@@ -99,6 +99,7 @@ void delete_linhash(linhash_t* lhtbl){
   size_t index;
   segmentptr current_segment;
   bucketptr current_bucket;
+  bucketptr next_bucket;
   memcxt_t *memcxt;
 
   segsz = lhtbl->cfg.segment_size;
@@ -112,7 +113,15 @@ void delete_linhash(linhash_t* lhtbl){
     //need to cdr down the segment and free the linked list of buckets
       for(index = 0; index < segsz; index++){
 	current_bucket = current_segment[index];
-	
+
+	while(current_bucket != NULL){
+
+	  next_bucket = current_bucket->next_bucket;
+	  memcxt->free( current_bucket );
+	  current_bucket = next_bucket;
+	  
+
+	}
 
 
       }

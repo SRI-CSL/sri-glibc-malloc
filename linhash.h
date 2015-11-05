@@ -27,6 +27,7 @@
  */
 
 typedef struct bucket_s {
+  void *key;
   void *value;
   void *next_bucket;
 } bucket_t;
@@ -84,9 +85,9 @@ typedef struct linhash_s {
 
 extern void init_linhash(linhash_t* lhash, memcxt_t* memcxt);
 
-extern void linhash_insert(linhash_t* htbl, const void *p);
+extern void linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
-extern void *linhash_lookup(linhash_t* htbl, const void *p);
+extern void *linhash_lookup(linhash_t* htbl, const void *key);
 
 extern void delete_linhash(linhash_t* htbl);
 

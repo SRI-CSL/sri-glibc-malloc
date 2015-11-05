@@ -307,7 +307,7 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
 
     while( current != NULL ){
 
-      if(linhash_offset(lhtbl, current->value) == newaddr){
+      if(linhash_offset(lhtbl, current->key) == newaddr){
 	/* it belongs in the new bucket */
 
 	if( lastofnew == NULL ){
@@ -353,12 +353,12 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
 }
 
 
-void linhash_insert(linhash_t* htbl, const void *p){
+void linhash_insert(linhash_t* htbl, const void *key, const void *value){
 
 
 }
 
-void *linhash_lookup(linhash_t* htbl, const void *p){
+void *linhash_lookup(linhash_t* htbl, const void *key){
 
 
   return NULL;

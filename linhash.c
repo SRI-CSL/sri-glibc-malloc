@@ -91,6 +91,40 @@ void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
   
 }
 
+
+
+void delete_linhash(linhash_t* lhtbl){
+  size_t segsz;
+  size_t segindex;
+  size_t index;
+  segmentptr current_segment;
+  bucketptr current_bucket;
+  memcxt_t *memcxt;
+
+  segsz = lhtbl->cfg.segment_size;
+
+  memcxt = &lhtbl->cfg.memcxt;
+
+  for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
+
+    current_segment = lhtbl->directory[index];
+    
+    //need to cdr down the segment and free the linked list of buckets
+      for(index = 0; index < segsz; index++){
+	current_bucket = current_segment[index];
+	
+
+
+      }
+    //now free the segment
+    memcxt->free( current_segment );
+  }
+
+  memcxt->free(lhtbl->directory);
+  
+}
+
+
 /* 
  * BD's Jenkins's lookup3 code 
  */
@@ -145,7 +179,6 @@ static uint32_t linhash_offset(linhash_t* htbl, const void *p){
   return l;
   
 }
-
 
 bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset){
   segmentptr segment;
@@ -316,15 +349,11 @@ void linhash_insert(linhash_t* htbl, const void *p){
 
 }
 
-extern void *linhash_lookup(linhash_t* htbl, const void *p){
+void *linhash_lookup(linhash_t* htbl, const void *p){
 
 
   return NULL;
 }
 
-extern void delete_linhash(linhash_t* htbl){
-
-
-}
 
 

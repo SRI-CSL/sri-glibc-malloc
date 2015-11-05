@@ -36,7 +36,10 @@ const int16_t  linhash_min_load                = 2;
 const int16_t  linhash_max_load                = 5;
 
 
+/* need to make a distinction between bins and buckets  */
+/* need a consistent terminology about bins and offsets */
 
+/* the code for contracting a table seems to be missing in Larsen's paper */
 
 
 typedef struct bucket_s {
@@ -67,7 +70,6 @@ typedef struct linhash_cfg_s {
 
 
 
-/* need to make a distinction between bins and buckets */
 
 typedef struct linhash_s {
 

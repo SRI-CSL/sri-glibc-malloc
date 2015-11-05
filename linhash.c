@@ -411,16 +411,64 @@ void *linhash_lookup(linhash_t* lhtbl, const void *key){
   return value;
 }
 
-bool linhash_delete(linhash_t* htbl, const void *key){
+bool linhash_delete(linhash_t* lhtbl, const void *key){
   bool found = false;
+  bucketptr* binp;
+  bucketptr current_bucketp;
+  bucketptr previous_bucketp;
+
+  previous_bucketp = NULL;
+  binp = linhash_fetch_bucket(lhtbl, key);
+  current_bucketp = *binp;
+
+  while(current_bucketp != NULL){
+    if(key == current_bucketp->key){
+      found = true;
+      
+      if(previous_bucketp == NULL){
+ 	*binp = current_bucketp->next_bucket;
+      } else {
+	previous_bucketp->next_bucket = current_bucketp->next_bucket;
+      }
+      lhtbl->cfg.memcxt.free(BUCKET, current_bucketp);
+      break;
+    }
+    previous_bucketp = current_bucketp;
+    current_bucketp = current_bucketp->next_bucket;
+  }
 
   return found;
 }
 
-size_t linhash_delete_all(linhash_t* htbl, const void *key){
+size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
   size_t count;
+  bucketptr* binp;
+  bucketptr current_bucketp;
+  bucketptr previous_bucketp;
+  bucketptr temp_bucketp;
 
   count = 0;
+  previous_bucketp = NULL;
+  binp = linhash_fetch_bucket(lhtbl, key);
+  current_bucketp = *binp;
+
+  while(current_bucketp != NULL){
+    if(key == current_bucketp->key){
+      count++;
+      
+      if(previous_bucketp == NULL){
+ 	*binp = current_bucketp->next_bucket;
+      } else {
+	previous_bucketp->next_bucket = current_bucketp->next_bucket;
+      }
+      temp_bucketp = current_bucketp;
+      current_bucketp = current_bucketp->next_bucket;
+      lhtbl->cfg.memcxt.free(BUCKET, temp_bucketp);
+    } else {
+      previous_bucketp = current_bucketp;
+      current_bucketp = current_bucketp->next_bucket;
+    }
+  }
 
   return count;
 }

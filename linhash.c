@@ -80,6 +80,9 @@ void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
   // the current limit on the bucket count  [{ N * 2^L }]                  
   lhtbl->maxp = lhtbl->N;
 
+  // the current number of buckets
+  lhtbl->currentsize = lhtbl->N;
+
   // create the segments needed by the current directory
   for(index = 0; index < lhtbl->directory_current; index++){
     lhtbl->directory[index] = memcxt->calloc(lhtbl_cfg->segment_size, sizeof(bucketptr));
@@ -207,13 +210,24 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
 
 static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
+  size_t segsz;
+
   size_t newaddr;
   size_t newindex;
-  size_t segsz;
-  bucketptr* oldbucketp;
 
+  bucketptr* oldbucketp;
+  bucketptr* newbucketp;
+
+  bucketptr oldbucket;
+  bucketptr newbucket;
+
+  bucketptr current;
+  bucketptr previous;
+  bucketptr lastofnew;
+  
   segmentptr oldseg;
   segmentptr newseg;
+
   size_t newsegindex;
 
   
@@ -239,10 +253,41 @@ static void linhash_expand_table(linhash_t* lhtbl, memcxt_t* memcxt){
     newseg = lhtbl->directory[newindex];
     newsegindex = MOD(newaddr, segsz);
       
+    /* update the state variables */
+    lhtbl->p += 1;
+    if(lhtbl->p == lhtbl->maxp){
+      lhtbl->maxp = lhtbl->maxp << 1;
+      lhtbl->p = 0;
+      lhtbl->L += 1;  /* not needed? */
+    }
+
+    lhtbl->currentsize += 1;
+
+    /* now to split the buckets */
+    current = *oldbucketp;
+    previous = NULL;
+    lastofnew = NULL;
+
+    assert( newseg[newsegindex] == NULL);
+
+    while( current != NULL ){
+
+      if(linhash_offset(lhtbl, current->value) == newaddr){
+
+
+
+
+      } else {
+
+
+
+      }
+
+
+    }
     
-
   } 
-
+  
 }
 
 

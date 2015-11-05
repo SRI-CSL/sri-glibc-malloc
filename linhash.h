@@ -33,7 +33,7 @@ typedef struct bucket_s {
 
 typedef bucket_t*  bucketptr;
 
-typedef void*  segmentptr;
+typedef bucketptr*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
@@ -73,6 +73,8 @@ typedef struct linhash_s {
   size_t count;                  /* the total number of records in the table                               */
 
   size_t maxp;                   /* the current limit on the bucket count  [{ N * 2^L }]                   */
+
+  size_t currentsize;            /* the current number of buckets                                          */
   
 } linhash_t;
 

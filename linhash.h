@@ -1,5 +1,6 @@
 #ifndef _LINHASH_H
 #define _LINHASH_H
+
 /*
  * Dynamic hashing, after CACM April 1988 pp 446-457, by Per-Ake Larson.
  * [{ X }] refers to the concept X in Larson's paper.
@@ -9,6 +10,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+
+#include <stdio.h>
 
 
 #include "memcxt.h"
@@ -25,16 +28,6 @@
 
 
  */
-
-const bool     linhash_multithreaded           = false;
-
-const size_t   linhash_segment_size            = 256;
-const size_t   linhash_initial_directory_size  = 256;
-const size_t   linhash_segments_at_startup     = 256;
-
-const int16_t  linhash_min_load                = 2;   
-const int16_t  linhash_max_load                = 5;
-
 
 /* need to make a distinction between bins and buckets  */
 /* need a consistent terminology about bins and offsets */
@@ -115,6 +108,7 @@ extern bool linhash_delete(linhash_t* htbl, const void *key);
 /* deletes all buckets keyed by key; returns the number of buckets deleted */
 extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
 
+extern void dump_linhash(FILE* fp, linhash_t* lhash);
 
 
 

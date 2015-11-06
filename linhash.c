@@ -2,6 +2,20 @@
 
 #include <assert.h>
 
+
+
+const bool     linhash_multithreaded           = false;
+
+const size_t   linhash_segment_size            = 256;
+const size_t   linhash_initial_directory_size  = 256;
+const size_t   linhash_segments_at_startup     = 256;
+
+const int16_t  linhash_min_load                = 2;   
+const int16_t  linhash_max_load                = 5;
+
+
+
+
 /* static routines */
 static bool is_power_of_two(uint32_t n);
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
@@ -38,7 +52,7 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
 
 
 
-void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
+void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   linhash_cfg_t* lhtbl_cfg;
   size_t index;
   
@@ -90,6 +104,17 @@ void linhash_init(linhash_t* lhtbl, memcxt_t* memcxt){
   
 }
 
+extern void dump_linhash(FILE* fp, linhash_t* lhtbl){
+  fprintf(fp, "directory_size = %lu\n", (unsigned long)lhtbl->directory_size);
+  fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
+  fprintf(fp, "N = %lu\n", (unsigned long)lhtbl->N);
+  fprintf(fp, "L = %lu\n", (unsigned long)lhtbl->L);
+  fprintf(fp, "count = %lu\n", (unsigned long)lhtbl->count);
+  fprintf(fp, "maxp = %lu\n", (unsigned long)lhtbl->maxp);
+  fprintf(fp, "currentsize = %lu\n", (unsigned long)lhtbl->currentsize);
+  fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->currentsize));
+  
+}
 
 
 void delete_linhash(linhash_t* lhtbl){
@@ -107,7 +132,7 @@ void delete_linhash(linhash_t* lhtbl){
 
   for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
 
-    current_segment = lhtbl->directory[index];
+    current_segment = lhtbl->directory[segindex];
     
     //need to cdr down the segment and free the linked list of buckets
       for(index = 0; index < segsz; index++){

@@ -456,6 +456,10 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
       lhtbl->cfg.memcxt.free(BUCKET, current_bucketp);
+
+      /* census adjustments */
+      lhtbl->count--;
+
       break;
     }
     previous_bucketp = current_bucketp;
@@ -494,6 +498,9 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
       current_bucketp = current_bucketp->next_bucket;
     }
   }
+
+  /* census adjustments */
+  lhtbl->count -= count;
 
   return count;
 }

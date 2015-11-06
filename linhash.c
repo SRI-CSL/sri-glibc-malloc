@@ -125,7 +125,9 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   
 }
 
-extern void dump_linhash(FILE* fp, linhash_t* lhtbl){
+extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
+  size_t index;
+  bucketptr* bp;
   
   fprintf(fp, "directory_size = %lu\n", (unsigned long)lhtbl->directory_size);
   fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
@@ -136,9 +138,7 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl){
   fprintf(fp, "currentsize = %lu\n", (unsigned long)lhtbl->currentsize);
   fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->currentsize));
 
-  if(1){
-    size_t index;
-    bucketptr* bp;
+  if(showloads){
     for(index = 0; index < lhtbl->currentsize; index++){
       bp = offset2bucketptr(lhtbl, index);
       fprintf(stderr, "%zu:%zu ", index, bucket_length(*bp));
@@ -339,7 +339,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
   
   /* see if the directory needs to grow  */
   if(lhtbl->directory_size  ==  lhtbl->directory_current){
-    fprintf(stderr, "Expanding direcctory\n");
+    //fprintf(stderr, "Expanding directory\n");
     linhash_expand_directory(lhtbl,  memcxt);
   }
 
@@ -387,29 +387,19 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     while( current != NULL ){
 
       if(linhash_offset(lhtbl, current->key) == newaddr){
+
 	/* it belongs in the new bucket */
-
 	moved++;
-	
 	if( lastofnew == NULL ){
-
 	  newseg[newsegindex] = current;
-	  
 	} else {
-
 	  lastofnew->next_bucket = current;
-	  
 	}
 
 	if( previous == NULL ){
-
 	  *oldbucketp = current->next_bucket;
-	  
-	  
 	} else {
-
 	  previous->next_bucket = current->next_bucket;
-
 	}
 
 	lastofnew = current;
@@ -422,13 +412,8 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
 	previous = current;
 	current = current->next_bucket;
-
-
       }
-
-
     }
-    
   } 
 
   return moved;

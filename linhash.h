@@ -112,7 +112,7 @@ extern bool linhash_delete(linhash_t* htbl, const void *key);
 /* deletes all buckets keyed by key; returns the number of buckets deleted */
 extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
 
-extern void dump_linhash(FILE* fp, linhash_t* lhash);
+extern void dump_linhash(FILE* fp, linhash_t* lhash, bool showloads);
 
 
 

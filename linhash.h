@@ -16,18 +16,6 @@
 
 #include "memcxt.h"
 
-/*
-
-  Notes:
-
-  2^44 bytes on a godzilla machine
-  
-  minimum malloc chunk  16 <=  x  <=  64 
-
-  Thus 2^38 <  # of chunks  < 2^40
-
-
- */
 
 /* need to make a distinction between bins and buckets  */
 /* need a consistent terminology about bins and offsets */
@@ -57,10 +45,26 @@ typedef struct linhash_cfg_s {
 
   int16_t max_load;                 /* Larsen uses 5 we could use  4 or 8                                     */
 
-  memcxt_t memcxt;                  /* Where we get our memeory from                                          */
+  memcxt_t memcxt;                  /* Where we get our memory from                                           */
 
+  size_t directory_size_max;        /* Currently don't get this big (see note following this)                 */
+
+  size_t address_max;               /* directory_size_max *  segment_size                                     */
+  
 } linhash_cfg_t;
 
+/*
+
+  Notes:
+
+  2^44 bytes on a godzilla machine
+  
+  minimum malloc chunk  16 <=  x  <=  64 
+
+  Thus 2^38 <  # of chunks  < 2^40
+
+
+ */
 
 
 

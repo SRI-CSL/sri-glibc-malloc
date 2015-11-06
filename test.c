@@ -56,21 +56,22 @@ void test_0(void){
 
 
 const size_t K = 1024;
+const size_t K2 = K << 1;
 
 void test_1(void){
   size_t index;
   
-  void* zoo = calloc(K, sizeof(char));
+  void* zoo = calloc(K2, sizeof(char));
   
   init_linhash(&numerouno, sys_memcxt);
 
-  for(index = 0; index < K; index++){
+  for(index = 0; index < K2; index++){
     linhash_insert(&numerouno, &zoo[index], &zoo[index]);
   }
 
   dump_linhash(stderr, &numerouno);
     
-  for(index = 0; index < K; index++){
+  for(index = 0; index < K2; index++){
     linhash_delete(&numerouno, &zoo[index]);
   }
   

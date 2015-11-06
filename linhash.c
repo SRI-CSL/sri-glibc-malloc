@@ -300,7 +300,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  newdir = lhtbl->cfg.memcxt.calloc(DIRECTORY, newsz, sizeof(segmentptr));
+  newdir = memcxt->calloc(DIRECTORY, newsz, sizeof(segmentptr));
 
   for(index = 0; index < oldsz; index++){
     newdir[index] = olddir[index];
@@ -309,7 +309,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_size = newsz;
 
-  lhtbl->cfg.memcxt.free(DIRECTORY, olddir);
+  memcxt->free(DIRECTORY, olddir);
 
 }
 
@@ -358,7 +358,8 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     /* expand address space; if necessary create new segment */
     if(MOD(newaddr, segsz) == 0){
       if(lhtbl->directory[newindex] == NULL){
-	lhtbl->directory[newindex] = lhtbl->cfg.memcxt.calloc(SEGMENT, segsz, sizeof(bucketptr));
+	lhtbl->directory[newindex] = memcxt->calloc(SEGMENT, segsz, sizeof(bucketptr));
+	lhtbl->directory_current += 1;
       }
     }
 

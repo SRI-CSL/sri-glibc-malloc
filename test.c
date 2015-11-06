@@ -77,7 +77,6 @@ void test_1(void){
   
   dump_linhash(stderr, &numerouno);
 
-
   delete_linhash(&numerouno);
 
   free(zoo);

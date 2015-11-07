@@ -13,7 +13,8 @@ test: hashfns.o linhash.o test.o memcxt.o
 	${CC} hashfns.o linhash.o memcxt.o test.o -o test
 
 clean:
-	rm -f *~ *.o test
+	rm -rf *~ *.o test test.dSYM
+
 
 
 

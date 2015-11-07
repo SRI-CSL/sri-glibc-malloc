@@ -8,7 +8,7 @@ const bool     linhash_multithreaded           = false;
 
 const size_t   linhash_segment_size            = 16; //256;
 const size_t   linhash_initial_directory_size  = 16; //256;
-const size_t   linhash_segments_at_startup     = 16; //256;
+const size_t   linhash_segments_at_startup     = 1;  //256;
 
 const int16_t  linhash_min_load                = 2;   
 const int16_t  linhash_max_load                = 5;
@@ -29,7 +29,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
 
 /* split's the current bin; returns the number of buckets moved to the new bin */
 static size_t linhash_expand_table(linhash_t* lhtbl);
-
+ 
 /* linhash contraction routines */
 static void linhash_contract_check(linhash_t* lhtbl);
 static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt);
@@ -336,7 +336,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
   memcxt = &lhtbl->cfg.memcxt;
 
-  
   /* see if the directory needs to grow  */
   if(lhtbl->directory_size  ==  lhtbl->directory_current){
     //fprintf(stderr, "Expanding directory\n");
@@ -372,7 +371,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     if(lhtbl->p == lhtbl->maxp){
       lhtbl->maxp = lhtbl->maxp << 1;
       lhtbl->p = 0;
-      lhtbl->L += 1;  /* not needed? */
+      lhtbl->L += 1;  /* used as a quick test in contraction */
     }
 
     lhtbl->currentsize += 1;
@@ -429,20 +428,101 @@ static void linhash_contract_check(linhash_t* lhtbl){
     }
 }
 
+/* assumes the non-null segments for an prefix of the directory */
 static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
+  size_t index;
+  size_t oldsz;
+  size_t newsz;
+  size_t currsz;
+  segmentptr* olddir;
+  segmentptr* newdir;
 
+  oldsz = lhtbl->directory_size;
+  currsz = lhtbl->directory_current;
+  newsz = oldsz  >> 1;
+
+  assert(currsz < newsz);
+  
+  olddir = lhtbl->directory;
+  
+  newdir = memcxt->calloc(DIRECTORY, newsz, sizeof(segmentptr));
+  
+  for(index = 0; index < newsz; index++){
+    newdir[index] = olddir[index];
+  }
+
+  lhtbl->directory = newdir;
+  lhtbl->directory_size = newsz;
+  
+  memcxt->free(DIRECTORY, olddir);
+  
 }
 
 static void linhash_contract_table(linhash_t* lhtbl){
+  size_t segsz;
+  size_t segindex;
 
   memcxt_t *memcxt;
 
+  size_t srcindex;
+  bucketptr* srcbucketp;
+
+  bucketptr* tgtbucketp;
+
+  bucketptr src;
+  bucketptr tgt;
+
   memcxt = &lhtbl->cfg.memcxt;
 
-  /* see if the directory needs to contract; iam Q5 need to ensure we don't get unwanted oscilations  */
-  if(lhtbl->directory_size  >  (lhtbl->directory_current >> 1)){
+  /* see if the directory needs to contract; iam Q5 need to ensure we don't get unwanted oscillations  */
+  if((lhtbl->directory_size > lhtbl->cfg.initial_directory_size) && lhtbl->directory_current < lhtbl->directory_size  >> 1){
     linhash_contract_directory(lhtbl,  memcxt);
   }
+
+  /* update the state variables */
+  lhtbl->p -= 1;
+  if(lhtbl->p == -1){
+    lhtbl->maxp = lhtbl->maxp >> 1;
+    lhtbl->p = lhtbl->maxp;
+    lhtbl->L -= 1;  /* used as a quick test in contraction */
+  }
+
+  /* get the two buckets involved; moving src to tgt */
+  srcindex = add_size(lhtbl->maxp, lhtbl->p);
+  srcbucketp = offset2bucketptr(lhtbl, srcindex);
+  src = *srcbucketp;
+  *srcbucketp = NULL;
+
+  tgtbucketp = offset2bucketptr(lhtbl, lhtbl->p);
+  tgt = *tgtbucketp;
+  
+  /* move the buckets */
+  if(src != NULL){
+
+    if(tgt == NULL){
+
+      /* not very likely */
+      *tgtbucketp = src;
+
+    } else {
+      /* easiest is to splice the src bin onto the end of the tgt */
+      while(src->next_bucket != NULL){  src = src->next_bucket; }
+      src->next_bucket = tgt;
+    }
+  }
+
+  /* now check if we can eliminate a segment */
+  segsz = lhtbl->cfg.segment_size;
+
+  segindex = srcindex / segsz;
+
+    if(MOD(srcindex, segsz) == 0){
+      /* ok we can reclaim it */
+      memcxt->free(SEGMENT, lhtbl->directory[segindex]);
+      lhtbl->directory[segindex] = NULL;
+      lhtbl->directory_current -= 1;
+    }
+  
 
 }
 

@@ -1,5 +1,6 @@
 #include "linhash.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 linhash_t numerouno;
@@ -63,6 +64,7 @@ const size_t K2 = K << 1;
 const size_t K4 = K2 << 1;
 
 void test_1(void){
+  bool found;
   size_t index;
   
   void* zoo = calloc(K2, sizeof(char));
@@ -76,7 +78,8 @@ void test_1(void){
   dump_linhash(stderr, &numerouno, true);
     
   for(index = 0; index < K2; index++){
-    linhash_delete(&numerouno, &zoo[index]);
+    found = linhash_delete(&numerouno, &zoo[index]);
+    assert(found);
   }
   
   dump_linhash(stderr, &numerouno, true);
@@ -89,7 +92,7 @@ void test_1(void){
 
 
 void test_2(void){
-
+  bool found;
   size_t index;
   size_t zindex;
 
@@ -120,7 +123,11 @@ void test_2(void){
     void* zoo = menagery[zindex];
   
     for(index = 0; index < K4; index++){
-      linhash_delete(&numerouno, &zoo[index]);
+      found = linhash_delete(&numerouno, &zoo[index]);
+      if(!found){
+	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+      }
+      assert(found);
     }
 
     menagery[zindex] = NULL;
@@ -129,7 +136,7 @@ void test_2(void){
 
   }
   
-  dump_linhash(stderr, &numerouno, false);
+  dump_linhash(stderr, &numerouno, true);
 
   delete_linhash(&numerouno);
 

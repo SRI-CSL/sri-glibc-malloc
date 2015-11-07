@@ -22,7 +22,7 @@ static bool is_power_of_two(uint32_t n);
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
 
 /* returns the abstract offset/index of the bin that should contain p */
-static uint32_t linhash_offset(linhash_t* htbl, const void *p);
+static uint32_t linhash_offset(linhash_t* lhtbl, const void *p);
 
 /* linhash expansion routines */
 static void linhash_expand_check(linhash_t* lhtbl);
@@ -31,17 +31,11 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
 /* split's the current bin; returns the number of buckets moved to the new bin */
 static size_t linhash_expand_table(linhash_t* lhtbl);
  
-/* linhash contraction routines */
-static void linhash_contract_check(linhash_t* lhtbl);
-static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt);
-static void linhash_contract_table(linhash_t* lhtbl);
-
-
 /* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
-static uint32_t linhash_offset(linhash_t* htbl, const void *p);
+static uint32_t linhash_offset(linhash_t* lhtbl, const void *p);
 
 /* returns a pointer to the top bucket at the given offset  */
-static bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset);
+static bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset);
 
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucketptr bucket);
@@ -121,6 +115,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
 extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   size_t index;
+  size_t blen;
   bucketptr* bp;
   
   fprintf(fp, "directory_size = %lu\n", (unsigned long)lhtbl->directory_size);
@@ -133,11 +128,15 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->currentsize));
 
   if(showloads){
+    fprintf(fp, "bucket lengths: ");
     for(index = 0; index < lhtbl->currentsize; index++){
       bp = offset2bucketptr(lhtbl, index);
-      fprintf(stderr, "%zu:%zu ", index, bucket_length(*bp));
+      blen = bucket_length(*bp);
+      if(blen != 0){
+	fprintf(fp, "%zu:%zu ", index, blen);
+      }
     }
-    fprintf(stderr, "\n");
+    fprintf(fp, "\n");
   }
   
 }
@@ -179,24 +178,32 @@ void delete_linhash(linhash_t* lhtbl){
 
 
 /* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
-static uint32_t linhash_offset(linhash_t* htbl, const void *p){
+static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
   uint32_t jhash = jenkins_hash_ptr(p);
-  uint32_t l = MOD(jhash, htbl->maxp);
+  uint32_t l = MOD(jhash, lhtbl->maxp);
 
-  if(l < htbl->p){
-    l = MOD(jhash, 2 * htbl->maxp);
+  if(l < lhtbl->p){
+    l = MOD(jhash, 2 * lhtbl->maxp);
   }
   
   return l;
 }
 
-bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset){
+bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
   segmentptr segment;
   size_t segsz;
+  size_t segindex;
   uint32_t index;
 
-  segsz = htbl->cfg.segment_size;
-  segment = htbl->directory[offset / segsz];
+  assert( offset < lhtbl->currentsize );
+  
+  segsz = lhtbl->cfg.segment_size;
+
+  segindex = offset / segsz;
+
+  assert( segindex < lhtbl->directory_current );
+
+  segment = lhtbl->directory[segindex];
 
   index = MOD(offset, segsz);
 
@@ -208,12 +215,12 @@ bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset){
  *  pointer (in the appropriate segment) to the bucketptr 
  *  where the start of the bucket chain should be for p 
  */
-bucketptr* linhash_fetch_bucket(linhash_t* htbl, const void *p){
+bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
   uint32_t offset;
   
-  offset = linhash_offset(htbl, p);
+  offset = linhash_offset(lhtbl, p);
 
-  return offset2bucketptr(htbl, offset);
+  return offset2bucketptr(lhtbl, offset);
 }
 
 /* check if the table needs to be expanded */
@@ -221,7 +228,6 @@ void linhash_expand_check(linhash_t* lhtbl){
   size_t moved;
   if(lhtbl->count / lhtbl->currentsize > lhtbl->cfg.max_load){
     moved = linhash_expand_table(lhtbl);
-    //fprintf(stderr, "Expanded table moved = %zu\n", moved);
    }
 }
 
@@ -279,7 +285,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
   /* see if the directory needs to grow  */
   if(lhtbl->directory_size  ==  lhtbl->directory_current){
-    //fprintf(stderr, "Expanding directory\n");
     linhash_expand_directory(lhtbl,  memcxt);
   }
 
@@ -312,7 +317,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     if(lhtbl->p == lhtbl->maxp){
       lhtbl->maxp = lhtbl->maxp << 1;
       lhtbl->p = 0;
-      lhtbl->L += 1;  /* used as a quick test in contraction */
+      lhtbl->L += 1; 
     }
 
     lhtbl->currentsize += 1;
@@ -361,107 +366,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
 
 
-static void linhash_contract_check(linhash_t* lhtbl){
-  /* iam Q4: better make sure that immediately after an expansion we don't drop below the min_load!! */
-  if((lhtbl->L > 0) && (lhtbl->count / lhtbl->currentsize < lhtbl->cfg.min_load)){
-      linhash_contract_table(lhtbl);
-    }
-}
-
-/* assumes the non-null segments for an prefix of the directory */
-static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
-  size_t index;
-  size_t oldsz;
-  size_t newsz;
-  size_t currsz;
-  segmentptr* olddir;
-  segmentptr* newdir;
-
-  oldsz = lhtbl->directory_size;
-  currsz = lhtbl->directory_current;
-  newsz = oldsz  >> 1;
-
-  assert(currsz < newsz);
-  
-  olddir = lhtbl->directory;
-  
-  newdir = memcxt->calloc(DIRECTORY, newsz, sizeof(segmentptr));
-  
-  for(index = 0; index < newsz; index++){
-    newdir[index] = olddir[index];
-  }
-
-  lhtbl->directory = newdir;
-  lhtbl->directory_size = newsz;
-  
-  memcxt->free(DIRECTORY, olddir);
-}
-
-static void linhash_contract_table(linhash_t* lhtbl){
-  size_t segsz;
-  size_t segindex;
-
-  memcxt_t *memcxt;
-
-  size_t srcindex;
-  bucketptr* srcbucketp;
-
-  bucketptr* tgtbucketp;
-
-  bucketptr src;
-  bucketptr tgt;
-
-  memcxt = &lhtbl->cfg.memcxt;
-
-  /* see if the directory needs to contract; iam Q5 need to ensure we don't get unwanted oscillations  */
-  if((lhtbl->directory_size > lhtbl->cfg.initial_directory_size) && lhtbl->directory_current < lhtbl->directory_size  >> 1){
-    linhash_contract_directory(lhtbl,  memcxt);
-  }
-
-  /* update the state variables */
-  lhtbl->p -= 1;
-  if(lhtbl->p == -1){
-    lhtbl->maxp = lhtbl->maxp >> 1;
-    lhtbl->p = lhtbl->maxp;
-    lhtbl->L -= 1;  /* used as a quick test in contraction */
-  }
-
-  /* get the two buckets involved; moving src to tgt */
-  srcindex = add_size(lhtbl->maxp, lhtbl->p);
-  srcbucketp = offset2bucketptr(lhtbl, srcindex);
-  src = *srcbucketp;
-  *srcbucketp = NULL;
-
-  tgtbucketp = offset2bucketptr(lhtbl, lhtbl->p);
-  tgt = *tgtbucketp;
-  
-  /* move the buckets */
-  if(src != NULL){
-
-    if(tgt == NULL){
-
-      /* not very likely */
-      *tgtbucketp = src;
-
-    } else {
-      /* easiest is to splice the src bin onto the end of the tgt */
-      while(src->next_bucket != NULL){  src = src->next_bucket; }
-      src->next_bucket = tgt;
-    }
-  }
-
-  /* now check if we can eliminate a segment */
-  segsz = lhtbl->cfg.segment_size;
-
-  segindex = srcindex / segsz;
-
-    if(MOD(srcindex, segsz) == 0){
-      /* ok we can reclaim it */
-      memcxt->free(SEGMENT, lhtbl->directory[segindex]);
-      lhtbl->directory[segindex] = NULL;
-      lhtbl->directory_current -= 1;
-    }
-}
 
 /* iam Q1: what should we do if the thing is already in the table ?            */
 /* iam Q2: should we insert at the front or back or ...                        */
@@ -539,9 +443,6 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
     current_bucketp = current_bucketp->next_bucket;
   }
 
-  /* check to see if we can contract the table; iam Q6: not really needed for EVERY delete */
-  linhash_contract_check(lhtbl);
-
   return found;
 }
 
@@ -577,9 +478,6 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
 
   /* census adjustments */
   lhtbl->count -= count;
-
-  /* check to see if we can contract the table; not really needed for EVERY delete */
-  linhash_contract_check(lhtbl);
 
   return count;
 }

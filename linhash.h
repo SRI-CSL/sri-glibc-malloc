@@ -55,7 +55,7 @@ typedef struct linhash_cfg_s {
 
 /*
 
-  Notes:
+  Notes (ddean, iam):
 
   2^44 bytes on a godzilla machine
   
@@ -63,6 +63,12 @@ typedef struct linhash_cfg_s {
 
   Thus 2^38 <  # of chunks  < 2^40
 
+  If we settle on a segment_size of between 4096 = 2^12  and 262144 = 2^18
+
+  Then  [2^20,  2^26] <= directory_size_max <= [2^22,  2^28]
+
+  
+  Thus 
 
  */
 

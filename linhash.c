@@ -1,4 +1,5 @@
 #include "linhash.h"
+#include "hashfns.h"
 
 #include <assert.h>
 
@@ -46,11 +47,6 @@ static bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset);
 static size_t bucket_length(bucketptr bucket);
 
 
-/* stolen from BD's opus */
-static uint32_t jenkins_hash_uint64(uint64_t x);
-static uint32_t jenkins_hash_ptr(const void *p);
-
-
 /* Fast MOD arithmetic, assuming that y is a power of 2 ! */
 #define MOD(x,y)  ((x) & ((y)-1))
 
@@ -88,41 +84,39 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   assert(is_power_of_two(lhtbl_cfg->initial_directory_size));
 
   
-  // lock for resolving contention  (only when cfg->multithreaded)      
+  /* lock for resolving contention  (only when cfg->multithreaded)   */
   if(lhtbl_cfg->multithreaded){
     pthread_mutex_init(&lhtbl->mutex, NULL);
   }
 
   lhtbl->directory_size = lhtbl_cfg->initial_directory_size;
-  lhtbl->directory_current = linhash_initial_directory_size;
-  
-  // the array of segment pointers
+  lhtbl->directory_current = linhash_initial_directory_size;  //iam: should be linhash_segments_at_startup
+
+  /* the array of segment pointers */
   lhtbl->directory = memcxt->calloc(DIRECTORY, lhtbl->directory_size, sizeof(segmentptr));
 
-  // mininum number of bins    [{ N }]                                     
+  /* mininum number of bins    [{ N }]   */
   lhtbl->N = mul_size(lhtbl_cfg->segment_size, lhtbl->directory_current);
 
-  // the number of times the table has doubled in size  [{ L }]            
+  /* the number of times the table has doubled in size  [{ L }]   */
   lhtbl->L = 0;
 
-  // index of the next bucket due to be split  [{ p :  0 <= p < N * 2^L }] 
+  /* index of the next bucket due to be split  [{ p :  0 <= p < N * 2^L }] */
   lhtbl->p = 0;
 
-  // the total number of records in the table                              
+  /* the total number of records in the table  */
   lhtbl->count = 0;
 
-  // the current limit on the bucket count  [{ N * 2^L }]                  
+  /* the current limit on the bucket count  [{ N * 2^L }] */
   lhtbl->maxp = lhtbl->N;
 
-  // the current number of buckets
+  /* the current number of buckets */
   lhtbl->currentsize = lhtbl->N;
 
-  // create the segments needed by the current directory
-  for(index = 0; index < lhtbl->directory_current; index++){
+  /* create the segments needed by the current directory */
+  for(index = 0; index < lhtbl->directory_current; index++){ //iam: should be linhash_segments_at_startup
     lhtbl->directory[index] = memcxt->calloc(SEGMENT, lhtbl_cfg->segment_size, sizeof(bucketptr));
   }
-
-  
 }
 
 extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
@@ -159,14 +153,13 @@ void delete_linhash(linhash_t* lhtbl){
   memcxt_t *memcxt;
 
   segsz = lhtbl->cfg.segment_size;
-
   memcxt = &lhtbl->cfg.memcxt;
 
   for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
 
     current_segment = lhtbl->directory[segindex];
     
-    //need to cdr down the segment and free the linked list of buckets
+    /* cdr down the segment and free the linked list of buckets */
       for(index = 0; index < segsz; index++){
 	current_bucket = current_segment[index];
 
@@ -175,58 +168,13 @@ void delete_linhash(linhash_t* lhtbl){
 	  next_bucket = current_bucket->next_bucket;
 	  memcxt->free(BUCKET, current_bucket );
 	  current_bucket = next_bucket;
-	  
-
 	}
-
-
       }
-    //now free the segment
+      /* now free the segment */
       memcxt->free(SEGMENT, current_segment );
   }
-
-  memcxt->free(DIRECTORY, lhtbl->directory);
   
-}
-
-
-/* 
- * BD's Jenkins's lookup3 code 
- */
-
-#define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
-
-#define final(a,b,c)      \
-{                         \
-  c ^= b; c -= rot(b,14); \
-  a ^= c; a -= rot(c,11); \
-  b ^= a; b -= rot(a,25); \
-  c ^= b; c -= rot(b,16); \
-  a ^= c; a -= rot(c,4);  \
-  b ^= a; b -= rot(a,14); \
-  c ^= b; c -= rot(b,24); \
-}
-
-/*
- * BD's: Hash code for a 64bit integer
- */
-uint32_t jenkins_hash_uint64(uint64_t x) {
-  uint32_t a, b, c;
-
-  a = (uint32_t) x; // low order bits
-  b = (uint32_t) (x >> 32); // high order bits
-  c = 0xdeadbeef;
-  final(a, b, c);
-
-  return c;
-}
-
-
-/*
- * BD's: Hash code for an arbitrary pointer p
- */
-uint32_t jenkins_hash_ptr(const void *p) {
-  return jenkins_hash_uint64((uint64_t) ((size_t) p));
+  memcxt->free(DIRECTORY, lhtbl->directory);
 }
 
 
@@ -236,13 +184,10 @@ static uint32_t linhash_offset(linhash_t* htbl, const void *p){
   uint32_t l = MOD(jhash, htbl->maxp);
 
   if(l < htbl->p){
-    
     l = MOD(jhash, 2 * htbl->maxp);
-    
   }
   
   return l;
-  
 }
 
 bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset){
@@ -251,13 +196,11 @@ bucketptr* offset2bucketptr(linhash_t* htbl, uint32_t offset){
   uint32_t index;
 
   segsz = htbl->cfg.segment_size;
-  
   segment = htbl->directory[offset / segsz];
 
   index = MOD(offset, segsz);
 
   return &segment[index];
-
 }
 
 
@@ -271,7 +214,6 @@ bucketptr* linhash_fetch_bucket(linhash_t* htbl, const void *p){
   offset = linhash_offset(htbl, p);
 
   return offset2bucketptr(htbl, offset);
-
 }
 
 /* check if the table needs to be expanded */
@@ -310,7 +252,6 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_size = newsz;
 
   memcxt->free(DIRECTORY, olddir);
-
 }
 
 
@@ -416,7 +357,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
   } 
 
   return moved;
-  
 }
 
 
@@ -455,7 +395,6 @@ static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_size = newsz;
   
   memcxt->free(DIRECTORY, olddir);
-  
 }
 
 static void linhash_contract_table(linhash_t* lhtbl){
@@ -522,8 +461,6 @@ static void linhash_contract_table(linhash_t* lhtbl){
       lhtbl->directory[segindex] = NULL;
       lhtbl->directory_current -= 1;
     }
-  
-
 }
 
 /* iam Q1: what should we do if the thing is already in the table ?            */
@@ -550,7 +487,6 @@ void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
 
   /* check to see if we need to exand the table; Q5: not really needed for EVERY insert */
   linhash_expand_check(lhtbl);
-
 }
 
 void *linhash_lookup(linhash_t* lhtbl, const void *key){

@@ -6,9 +6,7 @@
 
 
 static void *default_malloc(memtype_t type, size_t size){
-  void* retval = malloc(size);
-  memset(retval, 0, size);
-  return retval;
+  return malloc(size);
 }
 
 static void *default_calloc(memtype_t type, size_t count, size_t size){

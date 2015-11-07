@@ -84,7 +84,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   }
 
   lhtbl->directory_size = lhtbl_cfg->initial_directory_size;
-  lhtbl->directory_current = linhash_initial_directory_size;  //iam: should be linhash_segments_at_startup
+  lhtbl->directory_current = linhash_segments_at_startup; 
 
   /* the array of segment pointers */
   lhtbl->directory = memcxt->calloc(DIRECTORY, lhtbl->directory_size, sizeof(segmentptr));
@@ -108,7 +108,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->currentsize = lhtbl->N;
 
   /* create the segments needed by the current directory */
-  for(index = 0; index < lhtbl->directory_current; index++){ //iam: should be linhash_segments_at_startup
+  for(index = 0; index < lhtbl->directory_current; index++){ 
     lhtbl->directory[index] = memcxt->calloc(SEGMENT, lhtbl_cfg->segment_size, sizeof(bucketptr));
   }
 }

@@ -136,7 +136,7 @@ void test_2(void){
 
   }
   
-  dump_linhash(stderr, &numerouno, true);
+  dump_linhash(stderr, &numerouno, false);
 
   delete_linhash(&numerouno);
 

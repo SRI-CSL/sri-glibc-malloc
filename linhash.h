@@ -112,7 +112,7 @@ extern void linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
 extern void *linhash_lookup(linhash_t* htbl, const void *key);
 
-/* deletes the first buckets keyed by key; returns true if such a bucket was found; false otherwise */
+/* deletes the first bucket keyed by key; returns true if such a bucket was found; false otherwise */
 extern bool linhash_delete(linhash_t* htbl, const void *key);
 
 /* deletes all buckets keyed by key; returns the number of buckets deleted */

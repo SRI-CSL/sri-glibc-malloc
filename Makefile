@@ -2,8 +2,6 @@
 
 CFLAGS = -Wall -g
 
-# meta.o  dynahash.o
-
 all: test 
 
 %.o: %.c %.h 

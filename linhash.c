@@ -3,18 +3,14 @@
 
 #include <assert.h>
 
-
-
 const bool     linhash_multithreaded           = false;
 
-const size_t   linhash_segment_size            = 256;
+const size_t   linhash_segment_size            = SEGMENT_SIZE;
 const size_t   linhash_initial_directory_size  = 256;
 const size_t   linhash_segments_at_startup     = 256;
 
 const int16_t  linhash_min_load                = 2;   
 const int16_t  linhash_max_load                = 5;
-
-
 
 
 /* static routines */

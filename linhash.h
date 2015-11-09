@@ -13,8 +13,12 @@
 
 #include <stdio.h>
 
-
 #include "memcxt.h"
+
+
+#define SEGMENT_SIZE 256
+
+
 
 
 /* need to make a distinction between bins and buckets  */

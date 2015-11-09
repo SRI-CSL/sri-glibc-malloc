@@ -18,7 +18,6 @@ static void default_free(memtype_t type, void *ptr){
 }
 
 
-
 memcxt_t default_memcxt = { default_malloc,  default_calloc, default_free };
 
 

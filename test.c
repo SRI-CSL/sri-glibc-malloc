@@ -3,7 +3,11 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "pool.h"
+
 linhash_t numerouno;
+
+
 
 
 static void test_0(void);
@@ -13,7 +17,7 @@ static void test_2(void);
 
 
 int main(int argc, char** argv){
-  int tests[] = { 0, 0, 1 };
+  int tests[] = { 1, 0, 0 };
 
   if(tests[0]){ test_0(); }
 
@@ -31,7 +35,7 @@ void test_0(void){
   void* look;
   bool success;
   
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, pool_memcxt);
 
   fprintf(stderr, "key = %p  value = %p\n", &key, &value);
   
@@ -56,6 +60,9 @@ void test_0(void){
   dump_linhash(stderr, &numerouno, true);
 
   delete_linhash(&numerouno);
+
+  dump_pool(stderr);
+ 
 }
 
 
@@ -69,7 +76,7 @@ void test_1(void){
   
   void* zoo = calloc(K2, sizeof(char));
   
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, pool_memcxt);
 
   for(index = 0; index < K2; index++){
     linhash_insert(&numerouno, &zoo[index], &zoo[index]);
@@ -99,7 +106,7 @@ void test_2(void){
   void ** menagery;
   
 
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, pool_memcxt);
 
   menagery = calloc(K4, sizeof(void *));
 

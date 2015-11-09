@@ -16,9 +16,9 @@
 #include "memcxt.h"
 
 
-#define SEGMENT_SIZE 256
+#define SEGMENT_LENGTH 256
 
-
+#define DIRECTORY_LENGTH 1024
 
 
 /* need to make a distinction between bins and buckets  */

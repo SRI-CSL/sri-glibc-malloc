@@ -7,7 +7,7 @@ const bool     linhash_multithreaded           = false;
 
 const size_t   linhash_segment_size            = SEGMENT_LENGTH;
 const size_t   linhash_initial_directory_size  = DIRECTORY_LENGTH;
-const size_t   linhash_segments_at_startup     = 256;
+const size_t   linhash_segments_at_startup     = 1;
 
 const int16_t  linhash_min_load                = 2;   
 const int16_t  linhash_max_load                = 5;
@@ -82,6 +82,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_size = lhtbl_cfg->initial_directory_size;
   lhtbl->directory_current = linhash_segments_at_startup; 
 
+  
   /* the array of segment pointers */
   lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
 
@@ -103,10 +104,13 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   /* the current number of buckets */
   lhtbl->currentsize = lhtbl->N;
 
+
+
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){ 
     lhtbl->directory[index] = memcxt->allocate(SEGMENT, mul_size(lhtbl_cfg->segment_size, sizeof(bucketptr)));
   }
+
 }
 
 extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){

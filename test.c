@@ -17,7 +17,7 @@ static void test_2(void);
 
 
 int main(int argc, char** argv){
-  int tests[] = { 0, 0, 1 };
+  int tests[] = { 1, 0, 0 };
 
   if(tests[0]){ test_0(); }
 
@@ -35,11 +35,14 @@ void test_0(void){
   void* look;
   bool success;
   
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, pool_memcxt);
 
-  fprintf(stderr, "key = %p  value = %p\n", &key, &value);
+  fprintf(stderr, "inserting key = %p  value = %p\n", &key, &value);
   
   linhash_insert(&numerouno, &key, &value);
+
+  fprintf(stderr, "inserted key = %p  value = %p\n", &key, &value);
+  
 
   look = linhash_lookup(&numerouno, &key);
 

@@ -40,13 +40,14 @@ typedef struct segment_pool_s {
 
 
 typedef struct pool_s {
+  size_t dsize;
   void *directory;
   segment_pool_t* segments;
   bucket_pool_t* buckets;
 } pool_t;
 
-//just one for now
-static pool_t the_pool;
+
+
 
 /* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_bucket_pool(bucket_pool_t* bp){
@@ -63,19 +64,12 @@ static void* pool_mmap(size_t size){
   int flags;
   int protection;
 
-  /* beef this up later http://man7.org/tlpi/code/online/dist/mmap/anon_mmap.c.html  */
+  /* beef this up later  */
 
   protection = PROT_READ|PROT_WRITE|MAP_ANON;
   
   flags = MAP_PRIVATE;
   
-  /* Use MAP_NORESERVE if available (Solaris, HP-UX; most other
-   * systems use defered allocation anyway.
-   */
-#ifdef MAP_NORESERVE
-  flags |= MAP_NORESERVE;
-#endif
-
   memory = mmap(0, size, protection, flags, -1, 0);
 
   assert(memory != MAP_FAILED);
@@ -83,6 +77,17 @@ static void* pool_mmap(size_t size){
   return memory;
 }
 
+static void pool_munmap(void* memory, size_t size){
+  int retcode;
+
+  retcode = munmap(memory, size);
+
+  assert(retcode != -1);
+}
+
+
+
+			
 
 static void* new_directory(size_t size){
   return pool_mmap(size);
@@ -109,36 +114,172 @@ static void init_pool(pool_t* pool){
   pool->buckets = new_buckets();
 }
 
-static void bucket_t* alloc_bucket(pool_t* pool){
+static bucket_t* alloc_bucket(pool_t* pool){
+  bucket_t *buckp;
+  bucket_pool_t* bpool_current;
+  bucket_pool_t* bpool_previous;
+  size_t scale;
+  size_t index;
+  
+  bpool_current = pool->buckets;
+  bpool_previous = NULL;
+  buckp = NULL;
+
+  while(bpool_current != NULL){
+
+    if(bpool_current->free_count > 0){
+
+      scale = 0;
+      index = 0;
+
+      /* let go through the blocks looking for a free bucket */
+      while(scale < bp_scale){
+
+	if(bpool_current->bitmasks[scale] < UINT64_MAX){
+
+	  /* ok there should be one here; lets find it */
+	  while(index < 64){
+
+	
+	    if((bpool_current->bitmasks[scale] & (1 << index)) == 0){
+	      /* ok we can use this one */
+
+	      buckp = &bpool_current->pool[(scale * 64) + index];
+	      
+	      bpool_current->bitmasks[scale] |=  (1 << index);
+	      bpool_current->free_count -= 1;
+
+	      break;
+
+	    } else {
+	      index += 1;
+	    }
+      
+
+	  }
+	  
+	  assert(buckp != NULL);
+	  break;
+	  
+	} else {
+
+	  /* move on to the next block */
+	  scale += 1;
+	  
+	}
+
+      }
+	
+    } else {
+      bpool_previous = bpool_current;
+      bpool_current = bpool_current->next_bucket_pool;
+    }
+  }
+
+  if(buckp == NULL){
+    /* need to allocate another bpool */
+
+    assert(bpool_current  == NULL);
+    assert(bpool_previous != NULL);
+
+
+    /* TBD */
+
+  } 
+
+  return buckp;
 
 }
 
-static void void free_bucket(pool_t* pool, bucket_t* buckp){
+static bool free_bucket(pool_t* pool, bucket_t* buckp){
+  bool seen;
+  bucket_pool_t* bpool;
 
+  size_t index;
+  size_t pmask_index;
+  size_t mask;
+  uint64_t pmask;
+
+  
+  assert(pool != NULL);
+  assert(buckp != NULL);
+  
+  bpool = pool->buckets;
+  seen = false;
+
+  
+  while ( bpool != NULL ){
+
+    if( (bpool->pool <= buckp) && (buckp < bpool->pool + bp_length) ){
+
+      index = buckp - bpool->pool;
+      pmask_index = index / 64;
+      pmask = bpool->bitmasks[pmask_index];
+      mask = 1 << (index / bp_scale);
+
+      assert(mask & pmask);
+
+      bpool->bitmasks[pmask_index] = ~mask & pmask;
+      bpool->free_count += 1;
+
+      assert((bpool->free_count > 0) && (bpool->free_count <= bp_length));
+
+    } else {
+
+      bpool = bpool->next_bucket_pool; 
+
+    } 
+  }
+  
+  return seen;
+  
 }
 
-static void *pool_malloc(memtype_t type, size_t size);
+//just one for now
+static bool the_pool_is_ok = false;
+static pool_t the_pool;
 
-static void *pool_calloc(memtype_t type, size_t count, size_t size);
+static void check_pool(void){
+  if(!the_pool_is_ok){
+    init_pool(&the_pool);
+    the_pool_is_ok = true;
+  }
+}
 
-static void pool_free(memtype_t type, void *ptr);
+static void *pool_allocate(memtype_t type, size_t size);
 
-memcxt_t _pool_memcxt = { pool_malloc,  pool_calloc, pool_free };
+static void pool_release(memtype_t type, void *ptr, size_t size);
+
+memcxt_t _pool_memcxt = { pool_allocate, pool_release };
 
 memcxt_p pool_memcxt = &_pool_memcxt;
 
 
 
-static void *pool_malloc(memtype_t type, size_t size){
+static void *pool_allocate(memtype_t type, size_t size){
+  check_pool();
   return malloc(size);
 }
 
-static void *pool_calloc(memtype_t type, size_t count, size_t size){
-  return calloc(count, size);
-}
 
-static void pool_free(memtype_t type, void *ptr){
-  free(ptr);
+static void pool_release(memtype_t type, void *ptr, size_t size){
+  check_pool();
+  switch(type){
+  case DIRECTORY: {
+    // not sure if maintaining the directory pointer makes much sense.
+    // which enforces what: pool/linhash?
+    pool_munmap(ptr, size);
+
+    break;
+  }
+  case SEGMENT: break;
+  case BUCKET: {
+    free_bucket(&the_pool, ptr);
+    break;
+  }
+  default: assert(false);
+  }
+  
 }
 
 

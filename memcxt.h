@@ -17,9 +17,8 @@ typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
 
 
 typedef struct memcxt_s {
-  void *(*malloc)(memtype_t, size_t);
-  void *(*calloc)(memtype_t, size_t, size_t);
-  void (*free)(memtype_t, void*);
+  void *(*allocate)(memtype_t, size_t);
+  void (*release)(memtype_t, void*, size_t);
 } memcxt_t;
 
 typedef memcxt_t* memcxt_p;

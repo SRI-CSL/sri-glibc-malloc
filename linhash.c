@@ -83,7 +83,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_current = linhash_segments_at_startup; 
 
   /* the array of segment pointers */
-  lhtbl->directory = memcxt->calloc(DIRECTORY, lhtbl->directory_size, sizeof(segmentptr));
+  lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
 
   /* mininum number of bins    [{ N }]   */
   lhtbl->N = mul_size(lhtbl_cfg->segment_size, lhtbl->directory_current);
@@ -105,7 +105,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){ 
-    lhtbl->directory[index] = memcxt->calloc(SEGMENT, lhtbl_cfg->segment_size, sizeof(bucketptr));
+    lhtbl->directory[index] = memcxt->allocate(SEGMENT, mul_size(lhtbl_cfg->segment_size, sizeof(bucketptr)));
   }
 }
 
@@ -154,22 +154,22 @@ void delete_linhash(linhash_t* lhtbl){
 
     current_segment = lhtbl->directory[segindex];
     
-    /* cdr down the segment and free the linked list of buckets */
+    /* cdr down the segment and release the linked list of buckets */
       for(index = 0; index < segsz; index++){
 	current_bucket = current_segment[index];
 
 	while(current_bucket != NULL){
 
 	  next_bucket = current_bucket->next_bucket;
-	  memcxt->free(BUCKET, current_bucket );
+	  memcxt->release(BUCKET, current_bucket, sizeof(bucket_t));
 	  current_bucket = next_bucket;
 	}
       }
-      /* now free the segment */
-      memcxt->free(SEGMENT, current_segment );
+      /* now release the segment */
+      memcxt->release(SEGMENT, current_segment,  mul_size(lhtbl->cfg.segment_size, sizeof(bucketptr)));
   }
   
-  memcxt->free(DIRECTORY, lhtbl->directory);
+  memcxt->release(DIRECTORY, lhtbl->directory, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
 }
 
 
@@ -244,7 +244,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  newdir = memcxt->calloc(DIRECTORY, newsz, sizeof(segmentptr));
+  newdir = memcxt->allocate(DIRECTORY, mul_size(newsz, sizeof(segmentptr)));
 
   for(index = 0; index < oldsz; index++){
     newdir[index] = olddir[index];
@@ -253,7 +253,7 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_size = newsz;
 
-  memcxt->free(DIRECTORY, olddir);
+  memcxt->release(DIRECTORY, olddir, mul_size(oldsz, sizeof(segmentptr)));
 }
 
 
@@ -299,7 +299,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     /* expand address space; if necessary create new segment */
     if(MOD(newaddr, segsz) == 0){
       if(lhtbl->directory[newindex] == NULL){
-	lhtbl->directory[newindex] = memcxt->calloc(SEGMENT, segsz, sizeof(bucketptr));
+	lhtbl->directory[newindex] = memcxt->allocate(SEGMENT, mul_size(segsz, sizeof(bucketptr)));
 	lhtbl->directory_current += 1;
       }
     }
@@ -373,7 +373,7 @@ void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
 
   binp = linhash_fetch_bucket(lhtbl, key);
 
-  newbucket = lhtbl->cfg.memcxt.malloc(BUCKET, sizeof(bucket_t));
+  newbucket = lhtbl->cfg.memcxt.allocate(BUCKET, sizeof(bucket_t));
 
   newbucket->key = (void *)key;
   newbucket->value = (void *)value;
@@ -428,7 +428,7 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
       } else {
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
-      lhtbl->cfg.memcxt.free(BUCKET, current_bucketp);
+      lhtbl->cfg.memcxt.release(BUCKET, current_bucketp, sizeof(bucket_t));
 
       /* census adjustments */
       lhtbl->count--;
@@ -465,7 +465,7 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
       }
       temp_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
-      lhtbl->cfg.memcxt.free(BUCKET, temp_bucketp);
+      lhtbl->cfg.memcxt.release(BUCKET, temp_bucketp, sizeof(bucket_t));
     } else {
       previous_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;

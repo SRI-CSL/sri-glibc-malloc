@@ -5,20 +5,20 @@
 #include <string.h>
 
 
-static void *default_malloc(memtype_t type, size_t size){
-  return malloc(size);
+static void *default_allocate(memtype_t type, size_t size){
+  void* mem;
+  mem = malloc(size);
+  memset(mem, 0, size);
+  return mem;
 }
 
-static void *default_calloc(memtype_t type, size_t count, size_t size){
-  return calloc(count, size);
-}
 
-static void default_free(memtype_t type, void *ptr){
+static void default_release(memtype_t type, void *ptr, size_t ptr_sz){
   free(ptr);
 }
 
 
-memcxt_t default_memcxt = { default_malloc,  default_calloc, default_free };
+memcxt_t default_memcxt = { default_allocate, default_release };
 
 
 memcxt_p sys_memcxt = &default_memcxt;

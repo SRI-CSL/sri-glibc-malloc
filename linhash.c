@@ -14,7 +14,6 @@ const uint16_t  linhash_max_load                = 5;
 
 
 /* static routines */
-static bool is_power_of_two(uint32_t n);
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
 
 /* linhash expansion routines */
@@ -39,10 +38,11 @@ static size_t bucket_length(bucketptr bucket);
 #define MOD(x,y)  ((x) & ((y)-1))
 
 /* for sanity checking */
+#ifndef NDEBUG
 static bool is_power_of_two(uint32_t n) {
   return (n & (n - 1)) == 0;
 }
-
+#endif
 
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
   cfg->multithreaded          = linhash_multithreaded;

@@ -16,29 +16,16 @@ static void test_2(memcxt_p memcxt);
 
 
 int main(int argc, char** argv){
+  memcxt_p memcxt;
   int tests[] = { 0, 0, 1};
 
-  if(argc > 1){
-
-    if(tests[0]){ test_0(sys_memcxt); }
-
-    if(tests[1]){ test_1(sys_memcxt); }
-
-    if(tests[2]){ test_2(sys_memcxt); }
+  memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
     
+  if(tests[0]){ test_0(memcxt); }
+  
+  if(tests[1]){ test_1(memcxt); }
 
-
-  } else {
-
-    if(tests[0]){ test_0(pool_memcxt); }
-
-    if(tests[1]){ test_1(pool_memcxt); }
-
-    if(tests[2]){ test_2(pool_memcxt); }
-
-
-  }
- 
+  if(tests[2]){ test_2(memcxt); }
   
   return 0;
 }

@@ -7,8 +7,6 @@
 #include "linhash.h"
 #include "memcxt.h"
 
-//BD: use gcc built ins for bit manipulations:  ~/Repositories/GitHub/yices2/src/utils/bit_tricks.h
-
 #define BP_SCALE  1024
 /* one thing for every bit in the bitmask */
 #define BP_LENGTH  BP_SCALE * 64  

@@ -4,19 +4,19 @@
 #include <stdlib.h>
 
 #include "pool.h"
+#include "memcxt.h"
 
 linhash_t numerouno;
 
 
-
-static void test_0(memcxt_p memcxt);
-static void test_1(memcxt_p memcxt);
-static void test_2(memcxt_p memcxt);
+static void test_0(memcxt_t* memcxt);
+static void test_1(memcxt_t* memcxt);
+static void test_2(memcxt_t* memcxt);
 
 
 
 int main(int argc, char** argv){
-  memcxt_p memcxt;
+  memcxt_t* memcxt;
   int tests[] = { 0, 0, 1};
 
   memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
@@ -31,7 +31,7 @@ int main(int argc, char** argv){
 }
 
 
-void test_0(memcxt_p memcxt){
+void test_0(memcxt_t* memcxt){
   int key, value;
   void* look;
   bool success;
@@ -71,7 +71,7 @@ const size_t K = 1024;
 const size_t K2 = K << 1;
 const size_t K4 = K2 << 1;
 
-void test_1(memcxt_p memcxt){
+void test_1(memcxt_t* memcxt){
   bool found;
   size_t index;
   
@@ -99,7 +99,7 @@ void test_1(memcxt_p memcxt){
 }
 
 
-void test_2(memcxt_p memcxt){
+void test_2(memcxt_t* memcxt){
   bool found;
   size_t index;
   size_t zindex;

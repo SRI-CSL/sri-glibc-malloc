@@ -1,7 +1,9 @@
+#include <assert.h>
+
 #include "linhash.h"
 #include "hashfns.h"
+#include "memcxt.h"
 
-#include <assert.h>
 
 const bool     linhash_multithreaded           = false;
 
@@ -33,10 +35,6 @@ static bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucketptr bucket);
 
-
-/* Fast MOD arithmetic, assuming that y is a power of 2 ! BD use an inline function */
-#define MOD(x,y)  ((x) & ((y)-1))
-
 /* for sanity checking */
 #ifndef NDEBUG
 static bool is_power_of_two(uint32_t n) {
@@ -44,13 +42,20 @@ static bool is_power_of_two(uint32_t n) {
 }
 #endif
 
+/* Fast modulo arithmetic, assuming that y is a power of 2 */
+static inline size_t mod_power_of_two(size_t x, size_t y){
+  assert(is_power_of_two(y));
+  return x & (y - 1);
+}
+
+
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
   cfg->multithreaded          = linhash_multithreaded;
   cfg->segment_size           = linhash_segment_size;
   cfg->initial_directory_size = linhash_initial_directory_size;
   cfg->min_load               = linhash_min_load;   
   cfg->max_load               = linhash_max_load;
-  cfg->memcxt                 = *memcxt;
+  cfg->memcxt                 = memcxt;
   cfg->directory_size_max     = UINT32_MAX;
   cfg->address_max            = mul_size(cfg->directory_size_max, cfg->segment_size);
 }
@@ -71,7 +76,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   assert(is_power_of_two(lhtbl_cfg->initial_directory_size));
 
-  
+
   /* lock for resolving contention  (only when cfg->multithreaded)   */
   if(lhtbl_cfg->multithreaded){
     pthread_mutex_init(&lhtbl->mutex, NULL);
@@ -102,7 +107,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   /* the current number of buckets */
   lhtbl->currentsize = lhtbl->N;
 
-
+  assert(is_power_of_two(lhtbl->maxp));
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){ 
@@ -150,7 +155,7 @@ void delete_linhash(linhash_t* lhtbl){
   memcxt_t *memcxt;
 
   segsz = lhtbl->cfg.segment_size;
-  memcxt = &lhtbl->cfg.memcxt;
+  memcxt = lhtbl->cfg.memcxt;
 
   for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
 
@@ -177,13 +182,22 @@ void delete_linhash(linhash_t* lhtbl){
 
 /* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
 static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
-  uint32_t jhash = jenkins_hash_ptr(p);
-  uint32_t l = MOD(jhash, lhtbl->maxp);
+  uint32_t jhash;
+  uint32_t l;
+  size_t next_maxp;
 
-  //BD assert that 2 * lhtbl->maxp is not going to overflow
   
+  jhash  = jenkins_hash_ptr(p);
+
+  l = mod_power_of_two(jhash, lhtbl->maxp);
+
   if(l < lhtbl->p){
-    l = MOD(jhash, 2 * lhtbl->maxp);
+
+    next_maxp = lhtbl->maxp << 1;
+
+    assert(next_maxp < lhtbl->cfg.directory_size_max);
+	   
+    l = mod_power_of_two(jhash, next_maxp);
   }
   
   return l;
@@ -205,7 +219,7 @@ bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
 
   segment = lhtbl->directory[segindex];
 
-  index = MOD(offset, segsz);
+  index = mod_power_of_two(offset, segsz);
 
   return &segment[index];
 }
@@ -245,6 +259,8 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   newsz = oldsz  << 1;
 
+  assert(newsz  < lhtbl->cfg.directory_size_max);
+
   olddir = lhtbl->directory;
 
   newdir = memcxt->allocate(DIRECTORY, mul_size(newsz, sizeof(segmentptr)));
@@ -275,10 +291,13 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
   size_t newsegindex;
   memcxt_t *memcxt;
 
-  memcxt = &lhtbl->cfg.memcxt;
+  memcxt = lhtbl->cfg.memcxt;
 
+  moved = 0;
+  
+  newaddr = add_size(lhtbl->maxp, lhtbl->p);
 
-  //BD  need to make assertions about sizes
+  assert(newaddr < lhtbl->cfg.address_max);
   
 
   /* see if the directory needs to grow  */
@@ -286,9 +305,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     linhash_expand_directory(lhtbl,  memcxt);
   }
 
-  moved = 0;
-  
-  newaddr = add_size(lhtbl->maxp, lhtbl->p);
 
   if(newaddr < lhtbl->cfg.address_max){
 
@@ -298,18 +314,17 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
     newindex = newaddr / segsz;
 
+    newsegindex = mod_power_of_two(newaddr, segsz);  
+    
     /* expand address space; if necessary create new segment */  
-    if(MOD(newaddr, segsz) == 0){
-      if(lhtbl->directory[newindex] == NULL){  //BD should be a conjunction not a nested if.
-	lhtbl->directory[newindex] = memcxt->allocate(SEGMENT, mul_size(segsz, sizeof(bucketptr)));
-	lhtbl->directory_current += 1;
-      }
+    if((newsegindex == 0) && (lhtbl->directory[newindex] == NULL)){  
+      lhtbl->directory[newindex] = memcxt->allocate(SEGMENT, mul_size(segsz, sizeof(bucketptr)));
+      lhtbl->directory_current += 1;
     }
 
     /* location of the new bucket */
     newseg = lhtbl->directory[newindex];
-    newsegindex = MOD(newaddr, segsz);  //shouldn't need to recompute this.
-      
+   
     /* update the state variables */
     lhtbl->p += 1;
     if(lhtbl->p == lhtbl->maxp){
@@ -375,7 +390,7 @@ void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
 
   binp = linhash_fetch_bucket(lhtbl, key);
 
-  newbucket = lhtbl->cfg.memcxt.allocate(BUCKET, sizeof(bucket_t));
+  newbucket = lhtbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
 
   newbucket->key = (void *)key;
   newbucket->value = (void *)value;
@@ -430,7 +445,7 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
       } else {
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
-      lhtbl->cfg.memcxt.release(BUCKET, current_bucketp, sizeof(bucket_t));
+      lhtbl->cfg.memcxt->release(BUCKET, current_bucketp, sizeof(bucket_t));
 
       /* census adjustments */
       lhtbl->count--;
@@ -468,7 +483,7 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
       }
       temp_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
-      lhtbl->cfg.memcxt.release(BUCKET, temp_bucketp, sizeof(bucket_t));
+      lhtbl->cfg.memcxt->release(BUCKET, temp_bucketp, sizeof(bucket_t));
     } else {
       previous_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;

@@ -5,9 +5,9 @@
 #include <sys/mman.h>
 
 #include "linhash.h"
+#include "memcxt.h"
 
 //BD: use gcc built ins for bit manipulations:  ~/Repositories/GitHub/yices2/src/utils/bit_tricks.h
-//BD: the empty pool should be put at the front of the chain!!!
 
 const size_t bp_scale = 1024;
 const size_t bp_length = bp_scale * 64;  /* one thing for every bit in the bitmask */
@@ -21,17 +21,17 @@ typedef struct segment_s {
 } segment_t;
 
 struct bucket_pool_s {
-  bucket_t pool[bp_length];
-  uint64_t bitmasks[bp_scale];    /* zero means: free; one means: in use */
-  size_t free_count;
-  void* next_bucket_pool;
+  bucket_t pool[bp_length];       /* the pool of buckets; one for each bit in the bitmask array */
+  uint64_t bitmasks[bp_scale];    /* the array of bitmasks; zero means: free; one means: in use */
+  size_t free_count;              /* the current count of free buckets in this pool             */
+  void* next_bucket_pool;         /* the next bucket pool to look if this one is full           */
 };
 
 typedef struct segment_pool_s {
-  segment_t pool[sp_length];
-  uint64_t bitmasks[sp_scale];   /* zero means: free; one means: in use */
-  size_t free_count;
-  void* next_segment_pool;
+  segment_t pool[sp_length];      /* the pool of segments; one for each bit in the bitmask array */
+  uint64_t bitmasks[sp_scale];    /* the array of bitmasks; zero means: free; one means: in use  */
+  size_t free_count;              /* the current count of free segments in this pool             */
+  void* next_segment_pool;        /* the next segment pool to look if this one is full           */
 }  segment_pool_t;
 
 
@@ -50,7 +50,9 @@ static bool sane_bucket_pool(bucket_pool_t* bpool);
 static void init_bucket_pool(bucket_pool_t* bp){
   size_t scale;
   size_t bindex;
+
   bp->free_count = bp_length;
+
   for(scale = 0; scale < bp_scale; scale++){
     bp->bitmasks[scale] = 0;
   }
@@ -77,12 +79,11 @@ static void* pool_mmap(size_t size){
   int flags;
   int protection;
 
-    /* beef this up later  */
+  /* beef this up later  */
 
   protection = PROT_READ | PROT_WRITE;
-  
   flags = MAP_PRIVATE | MAP_ANON;
-  
+
   memory = mmap(0, size, protection, flags, -1, 0);
 
   assert(memory != MAP_FAILED);
@@ -90,7 +91,6 @@ static void* pool_mmap(size_t size){
   if(memory == MAP_FAILED){
     memory = NULL;
   }
-  
 
   return memory;
 }
@@ -99,7 +99,6 @@ static void pool_munmap(void* memory, size_t size){
   int retcode;
 
   retcode = munmap(memory, size);
-
   assert(retcode != -1);
 }
 
@@ -131,6 +130,7 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
   size_t free_count;
   size_t bit_free_count;
   size_t scale;
+  size_t bindex;
   uint64_t bit;
   uint64_t mask;
   
@@ -140,7 +140,7 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
   for(scale = 0; scale < bp_scale; scale++){
     mask = bpool->bitmasks[scale];
     for(bit = 0; bit < 64; bit++){
-      if((mask & (1ull << bit)) == 0){
+      if((mask & (((uint64_t)1) << bit)) == 0){
 	bit_free_count++;
       }
     }
@@ -152,6 +152,13 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
       fprintf(stderr, "\tbpool_current->bitmasks[%zu] = %llu\n", scale, bpool->bitmasks[scale]);
     }
     return false;
+  }
+
+  for(bindex = 0; bindex < bp_length; bindex++){
+    if(bpool->pool[bindex].bucket_pool_ptr != bpool){
+      fprintf(stderr, "sane_bucket_pool: bucket_pool_ptr = %p not correct:  bucket_pool_t* %p\n",
+	      bpool->pool[bindex].bucket_pool_ptr, bpool);
+    }
   }
 
   return true;
@@ -168,6 +175,56 @@ static void init_pool(pool_t* pool){
   pool->directory = new_directory(DIRECTORY_LENGTH * sizeof(void*));
   pool->segments = new_segments();
   pool->buckets = new_buckets();
+}
+
+
+// courtesy of BD 
+#if  __has_builtin(__builtin_ctzl)
+
+static inline uint32_t ctz64(uint64_t x) {
+  assert(x != 0);
+  return __builtin_ctzl(x);
+}
+
+#else
+
+static inline uint32_t ctz64(uint64_t x) {
+  uint64_t m;
+  uint32_t i;
+
+  assert(x != 0);
+  m = 1;
+  i = 0;
+  while ((x & m) == 0) {
+    i ++;
+    m += m;
+  }
+  return i;
+}
+
+#endif
+
+/* returns the index of the lowest order bit that is zero */
+static uint32_t get_free_bit(uint64_t mask){
+  uint32_t index;
+  uint64_t flipped;
+  assert(mask != UINT64_MAX);
+  flipped = ~mask;
+  index = ctz64(flipped);  
+  return index;
+}
+
+#ifndef NDEBUG
+static inline bool get_bit(uint64_t mask, uint32_t index){
+  assert((0 <= index) && (index < 64));
+  return (mask & (((uint64_t)1) << index))  ? true : false;
+}
+#endif
+
+/* sets the bit specified by the index in the mask */
+static inline uint64_t set_bit(uint64_t mask, uint32_t index, bool val){
+  assert((0 <= index) && (index < 64));
+  return mask | (((uint64_t)1) << index);
 }
 
 static bucket_t* alloc_bucket(pool_t* pool){
@@ -187,55 +244,34 @@ static bucket_t* alloc_bucket(pool_t* pool){
 
     if(bpool_current->free_count > 0){
 
-      scale = 0;
-      index = 0;
-
       /* lets go through the blocks looking for a free bucket */
-      while(scale < bp_scale){
+      for(scale = 0; scale < bp_scale; scale++)
 	
 	if(bpool_current->bitmasks[scale] < UINT64_MAX){
 
-	  //fprintf(stderr, "alloc_bucket: bpool_current->bitmasks[%zu] = %llu < %llu\n", scale, bpool_current->bitmasks[scale], UINT64_MAX);
-
 	  /* ok there should be one here; lets find it */
-	  while(index < 64){ //BD should be a for loop. also keep track of the shift mask, so only need to shift by one.
+	  index = get_free_bit(bpool_current->bitmasks[scale]);
 
-	    //fprintf(stderr, "alloc_bucket: scale = %zu, index = %zu\n", scale, index);
+	  assert((0 <= index) && (index < 64));
+	  buckp = &bpool_current->pool[(scale * 64) + index];
+	  bpool_current->bitmasks[scale] = set_bit(bpool_current->bitmasks[scale], index, true);
+	  bpool_current->free_count -= 1;
+	  assert(sane_bucket_pool(bpool_current));
 
-	    if((bpool_current->bitmasks[scale] & (((uint64_t)1) << index)) == 0){
-	      /* ok we can use this one */
-
-	      buckp = &bpool_current->pool[(scale * 64) + index];
-	      bpool_current->bitmasks[scale] |= (((uint64_t)1) << index);
-	      bpool_current->free_count -= 1;
-	      assert(sane_bucket_pool(bpool_current));
-
-	      break;
-
-	    } else {
-	      index += 1;
-	    }
-	  }
-	  
 	  assert(buckp != NULL);
 	  break;
 	  
-	} else {
-	  /* move on to the next block */
-	  scale += 1;
 	}
-      }
 
       if(buckp != NULL){
 	break;
       }
 
-
     } else {
       bpool_previous = bpool_current;
       bpool_current = bpool_current->next_bucket_pool;
     }
-
+    
   }
 
   if(buckp == NULL){
@@ -245,12 +281,12 @@ static bucket_t* alloc_bucket(pool_t* pool){
     assert(bpool_previous != NULL);
 
     bpool_current = new_buckets();
-    //put the new bucket up front
+
+    /* put the new bucket up front */
     bpool_current->next_bucket_pool = pool->buckets;
     pool->buckets = bpool_current;
     
-    //bpool_previous->next_bucket_pool = bpool_current;
-
+    /* return the first bucket of the new pool */
     buckp = &bpool_current->pool[0];
     bpool_current->free_count -= 1;
     bpool_current->bitmasks[0] = 1;
@@ -267,70 +303,33 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
 
   size_t index;
   size_t pmask_index;
-  size_t mask;  //BD  all "mask" arguments 
+  uint32_t pmask_bit;
   uint64_t pmask;
 
   
   assert(pool != NULL);
   assert(buckp != NULL);
 
-
+  /* get the bucket pool that we belong to */
   bpool = buckp->bucket_pool_ptr;
 
-
+  /* sanity check */
   assert((bpool->pool <= buckp) && (buckp < bpool->pool + bp_length));
 
   index = buckp - bpool->pool;
 
-  //fprintf(stderr, "free_bucket: index = %zu\n", index);
-  
   pmask_index = index / 64;
   pmask = bpool->bitmasks[pmask_index];
-  mask = ((uint64_t)1) << (index % 64);
+  pmask_bit = index % 64;
 
-  assert(mask & pmask);
-  
-  bpool->bitmasks[pmask_index] = ~mask & pmask;
+  assert(get_bit(pmask, pmask_bit)); 
+	 
+  bpool->bitmasks[pmask_index] = set_bit(bpool->bitmasks[pmask_index], pmask_bit, false); 
+
   bpool->free_count += 1;
   
   assert((bpool->free_count > 0) && (bpool->free_count <= bp_length));
   seen = true;
-  
-  /*
-  bpool = pool->buckets;
-  seen = false;
-
-  //fprintf(stderr, "free_bucket: buckp = %p\n", buckp);
-  
-  while ( bpool != NULL ){
-
-    if( (bpool->pool <= buckp) && (buckp < bpool->pool + bp_length) ){
-
-      index = buckp - bpool->pool;
-
-      //fprintf(stderr, "free_bucket: index = %zu\n", index);
-      
-      pmask_index = index / 64;
-      pmask = bpool->bitmasks[pmask_index];
-      mask = ((uint64_t)1) << (index % 64);
-
-      assert(mask & pmask);
-
-      bpool->bitmasks[pmask_index] = ~mask & pmask;
-      bpool->free_count += 1;
-
-      assert((bpool->free_count > 0) && (bpool->free_count <= bp_length));
-      seen = true;
-      
-    } else {
-
-      bpool = bpool->next_bucket_pool; 
-    }
-
-    if(seen){ break; }
-    
-  }
-  */
   
   return seen;
 }
@@ -353,45 +352,27 @@ static segment_t* alloc_segment(pool_t* pool){
 
     if(spool_current->free_count > 0){
 
-      scale = 0;
-      index = 0;
-
       /* lets go through the blocks looking for a free segment */
-      while(scale < sp_scale){
+      for(scale = 0; scale < sp_scale; scale++){
 
-	//fprintf(stderr, "alloc_segment: scale = %zu, index = %zu, mask = %llu (%llu)\n", scale, index, spool_current->bitmasks[scale], UINT64_MAX);
- 
 	if(spool_current->bitmasks[scale] < UINT64_MAX){
 
 	  /* ok there should be one here; lets find it */
-	  while(index < 64){
+	  index = get_free_bit(spool_current->bitmasks[scale]);
 
-	    //fprintf(stderr, "alloc_segment: scale = %zu, index = %zu\n", scale, index);
+	  assert((0 <= index) && (index < 64));
 
-	    if((spool_current->bitmasks[scale] & (((uint64_t)1) << index)) == 0){
-	      /* ok we can use this one */
+	  /* ok we can use this one */
+	  segp = &spool_current->pool[(scale * 64) + index];
+	  spool_current->bitmasks[scale] = set_bit(spool_current->bitmasks[scale], index, true);
+	  spool_current->free_count -= 1;
 
-	      //fprintf(stderr, "alloc_segment: CHOOSING scale = %zu, index = %zu\n", scale, index);
-	      segp = &spool_current->pool[(scale * 64) + index];
-	      spool_current->bitmasks[scale] |=  (((uint64_t)1) << index);
-	      spool_current->free_count -= 1;
-	      break;
-
-	    } else {
-	      index += 1;
-	    }
-	  }
-	  
 	  assert(segp != NULL);
 	  break;
 	  
-	} else {
-
-	  /* move on to the next block */
-	  scale += 1;
 	}
       }
-
+      
       if(segp != NULL){ break; }
       
     } else {
@@ -406,27 +387,30 @@ static segment_t* alloc_segment(pool_t* pool){
     assert(spool_current  == NULL);
     assert(spool_previous != NULL);
 
+    
     spool_current = new_segments();
-    //put the new segment up front
+
+    /* put the new segment up front */
     spool_current->next_segment_pool = pool->segments;
     pool->segments = spool_current;
-    
+
+    /* return the first segment in the new pool */
     segp = &spool_current->pool[0];
     spool_current->free_count -= 1;
     spool_current->bitmasks[0] = 1;
   } 
 
-  //fprintf(stderr, "alloc_segment: returning %p\n", segp);
   return segp;
 }
 
+/* if we start making a habit of freeing segments we might want to consider BD's  bucket_pool_ptr trick */
 static bool free_segment(pool_t* pool, segment_t* segp){
   bool seen;
   segment_pool_t* spool;
 
   size_t index;
   size_t pmask_index;
-  size_t mask;
+  uint32_t pmask_bit;
   uint64_t pmask;
 
   
@@ -443,11 +427,11 @@ static bool free_segment(pool_t* pool, segment_t* segp){
       index = segp - spool->pool;
       pmask_index = index / 64;
       pmask = spool->bitmasks[pmask_index];
-      mask = ((uint64_t)1) << (index % 64);
+      pmask_bit = index % 64;
 
-      assert(mask & pmask);
+      assert(get_bit(pmask, pmask_bit)); 
 
-      spool->bitmasks[pmask_index] = ~mask & pmask;
+      spool->bitmasks[pmask_index] = set_bit(spool->bitmasks[pmask_index], pmask_bit, false); 
       spool->free_count += 1;
 
       assert((spool->free_count > 0) && (spool->free_count <= sp_length));
@@ -465,7 +449,7 @@ static bool free_segment(pool_t* pool, segment_t* segp){
   return seen;
 }
 
-//just one for now
+/* just one for now */
 static bool the_pool_is_ok = false;
 static pool_t the_pool;
 
@@ -482,19 +466,19 @@ static void pool_release(memtype_t type, void *ptr, size_t size);
 
 memcxt_t _pool_memcxt = { pool_allocate, pool_release };
 
-memcxt_p pool_memcxt = &_pool_memcxt;
+memcxt_t *pool_memcxt = &_pool_memcxt;
 
 
 size_t pcount = 0;
 
 static void *pool_allocate(memtype_t type, size_t size){
   void *memory;
-  //fprintf(stderr, ">pool_allocate %d   %zu\n",  type, pcount++);
   check_pool();
   switch(type){
   case DIRECTORY: {
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
+    // how many hash tables use this pool?
     memory = new_directory(size);
     the_pool.directory = memory;
     break;
@@ -510,7 +494,6 @@ static void *pool_allocate(memtype_t type, size_t size){
   default: assert(false);
     memory = NULL;
   }
-  //fprintf(stderr, "<pool_allocate %d\n",   type);
   return memory;
 }
 

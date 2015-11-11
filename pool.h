@@ -3,12 +3,10 @@
 
 #include <stdio.h>
 
-#include "memcxt.h"
+#include "types.h"
 
 
-
-
-extern memcxt_p pool_memcxt;
+extern memcxt_t *pool_memcxt;
 
 
 extern void dump_pool(FILE*);

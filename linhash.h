@@ -14,7 +14,6 @@
 #include <stdio.h>
 
 #include "types.h"
-#include "memcxt.h"
 
 
 #define SEGMENT_LENGTH 256
@@ -37,13 +36,15 @@ typedef struct bucket_s {
   bucket_pool_t * bucket_pool_ptr;  //BD's optimization.
 } bucket_t;
 
+
+
 typedef bucket_t*  bucketptr;
 
 typedef bucketptr*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
-  memcxt_t memcxt;                  /* Where we get our memory from                                           */
+  memcxt_t *memcxt;                 /* Where we get our memory from                                           */
 
   size_t segment_size;              /* segment size; larsen uses 256; we could use  4096 or 2^18 = 262144     */
 
@@ -53,9 +54,9 @@ typedef struct linhash_cfg_s {
 
   size_t address_max;               /* directory_size_max *  segment_size                                     */
   
-  uint16_t min_load;                 /* Not sure if Larsen ever specifies his value for this                   */
+  uint16_t min_load;                /* Not sure if Larsen ever specifies his value for this                   */
 
-  uint16_t max_load;                 /* Larsen uses 5 we could use  4 or 8                                     */
+  uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                     */
 
   bool multithreaded;               /* are we going to protect against contention                             */
 

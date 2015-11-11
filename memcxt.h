@@ -15,6 +15,8 @@
 typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
 
 
+// BD make sure it is well understood that allocate can fail.
+// and make use of this in linhash.c etc.
 
 typedef struct memcxt_s {
   void *(*allocate)(memtype_t, size_t);

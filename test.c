@@ -9,40 +9,36 @@ linhash_t numerouno;
 
 
 
-
-static void test_0(void);
-static void test_1(void);
-static void test_2(void);
+static void test_0(memcxt_p memcxt);
+static void test_1(memcxt_p memcxt);
+static void test_2(memcxt_p memcxt);
 
 
 
 int main(int argc, char** argv){
-  int tests[] = { 1, 0, 0 };
+  int tests[] = { 0, 0, 1};
 
-  if(tests[0]){ test_0(); }
+  if(tests[0]){ test_0(pool_memcxt); }
 
-  if(tests[1]){ test_1(); }
+  if(tests[1]){ test_1(pool_memcxt); }
 
-  if(tests[2]){ test_2(); }
+  if(tests[2]){ test_2(pool_memcxt); }
  
   
   return 0;
 }
 
 
-void test_0(void){
+void test_0(memcxt_p memcxt){
   int key, value;
   void* look;
   bool success;
   
-  init_linhash(&numerouno, pool_memcxt);
+  init_linhash(&numerouno, memcxt);
 
   fprintf(stderr, "inserting key = %p  value = %p\n", &key, &value);
   
   linhash_insert(&numerouno, &key, &value);
-
-  fprintf(stderr, "inserted key = %p  value = %p\n", &key, &value);
-  
 
   look = linhash_lookup(&numerouno, &key);
 
@@ -73,13 +69,13 @@ const size_t K = 1024;
 const size_t K2 = K << 1;
 const size_t K4 = K2 << 1;
 
-void test_1(void){
+void test_1(memcxt_p memcxt){
   bool found;
   size_t index;
   
   void* zoo = calloc(K2, sizeof(char));
   
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, memcxt);
 
   for(index = 0; index < K2; index++){
     linhash_insert(&numerouno, &zoo[index], &zoo[index]);
@@ -101,7 +97,7 @@ void test_1(void){
 }
 
 
-void test_2(void){
+void test_2(memcxt_p memcxt){
   bool found;
   size_t index;
   size_t zindex;
@@ -109,16 +105,25 @@ void test_2(void){
   void ** menagery;
   
 
-  init_linhash(&numerouno, sys_memcxt);
+  init_linhash(&numerouno, memcxt);
 
   menagery = calloc(K4, sizeof(void *));
 
   
   for(zindex = 0; zindex < K4; zindex++){
-  
+
+    if(0 && (zindex % K == 0)){
+      fprintf(stderr, "zindex = %zu\n", zindex);
+    }
+    
     void* zoo = calloc(K4, sizeof(char));
   
     for(index = 0; index < K4; index++){
+
+      if(0 && (zindex % K == 0) && (index % K == 0)){
+	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+      }
+      
       linhash_insert(&numerouno, &zoo[index], &zoo[index]);
     }
 
@@ -130,9 +135,18 @@ void test_2(void){
 
   for(zindex = 0; zindex < K4; zindex++){
 
+    if(0 && (zindex % K == 0)){
+      fprintf(stderr, "> zindex = %zu\n", zindex);
+    }
+
     void* zoo = menagery[zindex];
   
     for(index = 0; index < K4; index++){
+
+      if(0 && (zindex % K == 0) && (index % K == 0)){
+	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+      }
+
       found = linhash_delete(&numerouno, &zoo[index]);
       if(!found){
 	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);

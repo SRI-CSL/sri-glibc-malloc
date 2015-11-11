@@ -9,19 +9,17 @@ const size_t   linhash_segment_size            = SEGMENT_LENGTH;
 const size_t   linhash_initial_directory_size  = DIRECTORY_LENGTH;
 const size_t   linhash_segments_at_startup     = 1;
 
-const int16_t  linhash_min_load                = 2;   
-const int16_t  linhash_max_load                = 5;
+const uint16_t  linhash_min_load                = 2;   
+const uint16_t  linhash_max_load                = 5;
 
 
 /* static routines */
 static bool is_power_of_two(uint32_t n);
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
 
-/* returns the abstract offset/index of the bin that should contain p */
-static uint32_t linhash_offset(linhash_t* lhtbl, const void *p);
-
 /* linhash expansion routines */
 static void linhash_expand_check(linhash_t* lhtbl);
+
 static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
 
 /* split's the current bin; returns the number of buckets moved to the new bin */
@@ -37,7 +35,7 @@ static bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset);
 static size_t bucket_length(bucketptr bucket);
 
 
-/* Fast MOD arithmetic, assuming that y is a power of 2 ! */
+/* Fast MOD arithmetic, assuming that y is a power of 2 ! BD use an inline function */
 #define MOD(x,y)  ((x) & ((y)-1))
 
 /* for sanity checking */
@@ -182,6 +180,8 @@ static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
   uint32_t jhash = jenkins_hash_ptr(p);
   uint32_t l = MOD(jhash, lhtbl->maxp);
 
+  //BD assert that 2 * lhtbl->maxp is not going to overflow
+  
   if(l < lhtbl->p){
     l = MOD(jhash, 2 * lhtbl->maxp);
   }
@@ -225,10 +225,9 @@ bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
 
 /* check if the table needs to be expanded */
 void linhash_expand_check(linhash_t* lhtbl){
-  size_t moved;
   if(lhtbl->count / lhtbl->currentsize > lhtbl->cfg.max_load){
-    moved = linhash_expand_table(lhtbl);
-   }
+    linhash_expand_table(lhtbl);
+  }
 }
 
 
@@ -250,6 +249,8 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   newdir = memcxt->allocate(DIRECTORY, mul_size(newsz, sizeof(segmentptr)));
 
+  //DD could try to do realloc and if we succeed we do not need to copy ...
+  
   for(index = 0; index < oldsz; index++){
     newdir[index] = olddir[index];
   }
@@ -263,25 +264,22 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
 static size_t linhash_expand_table(linhash_t* lhtbl){
   size_t segsz;
-
   size_t newaddr;
   size_t newindex;
-
   size_t moved;
-  
   bucketptr* oldbucketp;
-
   bucketptr current;
   bucketptr previous;
   bucketptr lastofnew;
-  
   segmentptr newseg;
-
   size_t newsegindex;
-
   memcxt_t *memcxt;
 
   memcxt = &lhtbl->cfg.memcxt;
+
+
+  //BD  need to make assertions about sizes
+  
 
   /* see if the directory needs to grow  */
   if(lhtbl->directory_size  ==  lhtbl->directory_current){
@@ -300,9 +298,9 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
     newindex = newaddr / segsz;
 
-    /* expand address space; if necessary create new segment */
+    /* expand address space; if necessary create new segment */  
     if(MOD(newaddr, segsz) == 0){
-      if(lhtbl->directory[newindex] == NULL){
+      if(lhtbl->directory[newindex] == NULL){  //BD should be a conjunction not a nested if.
 	lhtbl->directory[newindex] = memcxt->allocate(SEGMENT, mul_size(segsz, sizeof(bucketptr)));
 	lhtbl->directory_current += 1;
       }
@@ -310,7 +308,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
     /* location of the new bucket */
     newseg = lhtbl->directory[newindex];
-    newsegindex = MOD(newaddr, segsz);
+    newsegindex = MOD(newaddr, segsz);  //shouldn't need to recompute this.
       
     /* update the state variables */
     lhtbl->p += 1;
@@ -335,7 +333,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
 	/* it belongs in the new bucket */
 	moved++;
-	if( lastofnew == NULL ){
+	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins
 	  newseg[newsegindex] = current;
 	} else {
 	  lastofnew->next_bucket = current;
@@ -459,6 +457,7 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
+    
     if(key == current_bucketp->key){
       count++;
       

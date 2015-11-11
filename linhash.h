@@ -22,15 +22,19 @@
 
 
 /* need to make a distinction between bins and buckets  */
+/* a bin is the address of an element of a segment       */ 
 /* need a consistent terminology about bins and offsets */
 
 /* the code for contracting a table seems to be missing in Larsen's paper */
+
+typedef struct bucket_pool_s bucket_pool_t;
 
 
 typedef struct bucket_s {
   void *key;
   void *value;
   void *next_bucket;
+  bucket_pool_t * bpoolptr;  //BD's optimization.
 } bucket_t;
 
 typedef bucket_t*  bucketptr;
@@ -39,22 +43,23 @@ typedef bucketptr*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
-  bool multithreaded;               /* are we going to protect against contention                             */
+  memcxt_t memcxt;                  /* Where we get our memory from                                           */
 
   size_t segment_size;              /* segment size; larsen uses 256; we could use  4096 or 2^18 = 262144     */
 
   size_t initial_directory_size;    /* Larsen's directory is static ( also 256), ours will have to be dynamic */
 
-  int16_t min_load;                 /* Not sure if Larsen ever specifies his value for this                   */
-
-  int16_t max_load;                 /* Larsen uses 5 we could use  4 or 8                                     */
-
-  memcxt_t memcxt;                  /* Where we get our memory from                                           */
-
   size_t directory_size_max;        /* Currently don't get this big (see note following this)                 */
 
   size_t address_max;               /* directory_size_max *  segment_size                                     */
   
+  uint16_t min_load;                 /* Not sure if Larsen ever specifies his value for this                   */
+
+  uint16_t max_load;                 /* Larsen uses 5 we could use  4 or 8                                     */
+
+  bool multithreaded;               /* are we going to protect against contention                             */
+
+
 } linhash_cfg_t;
 
 /*
@@ -94,13 +99,13 @@ typedef struct linhash_s {
   
   size_t L;                      /* the number of times the table has doubled in size  [{ L }]             */
 
-  size_t p;                      /* index of the next bucket due to be split  [{ p :  0 <= p < N * 2^L }]  */
+  size_t p;                      /* index of the next bin due to be split  [{ p :  0 <= p < N * 2^L }]     */
 
   size_t count;                  /* the total number of records in the table                               */
+ 
+  size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
 
-  size_t maxp;                   /* the current limit on the bucket count  [{ N * 2^L }]                   */
-
-  size_t currentsize;            /* the current number of buckets                                          */
+  size_t currentsize;            /* the current number of bins                                             */
   
 } linhash_t;
 

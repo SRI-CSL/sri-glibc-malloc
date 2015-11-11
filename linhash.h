@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 
+#include "types.h"
 #include "memcxt.h"
 
 
@@ -27,14 +28,13 @@
 
 /* the code for contracting a table seems to be missing in Larsen's paper */
 
-typedef struct bucket_pool_s bucket_pool_t;
 
 
 typedef struct bucket_s {
   void *key;
   void *value;
   void *next_bucket;
-  bucket_pool_t * bpoolptr;  //BD's optimization.
+  bucket_pool_t * bucket_pool_ptr;  //BD's optimization.
 } bucket_t;
 
 typedef bucket_t*  bucketptr;

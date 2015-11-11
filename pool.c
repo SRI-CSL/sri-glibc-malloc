@@ -9,7 +9,7 @@
 //BD: use gcc built ins for bit manipulations:  ~/Repositories/GitHub/yices2/src/utils/bit_tricks.h
 //BD: the empty pool should be put at the front of the chain!!!
 
-const size_t bp_scale = 8;
+const size_t bp_scale = 1024;
 const size_t bp_length = bp_scale * 64;  /* one thing for every bit in the bitmask */
 
 const size_t sp_scale = 8;
@@ -20,12 +20,12 @@ typedef struct segment_s {
   void* segment[SEGMENT_LENGTH];
 } segment_t;
 
-typedef struct bucket_pool_s {
+struct bucket_pool_s {
   bucket_t pool[bp_length];
   uint64_t bitmasks[bp_scale];    /* zero means: free; one means: in use */
   size_t free_count;
   void* next_bucket_pool;
-}  bucket_pool_t;
+};
 
 typedef struct segment_pool_s {
   segment_t pool[sp_length];
@@ -49,12 +49,17 @@ static bool sane_bucket_pool(bucket_pool_t* bpool);
 /* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_bucket_pool(bucket_pool_t* bp){
   size_t scale;
+  size_t bindex;
   bp->free_count = bp_length;
   for(scale = 0; scale < bp_scale; scale++){
     bp->bitmasks[scale] = 0;
   }
   bp->next_bucket_pool = NULL;
   assert(sane_bucket_pool(bp));
+
+  for(bindex = 0; bindex < bp_length; bindex++){
+    bp->pool[bindex].bucket_pool_ptr = bp;
+  }
 }
 
 /* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
@@ -268,7 +273,30 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
   
   assert(pool != NULL);
   assert(buckp != NULL);
+
+
+  bpool = buckp->bucket_pool_ptr;
+
+
+  assert((bpool->pool <= buckp) && (buckp < bpool->pool + bp_length));
+
+  index = buckp - bpool->pool;
+
+  //fprintf(stderr, "free_bucket: index = %zu\n", index);
   
+  pmask_index = index / 64;
+  pmask = bpool->bitmasks[pmask_index];
+  mask = ((uint64_t)1) << (index % 64);
+
+  assert(mask & pmask);
+  
+  bpool->bitmasks[pmask_index] = ~mask & pmask;
+  bpool->free_count += 1;
+  
+  assert((bpool->free_count > 0) && (bpool->free_count <= bp_length));
+  seen = true;
+  
+  /*
   bpool = pool->buckets;
   seen = false;
 
@@ -302,6 +330,7 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
     if(seen){ break; }
     
   }
+  */
   
   return seen;
 }
@@ -378,8 +407,10 @@ static segment_t* alloc_segment(pool_t* pool){
     assert(spool_previous != NULL);
 
     spool_current = new_segments();
-    spool_previous->next_segment_pool = spool_current;
-
+    //put the new segment up front
+    spool_current->next_segment_pool = pool->segments;
+    pool->segments = spool_current;
+    
     segp = &spool_current->pool[0];
     spool_current->free_count -= 1;
     spool_current->bitmasks[0] = 1;

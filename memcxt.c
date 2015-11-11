@@ -24,21 +24,7 @@ memcxt_t default_memcxt = { default_allocate, default_release };
 memcxt_t *sys_memcxt = &default_memcxt;
 
 
-/* 
- * Add two size_t values, checking for overflow
- */
-#if  __has_builtin(__builtin_add_overflow)
-
-size_t add_size(size_t s1, size_t s2){
-  size_t result;
-  if( ! __builtin_add_overflow(s1, s2, &result) ){
-    return result;
-  } 
-  abort();
-}
-
-#else
-
+/* Add two size_t values, checking for overflow */
 size_t add_size(size_t s1, size_t s2){
   size_t result;
   result = s1 + s2;
@@ -47,28 +33,9 @@ size_t add_size(size_t s1, size_t s2){
   }
   return result;
   }
-#endif
 
 
-/*
- * Multiply two size_t values, checking for overflow
- */
-
-#if  __has_builtin(__builtin_mul_overflow)
-
-size_t mul_size(size_t s1, size_t s2){
-  size_t result;
-
-  if( ! __builtin_mul_overflow(s1, s2, &result) ){
-    return prod;
-  } 
-
-  abort();
-}
-
-
-#else
-
+/* Multiply two size_t values, checking for overflow */
 size_t mul_size(size_t s1, size_t s2){
   size_t result;
   if (s1 == 0 || s2 == 0){
@@ -82,4 +49,5 @@ size_t mul_size(size_t s1, size_t s2){
 }
 
 
-#endif
+
+

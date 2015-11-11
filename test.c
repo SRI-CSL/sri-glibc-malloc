@@ -13,6 +13,9 @@ static void test_0(memcxt_t* memcxt);
 static void test_1(memcxt_t* memcxt);
 static void test_2(memcxt_t* memcxt);
 
+#define K   1024
+#define K2  K << 1
+#define K4  K2 << 1
 
 
 int main(int argc, char** argv){
@@ -67,9 +70,6 @@ void test_0(memcxt_t* memcxt){
 }
 
 
-const size_t K = 1024;
-const size_t K2 = K << 1;
-const size_t K4 = K2 << 1;
 
 void test_1(memcxt_t* memcxt){
   bool found;
@@ -80,13 +80,16 @@ void test_1(memcxt_t* memcxt){
   init_linhash(&numerouno, memcxt);
 
   for(index = 0; index < K2; index++){
-    linhash_insert(&numerouno, &zoo[index], &zoo[index]);
+    linhash_insert(&numerouno, zoo + index, zoo + index);
   }
 
   dump_linhash(stderr, &numerouno, true);
     
   for(index = 0; index < K2; index++){
-    found = linhash_delete(&numerouno, &zoo[index]);
+    found = linhash_delete(&numerouno, zoo + index);
+    if(!found){
+      fprintf(stderr, "index = %zu\n", index);
+    }
     assert(found);
   }
   
@@ -126,7 +129,7 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
       }
       
-      linhash_insert(&numerouno, &zoo[index], &zoo[index]);
+      linhash_insert(&numerouno, zoo + index, zoo + index);
     }
 
     menagery[zindex] = zoo;
@@ -149,7 +152,7 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
       }
 
-      found = linhash_delete(&numerouno, &zoo[index]);
+      found = linhash_delete(&numerouno, zoo + index);
       if(!found){
 	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
       }

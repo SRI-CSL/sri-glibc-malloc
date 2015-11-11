@@ -36,11 +36,15 @@ typedef struct bucket_s {
   bucket_pool_t * bucket_pool_ptr;  //BD's optimization.
 } bucket_t;
 
-
-
 typedef bucket_t*  bucketptr;
 
-typedef bucketptr*  segmentptr;
+typedef struct segment_s {
+  bucketptr segment[SEGMENT_LENGTH];
+  segment_pool_t *segment_pool_ptr;  
+} segment_t;
+
+
+typedef segment_t*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
@@ -90,7 +94,7 @@ typedef struct linhash_s {
 
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
 
-  segmentptr* directory;         /* the array of segment pointers                                          */
+  segmentptr *directory;         /* the array of segment pointers                                          */
 
   size_t directory_size;         /* the size of the directory (must be a power of two)                     */
 

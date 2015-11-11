@@ -111,7 +111,7 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){ 
-    lhtbl->directory[index] = memcxt->allocate(SEGMENT, mul_size(lhtbl_cfg->segment_size, sizeof(bucketptr)));
+    lhtbl->directory[index] = (segmentptr)memcxt->allocate(SEGMENT, sizeof(segment_t));
   }
 
 }
@@ -163,7 +163,7 @@ void delete_linhash(linhash_t* lhtbl){
     
     /* cdr down the segment and release the linked list of buckets */
       for(index = 0; index < segsz; index++){
-	current_bucket = current_segment[index];
+	current_bucket = current_segment->segment[index];
 
 	while(current_bucket != NULL){
 
@@ -173,7 +173,7 @@ void delete_linhash(linhash_t* lhtbl){
 	}
       }
       /* now release the segment */
-      memcxt->release(SEGMENT, current_segment,  mul_size(lhtbl->cfg.segment_size, sizeof(bucketptr)));
+      memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
   }
   
   memcxt->release(DIRECTORY, lhtbl->directory, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
@@ -204,7 +204,7 @@ static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
 }
 
 bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
-  segmentptr segment;
+  segmentptr segptr;
   size_t segsz;
   size_t segindex;
   uint32_t index;
@@ -217,11 +217,11 @@ bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
 
   assert( segindex < lhtbl->directory_current );
 
-  segment = lhtbl->directory[segindex];
+  segptr = lhtbl->directory[segindex];
 
   index = mod_power_of_two(offset, segsz);
 
-  return &segment[index];
+  return &(segptr->segment[index]);
 }
 
 
@@ -349,7 +349,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 	/* it belongs in the new bucket */
 	moved++;
 	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins
-	  newseg[newsegindex] = current;
+	  newseg->segment[newsegindex] = current;
 	} else {
 	  lastofnew->next_bucket = current;
 	}

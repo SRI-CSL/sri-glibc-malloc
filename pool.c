@@ -17,11 +17,7 @@
 /* one thing for every bit in the bitmask */
 #define SP_LENGTH SP_SCALE * 64  
 
-
-typedef struct segment_s {
-  void* segment[SEGMENT_LENGTH];
-} segment_t;
-
+/* bucket_pool_t is defined in types.h */
 struct bucket_pool_s {
   bucket_t pool[BP_LENGTH];       /* the pool of buckets; one for each bit in the bitmask array */
   uint64_t bitmasks[BP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use */
@@ -29,12 +25,13 @@ struct bucket_pool_s {
   void* next_bucket_pool;         /* the next bucket pool to look if this one is full           */
 };
 
-typedef struct segment_pool_s {
+/* segment_pool_t is defined in types.h */
+struct segment_pool_s {
   segment_t pool[SP_LENGTH];      /* the pool of segments; one for each bit in the bitmask array */
   uint64_t bitmasks[SP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use  */
   size_t free_count;              /* the current count of free segments in this pool             */
   void* next_segment_pool;        /* the next segment pool to look if this one is full           */
-}  segment_pool_t;
+};
 
 
 //DD: is there a one-one or a many-to-one relationship b/w linhash tables and pools?
@@ -69,11 +66,17 @@ static void init_bucket_pool(bucket_pool_t* bp){
 /* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_segment_pool(segment_pool_t* sp){
   size_t scale;
+  size_t sindex;
   sp->free_count = SP_LENGTH;
   for(scale = 0; scale < SP_SCALE; scale++){
     sp->bitmasks[scale] = 0;
   }
   sp->next_segment_pool = NULL;
+
+  for(sindex = 0; sindex < SP_LENGTH; sindex++){
+    sp->pool[sindex].segment_pool_ptr = sp;
+  }
+
 }
 
 static void* pool_mmap(size_t size){
@@ -298,7 +301,6 @@ static bucket_t* alloc_bucket(pool_t* pool){
 }
 
 static bool free_bucket(pool_t* pool, bucket_t* buckp){
-  bool seen;
   bucket_pool_t* bpool;
 
   size_t index;
@@ -326,9 +328,8 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
   bpool->free_count += 1;
   
   assert((bpool->free_count > 0) && (bpool->free_count <= BP_LENGTH));
-  seen = true;
   
-  return seen;
+  return true;
 }
 
 
@@ -396,9 +397,7 @@ static segment_t* alloc_segment(pool_t* pool){
   return segp;
 }
 
-/* if we start making a habit of freeing segments we might want to consider BD's  bucket_pool_ptr trick */
 static bool free_segment(pool_t* pool, segment_t* segp){
-  bool seen;
   segment_pool_t* spool;
 
   size_t index;
@@ -408,35 +407,25 @@ static bool free_segment(pool_t* pool, segment_t* segp){
   assert(pool != NULL);
   assert(segp != NULL);
   
-  spool = pool->segments;
-  seen = false;
+  /* get the segments pool that we belong to */
+  spool = segp->segment_pool_ptr;
+
+  /* sanity check */
+  assert((spool->pool <= segp) && (segp < spool->pool + SP_LENGTH));
+
+  index = segp - spool->pool;
+
+  pmask_index = index / 64;
+  pmask_bit = index % 64;
+
+  assert(get_bit(spool->bitmasks[pmask_index], pmask_bit)); 
+
+  spool->bitmasks[pmask_index] = set_bit(spool->bitmasks[pmask_index], pmask_bit, false); 
+  spool->free_count += 1;
+
+  assert((spool->free_count > 0) && (spool->free_count <= SP_LENGTH));
   
-  while ( spool != NULL ){
-
-    if( (spool->pool <= segp) && (segp < spool->pool + SP_LENGTH) ){
-
-      index = segp - spool->pool;
-      pmask_index = index / 64;
-      pmask_bit = index % 64;
-
-      assert(get_bit(spool->bitmasks[pmask_index], pmask_bit)); 
-
-      spool->bitmasks[pmask_index] = set_bit(spool->bitmasks[pmask_index], pmask_bit, false); 
-      spool->free_count += 1;
-
-      assert((spool->free_count > 0) && (spool->free_count <= SP_LENGTH));
-      seen = true;
-      
-    } else {
-
-      spool = spool->next_segment_pool; 
-    }
-
-    if(seen){ break; }
-    
-  }
-  
-  return seen;
+  return true;
 }
 
 /* just one for now */

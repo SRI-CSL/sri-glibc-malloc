@@ -6,14 +6,14 @@
 #include "memcxt.h"
 
 
-const bool     linhash_multithreaded           = false;
+const bool      linhash_multithreaded             = false;
 
-const size_t   linhash_segment_size            = SEGMENT_LENGTH;
-const size_t   linhash_initial_directory_size  = DIRECTORY_LENGTH;
-const size_t   linhash_segments_at_startup     = 1;
+const size_t    linhash_segment_length            = SEGMENT_LENGTH;
+const size_t    linhash_initial_directory_length  = DIRECTORY_LENGTH;
+const size_t    linhash_segments_at_startup       = 1;
 
-const uint16_t  linhash_min_load                = 2;   
-const uint16_t  linhash_max_load                = 5;
+const uint16_t  linhash_min_load                 = 2;   
+const uint16_t  linhash_max_load                 = 5;
 
 
 /* static routines */
@@ -27,11 +27,11 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
 /* split's the current bin  */
 static bool linhash_expand_table(linhash_t* lhtbl);
  
-/* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
-static uint32_t linhash_offset(linhash_t* lhtbl, const void *p);
+/* returns the bin index (bindex) of the bin that should contain p  [{ hash }] */
+static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p);
 
-/* returns a pointer to the top bucket at the given offset  */
-static bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset);
+/* returns a pointer to the top bucket at the given bindex  */
+static bucketptr* bindex2bucketptr(linhash_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucketptr bucket);
@@ -51,14 +51,19 @@ static inline size_t mod_power_of_two(size_t x, size_t y){
 
 
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
-  cfg->multithreaded          = linhash_multithreaded;
-  cfg->segment_size           = linhash_segment_size;
-  cfg->initial_directory_size = linhash_initial_directory_size;
-  cfg->min_load               = linhash_min_load;   
-  cfg->max_load               = linhash_max_load;
-  cfg->memcxt                 = memcxt;
-  cfg->directory_size_max     = UINT32_MAX;
-  cfg->address_max            = mul_size(cfg->directory_size_max, cfg->segment_size);
+  cfg->multithreaded            = linhash_multithreaded;
+  cfg->segment_length           = linhash_segment_length;
+  cfg->initial_directory_length = linhash_initial_directory_length;
+  cfg->min_load                 = linhash_min_load;   
+  cfg->max_load                 = linhash_max_load;
+  cfg->memcxt                   = memcxt;
+  cfg->bincount_max             = UINT32_MAX;
+  cfg->directory_length_max     = cfg->bincount_max / SEGMENT_LENGTH;
+
+  //iam: should these be more than just asserts?
+  assert(is_power_of_two(cfg->segment_length));
+  assert(is_power_of_two(cfg->initial_directory_length));
+
 }
 
 
@@ -79,30 +84,25 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   
   linhash_cfg_init(lhtbl_cfg, memcxt);
     
-  //iam: should these be more than just asserts?
-  assert(is_power_of_two(lhtbl_cfg->segment_size));
-
-  assert(is_power_of_two(lhtbl_cfg->initial_directory_size));
-
 
   /* lock for resolving contention  (only when cfg->multithreaded)   */
   if(lhtbl_cfg->multithreaded){
     pthread_mutex_init(&lhtbl->mutex, NULL);
   }
 
-  lhtbl->directory_size = lhtbl_cfg->initial_directory_size;
+  lhtbl->directory_length = lhtbl_cfg->initial_directory_length;
   lhtbl->directory_current = linhash_segments_at_startup; 
 
   
   /* the array of segment pointers */
-  lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
+  lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_length, sizeof(segmentptr)));
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
   }
   
   /* mininum number of bins    [{ N }]   */
-  lhtbl->N = mul_size(lhtbl_cfg->segment_size, lhtbl->directory_current);
+  lhtbl->N = mul_size(lhtbl_cfg->segment_length, lhtbl->directory_current);
 
   /* the number of times the table has doubled in size  [{ L }]   */
   lhtbl->L = 0;
@@ -117,7 +117,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->maxp = lhtbl->N;
 
   /* the current number of buckets */
-  lhtbl->currentsize = lhtbl->N;
+  lhtbl->bincount = lhtbl->N;
 
   assert(is_power_of_two(lhtbl->maxp));
 
@@ -139,19 +139,19 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   size_t blen;
   bucketptr* bp;
   
-  fprintf(fp, "directory_size = %lu\n", (unsigned long)lhtbl->directory_size);
+  fprintf(fp, "directory_length = %lu\n", (unsigned long)lhtbl->directory_length);
   fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
   fprintf(fp, "N = %lu\n", (unsigned long)lhtbl->N);
   fprintf(fp, "L = %lu\n", (unsigned long)lhtbl->L);
   fprintf(fp, "count = %lu\n", (unsigned long)lhtbl->count);
   fprintf(fp, "maxp = %lu\n", (unsigned long)lhtbl->maxp);
-  fprintf(fp, "currentsize = %lu\n", (unsigned long)lhtbl->currentsize);
-  fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->currentsize));
+  fprintf(fp, "bincount = %lu\n", (unsigned long)lhtbl->bincount);
+  fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->bincount));
 
   if(showloads){
     fprintf(fp, "bucket lengths: ");
-    for(index = 0; index < lhtbl->currentsize; index++){
-      bp = offset2bucketptr(lhtbl, index);
+    for(index = 0; index < lhtbl->bincount; index++){
+      bp = bindex2bucketptr(lhtbl, index);
       blen = bucket_length(*bp);
       if(blen != 0){
 	fprintf(fp, "%zu:%zu ", index, blen);
@@ -164,7 +164,7 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
 
 
 void delete_linhash(linhash_t* lhtbl){
-  size_t segsz;
+  size_t seglen;
   size_t segindex;
   size_t index;
   segmentptr current_segment;
@@ -172,7 +172,7 @@ void delete_linhash(linhash_t* lhtbl){
   bucketptr next_bucket;
   memcxt_t *memcxt;
 
-  segsz = lhtbl->cfg.segment_size;
+  seglen = lhtbl->cfg.segment_length;
   memcxt = lhtbl->cfg.memcxt;
 
   for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
@@ -180,7 +180,7 @@ void delete_linhash(linhash_t* lhtbl){
     current_segment = lhtbl->directory[segindex];
     
     /* cdr down the segment and release the linked list of buckets */
-      for(index = 0; index < segsz; index++){
+      for(index = 0; index < seglen; index++){
 	current_bucket = current_segment->segment[index];
 
 	while(current_bucket != NULL){
@@ -194,12 +194,12 @@ void delete_linhash(linhash_t* lhtbl){
       memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
   }
   
-  memcxt->release(DIRECTORY, lhtbl->directory, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
+  memcxt->release(DIRECTORY, lhtbl->directory, mul_size(lhtbl->directory_length, sizeof(segmentptr)));
 }
 
 
-/* returns the raw offset/index of the bin that should contain p  [{ hash }] */
-static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
+/* returns the raw bindex/index of the bin that should contain p  [{ hash }] */
+static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p){
   uint32_t jhash;
   uint32_t l;
   size_t next_maxp;
@@ -213,7 +213,7 @@ static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
 
     next_maxp = lhtbl->maxp << 1;
 
-    assert(next_maxp < lhtbl->cfg.directory_size_max);
+    assert(next_maxp < lhtbl->cfg.directory_length_max);
 	   
     l = mod_power_of_two(jhash, next_maxp);
   }
@@ -221,23 +221,23 @@ static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
   return l;
 }
 
-bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
+bucketptr* bindex2bucketptr(linhash_t* lhtbl, uint32_t bindex){
   segmentptr segptr;
-  size_t segsz;
+  size_t seglen;
   size_t segindex;
   uint32_t index;
 
-  assert( offset < lhtbl->currentsize );
+  assert( bindex < lhtbl->bincount );
   
-  segsz = lhtbl->cfg.segment_size;
+  seglen = lhtbl->cfg.segment_length;
 
-  segindex = offset / segsz;
+  segindex = bindex / seglen;
 
   assert( segindex < lhtbl->directory_current );
 
   segptr = lhtbl->directory[segindex];
 
-  index = mod_power_of_two(offset, segsz);
+  index = mod_power_of_two(bindex, seglen);
 
   return &(segptr->segment[index]);
 }
@@ -248,11 +248,11 @@ bucketptr* offset2bucketptr(linhash_t* lhtbl, uint32_t offset){
  *  where the start of the bucket chain should be for p 
  */
 bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
-  uint32_t offset;
+  uint32_t bindex;
   
-  offset = linhash_offset(lhtbl, p);
+  bindex = linhash_bindex(lhtbl, p);
 
-  return offset2bucketptr(lhtbl, offset);
+  return bindex2bucketptr(lhtbl, bindex);
 }
 
 /* check if the table needs to be expanded; true if either it didn't need to be 
@@ -260,7 +260,7 @@ bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
  *
  */
 bool linhash_expand_check(linhash_t* lhtbl){
-  if(lhtbl->count / lhtbl->currentsize > lhtbl->cfg.max_load){
+  if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (lhtbl->count / lhtbl->bincount > lhtbl->cfg.max_load)){
     return linhash_expand_table(lhtbl);
   }
   return true;
@@ -269,25 +269,23 @@ bool linhash_expand_check(linhash_t* lhtbl){
 
 static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t index;
-  size_t oldsz;
-  size_t newsz;
+  size_t old_dirlen;
+  size_t new_dirlen;
   segmentptr* olddir;
   segmentptr* newdir;
 
-  oldsz = lhtbl->directory_size;
+  old_dirlen = lhtbl->directory_length;
   
   /* we should be full */
-  assert(oldsz == lhtbl->directory_current);
+  assert(old_dirlen == lhtbl->directory_current);
 
-  newsz = oldsz  << 1;
+  new_dirlen = old_dirlen  << 1;
 
-  assert(newsz  < lhtbl->cfg.directory_size_max);
+  assert(new_dirlen  < lhtbl->cfg.directory_length_max);
 
   olddir = lhtbl->directory;
 
-  //iam: sz and len need to use these two accurately throughout.
-  //fix when stable.
-  newdir = memcxt->allocate(DIRECTORY, mul_size(newsz, sizeof(segmentptr)));
+  newdir = memcxt->allocate(DIRECTORY, mul_size(new_dirlen, sizeof(segmentptr)));
   if(newdir == NULL){
     errno = ENOMEM;
     return false;
@@ -295,23 +293,23 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   //DD could try to do realloc and if we succeed we do not need to copy ...
   
-  for(index = 0; index < oldsz; index++){
+  for(index = 0; index < old_dirlen; index++){
     newdir[index] = olddir[index];
   }
 
   lhtbl->directory = newdir;
-  lhtbl->directory_size = newsz;
+  lhtbl->directory_length = new_dirlen;
 
-  memcxt->release(DIRECTORY, olddir, mul_size(oldsz, sizeof(segmentptr)));
+  memcxt->release(DIRECTORY, olddir, mul_size(old_dirlen, sizeof(segmentptr)));
 
   return true;
 }
 
 
 static bool linhash_expand_table(linhash_t* lhtbl){
-  size_t segsz;
-  size_t newaddr;
-  size_t newindex;
+  size_t seglen;
+  size_t new_bindex;
+  size_t new_segindex;
   bucketptr* oldbucketp;
   bucketptr current;
   bucketptr previous;
@@ -322,41 +320,41 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
   memcxt = lhtbl->cfg.memcxt;
 
-  newaddr = add_size(lhtbl->maxp, lhtbl->p);
+  new_bindex = add_size(lhtbl->maxp, lhtbl->p);
 
-  assert(newaddr < lhtbl->cfg.address_max);
+  assert(new_bindex < lhtbl->cfg.bincount_max);
 
   /* see if the directory needs to grow  */
-  if(lhtbl->directory_size  ==  lhtbl->directory_current){
+  if(lhtbl->directory_length  ==  lhtbl->directory_current){
     if(! linhash_expand_directory(lhtbl,  memcxt)){
       return false;
     }
   }
 
 
-  if(newaddr < lhtbl->cfg.address_max){
+  if(new_bindex < lhtbl->cfg.bincount_max){
 
-    oldbucketp = offset2bucketptr(lhtbl, lhtbl->p);
+    oldbucketp = bindex2bucketptr(lhtbl, lhtbl->p);
 
-    segsz = lhtbl->cfg.segment_size;
+    seglen = lhtbl->cfg.segment_length;
 
-    newindex = newaddr / segsz;
+    new_segindex = new_bindex / seglen;
 
-    newsegindex = mod_power_of_two(newaddr, segsz);  
+    newsegindex = mod_power_of_two(new_bindex, seglen);  
     
     /* expand address space; if necessary create new segment */  
-    if((newsegindex == 0) && (lhtbl->directory[newindex] == NULL)){
+    if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
       newseg = memcxt->allocate(SEGMENT, sizeof(segment_t));
       if(newseg == NULL){
 	errno = ENOMEM;
 	return false;
       }
-      lhtbl->directory[newindex] = newseg;
+      lhtbl->directory[new_segindex] = newseg;
       lhtbl->directory_current += 1;
     }
 
-    /* location of the new bucket */
-    newseg = lhtbl->directory[newindex];
+    /* location of the new bin */
+    newseg = lhtbl->directory[new_segindex];
    
     /* update the state variables */
     lhtbl->p += 1;
@@ -366,7 +364,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
       lhtbl->L += 1; 
     }
 
-    lhtbl->currentsize += 1;
+    lhtbl->bincount += 1;
 
     /* now to split the buckets */
     current = *oldbucketp;
@@ -377,7 +375,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
     while( current != NULL ){
 
-      if(linhash_offset(lhtbl, current->key) == newaddr){
+      if(linhash_bindex(lhtbl, current->key) == new_bindex){
 
 	/* it belongs in the new bucket */
 	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins

@@ -67,21 +67,21 @@ typedef segment_t*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
-  memcxt_t *memcxt;                 /* Where we get our memory from                                           */
+  memcxt_t *memcxt;                 /* Where we get our memory from                                            */
+ 
+  size_t segment_length;            /* segment length; larsen uses 256; we could use  4096 or 2^18 = 262144    */
 
-  size_t segment_size;              /* segment size; larsen uses 256; we could use  4096 or 2^18 = 262144     */
+  size_t initial_directory_length;  /* Larsen's directory is static ( also 256), ours will have to be dynamic  */
 
-  size_t initial_directory_size;    /* Larsen's directory is static ( also 256), ours will have to be dynamic */
+  size_t directory_length_max;      /* Currently don't get this big (see note following this)                  */
 
-  size_t directory_size_max;        /* Currently don't get this big (see note following this)                 */
-
-  size_t address_max;               /* directory_size_max *  segment_size                                     */
+  size_t bincount_max;              /* the maximum number of bins: directory_length_max * segment_length       */
   
-  uint16_t min_load;                /* Not sure if Larsen ever specifies his value for this                   */
+  uint16_t min_load;                /* Not sure if Larsen ever specifies his value for this                    */
 
-  uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                     */
+  uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                      */
 
-  bool multithreaded;               /* are we going to protect against contention                             */
+  bool multithreaded;               /* are we going to protect against contention                              */
 
 
 } linhash_cfg_t;
@@ -96,9 +96,9 @@ typedef struct linhash_cfg_s {
 
   Thus 2^38 <  # of chunks  < 2^40
 
-  If we settle on a segment_size of between 4096 = 2^12  and 262144 = 2^18
+  If we settle on a segment_length of between 4096 = 2^12  and 262144 = 2^18
 
-  Then  [2^20,  2^26] <= directory_size_max <= [2^22,  2^28]
+  Then  [2^20,  2^26] <= directory_length_max <= [2^22,  2^28]
 
   
   Thus 
@@ -115,7 +115,7 @@ typedef struct linhash_s {
 
   segmentptr *directory;         /* the array of segment pointers                                          */
 
-  size_t directory_size;         /* the size of the directory (must be a power of two)                     */
+  size_t directory_length;       /* the size of the directory (must be a power of two)                     */
 
   size_t directory_current;      /* the number of segments in the directory                                */
 
@@ -129,7 +129,7 @@ typedef struct linhash_s {
  
   size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
 
-  size_t currentsize;            /* the current number of bins                                             */
+  size_t bincount;               /* the current number of bins                                             */
   
 } linhash_t;
 

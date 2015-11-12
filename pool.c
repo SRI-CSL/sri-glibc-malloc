@@ -87,13 +87,12 @@ static void* pool_mmap(void* oldaddr, size_t size){
   protection = PROT_READ | PROT_WRITE;
   flags = MAP_PRIVATE | MAP_ANON;
 
-  if(oldaddr == NULL){
+  /* try extending the current region */
+  memory = mmap(oldaddr, size, protection, flags, -1, 0);
+
+  /* if extending fails, then just try and map a new one */
+  if((oldaddr != NULL) && (memory == MAP_FAILED)){
     memory = mmap(0, size, protection, flags, -1, 0);
-  } else {
-    memory = mmap(oldaddr, size, protection, flags, -1, 0);
-    if(memory == MAP_FAILED){
-      memory = mmap(0, size, protection, flags, -1, 0);
-    }
   }
   
   assert(memory != MAP_FAILED);

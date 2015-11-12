@@ -77,7 +77,7 @@ static void init_segment_pool(segment_pool_t* sp){
 
 }
 
-static void* pool_mmap(size_t size){
+static void* pool_mmap(void* oldaddr, size_t size){
   void* memory;
   int flags;
   int protection;
@@ -87,8 +87,15 @@ static void* pool_mmap(size_t size){
   protection = PROT_READ | PROT_WRITE;
   flags = MAP_PRIVATE | MAP_ANON;
 
-  memory = mmap(0, size, protection, flags, -1, 0);
-
+  if(oldaddr == NULL){
+    memory = mmap(0, size, protection, flags, -1, 0);
+  } else {
+    memory = mmap(oldaddr, size, protection, flags, -1, 0);
+    if(memory == MAP_FAILED){
+      memory = mmap(0, size, protection, flags, -1, 0);
+    }
+  }
+  
   assert(memory != MAP_FAILED);
 
   if(memory == MAP_FAILED){
@@ -108,23 +115,21 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-
-			
-
-static void* new_directory(size_t size){
-  return pool_mmap(size);
+static void* new_directory(pool_t* pool, size_t size){
+  pool->directory = pool_mmap(pool->directory, size);
+  return pool->directory;
 }
 
 static segment_pool_t* new_segments(void){
   segment_pool_t* sptr;
-  sptr = pool_mmap(sizeof(segment_pool_t));
+  sptr = pool_mmap(NULL, sizeof(segment_pool_t));
   init_segment_pool(sptr);
   return sptr;
 }
 
 static void* new_buckets(void){
   bucket_pool_t* bptr;
-  bptr = pool_mmap(sizeof(bucket_pool_t));
+  bptr = pool_mmap(NULL, sizeof(bucket_pool_t));
   init_bucket_pool(bptr);
   return bptr;
 }
@@ -177,7 +182,7 @@ static inline bool sane_bucket_pool(bucket_pool_t *bpool) {
 
 
 static void init_pool(pool_t* pool){
-  pool->directory = new_directory(DIRECTORY_LENGTH * sizeof(void*));
+  pool->directory = new_directory(pool, DIRECTORY_LENGTH * sizeof(void*));
   pool->segments = new_segments();
   pool->buckets = new_buckets();
 }
@@ -437,18 +442,37 @@ static void check_pool(void){
   }
 }
 
-static void *pool_allocate(memtype_t type, size_t size);
+static void *pool_allocate(pool_t* pool, memtype_t type, size_t size);
 
-static void pool_release(memtype_t type, void *ptr, size_t size);
+static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size);
 
-memcxt_t _pool_memcxt = { pool_allocate, pool_release };
+
+
+static void *_pool_allocate(memtype_t type, size_t size);
+
+static void _pool_release(memtype_t type, void *ptr, size_t size);
+
+
+
+
+memcxt_t _pool_memcxt = { _pool_allocate, _pool_release };
 
 memcxt_t *pool_memcxt = &_pool_memcxt;
 
 
+static void *_pool_allocate(memtype_t type, size_t size){
+  return pool_allocate(&the_pool, type, size);
+}
+
+static void _pool_release(memtype_t type, void *ptr, size_t size){
+  pool_release(&the_pool, type, ptr, size);
+}
+
+
+
 size_t pcount = 0;
 
-static void *pool_allocate(memtype_t type, size_t size){
+static void *pool_allocate(pool_t* pool, memtype_t type, size_t size){
   void *memory;
   check_pool();
   switch(type){
@@ -456,16 +480,15 @@ static void *pool_allocate(memtype_t type, size_t size){
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
     // how many hash tables use this pool?
-    memory = new_directory(size);
-    the_pool.directory = memory;
+    memory = new_directory(pool, size);
     break;
   }
   case SEGMENT: {
-    memory = alloc_segment(&the_pool);
+    memory = alloc_segment(pool);
     break;
   }
   case BUCKET: {
-    memory = alloc_bucket(&the_pool);
+    memory = alloc_bucket(pool);
     break;
   }
   default: assert(false);
@@ -475,7 +498,7 @@ static void *pool_allocate(memtype_t type, size_t size){
 }
 
 
-static void pool_release(memtype_t type, void *ptr, size_t size){
+static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size){
   check_pool();
   switch(type){
   case DIRECTORY: {
@@ -486,11 +509,11 @@ static void pool_release(memtype_t type, void *ptr, size_t size){
     break;
   }
   case SEGMENT: {
-    free_segment(&the_pool, ptr);
+    free_segment(pool, ptr);
     break;
   }
   case BUCKET: {
-    free_bucket(&the_pool, ptr);
+    free_bucket(pool, ptr);
     break;
   }
   default: assert(false);

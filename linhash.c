@@ -291,13 +291,14 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
     return false;
   }
 
-  //DD could try to do realloc and if we succeed we do not need to copy ...
-  
-  for(index = 0; index < old_dirlen; index++){
-    newdir[index] = olddir[index];
+  /* allocate tries to extend/realloc the old directory */
+  if(newdir != olddir){
+    for(index = 0; index < old_dirlen; index++){
+      newdir[index] = olddir[index];
+    }
+    lhtbl->directory = newdir;
   }
-
-  lhtbl->directory = newdir;
+  
   lhtbl->directory_length = new_dirlen;
 
   memcxt->release(DIRECTORY, olddir, mul_size(old_dirlen, sizeof(segmentptr)));

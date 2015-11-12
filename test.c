@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "pool.h"
 #include "memcxt.h"
@@ -12,6 +13,7 @@ linhash_t numerouno;
 static void test_0(memcxt_t* memcxt);
 static void test_1(memcxt_t* memcxt);
 static void test_2(memcxt_t* memcxt);
+static void test_3(memcxt_t* memcxt);
 
 #define K   1024
 #define K2  K << 1
@@ -20,17 +22,19 @@ static void test_2(memcxt_t* memcxt);
 
 int main(int argc, char** argv){
   memcxt_t* memcxt;
-  int tests[] = { 0, 0, 1};
+  int tests[] = { 0, 0, 0, 1};
 
   memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
 
   fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
-  
+
   if(tests[0]){ test_0(memcxt); }
   
   if(tests[1]){ test_1(memcxt); }
 
   if(tests[2]){ test_2(memcxt); }
+
+  if(tests[3]){ test_3(memcxt); }
   
   return 0;
 }
@@ -173,4 +177,91 @@ void test_2(memcxt_t* memcxt){
 
   free(menagery);
   
+}
+
+void test_3(memcxt_t* memcxt){
+  bool found;
+  size_t index;
+  size_t zindex;
+  size_t alot;
+  size_t alsoalot;
+    
+  void ** menagery;
+  
+
+  init_linhash(&numerouno, memcxt);
+
+  fprintf(stderr, "bincount_max = %zu\n", numerouno.cfg.bincount_max);
+
+  alot = ((uint64_t)1) << 16;
+
+  alsoalot = ((uint64_t)1) << 12;
+
+    
+  menagery = calloc(alot, sizeof(void *));
+  if(menagery != NULL){
+    
+    for(zindex = 0; zindex < alot; zindex++){
+      
+      if((zindex % K4 == 0)){
+	fprintf(stderr, "+");
+      }
+      
+      void* zoo = calloc(alsoalot, sizeof(char));
+      if(zoo != NULL){
+	
+	for(index = 0; index < alsoalot; index++){
+	 found = linhash_insert(&numerouno, zoo + index, zoo + index);
+	 if(!found){
+	    fprintf(stderr, "linhash_insert FAILED: zindex = %zu index = %zu\n", zindex, index);
+	  }
+	  assert(found);
+
+	}
+      }
+      
+      menagery[zindex] = zoo;
+      
+    }
+  }
+  
+  fprintf(stderr, "\n");
+  
+  dump_linhash(stderr, &numerouno, false);
+
+  if(menagery != NULL){
+    for(zindex = 0; zindex < alot; zindex++){
+      
+      if((zindex % K4 == 0)){
+	fprintf(stderr, "-");
+      }
+      
+      void* zoo = menagery[zindex];
+      if(zoo != NULL){
+      
+	for(index = 0; index < alsoalot; index++){
+	  
+	  found = linhash_delete(&numerouno, zoo + index);
+	  if(!found){
+	    fprintf(stderr, "linhash_delete FAILED: zindex = %zu index = %zu\n", zindex, index);
+	  }
+	  assert(found);
+	}
+      }
+      
+      menagery[zindex] = NULL;
+      
+      free(zoo);
+      
+    }
+
+  }
+  fprintf(stderr, "\n");
+  
+  dump_linhash(stderr, &numerouno, false);
+  
+  delete_linhash(&numerouno);
+  
+  free(menagery);
+    
 }

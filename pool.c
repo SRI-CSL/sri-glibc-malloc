@@ -43,7 +43,7 @@ typedef struct pool_s {
 static bool sane_bucket_pool(bucket_pool_t* bpool);
 #endif
 
-/* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
+/* for now we do not assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_bucket_pool(bucket_pool_t* bp){
   size_t scale;
   size_t bindex;
@@ -61,7 +61,7 @@ static void init_bucket_pool(bucket_pool_t* bp){
   }
 }
 
-/* for now we assume that the underlying memory has been mmapped (i.e zeroed) */
+/* for now we  do not assume assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_segment_pool(segment_pool_t* sp){
   size_t scale;
   size_t sindex;

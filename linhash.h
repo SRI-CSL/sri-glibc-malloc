@@ -117,12 +117,25 @@ typedef struct linhash_s {
 
 
 
-
-extern void init_linhash(linhash_t* lhash, memcxt_t* memcxt);
+/* 
+ * Initializes a linhash_t object; returns true if successful; false if not.
+ * If it returns false it sets errno to explain the error.
+ * It can fail due to:
+ *   -- lack of memory   errno = ENOMEM.
+ *   -- bad arguments    errno = EINVAL.
+ */
+extern bool init_linhash(linhash_t* lhash, memcxt_t* memcxt);
 
 extern void delete_linhash(linhash_t* htbl);
 
-extern void linhash_insert(linhash_t* htbl, const void *key, const void *value);
+/* 
+ * Inserts the key value pair into the has table. Returns true if successful; false if not.
+ * If it returns false it sets errno to explain the error.
+ * It can fail due to:
+ *   -- lack of memory   errno = ENOMEM.
+ *   -- bad arguments    errno = EINVAL.
+ */
+extern bool linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
 extern void *linhash_lookup(linhash_t* htbl, const void *key);
 

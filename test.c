@@ -23,7 +23,9 @@ int main(int argc, char** argv){
   int tests[] = { 0, 0, 1};
 
   memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
-    
+
+  fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
+  
   if(tests[0]){ test_0(memcxt); }
   
   if(tests[1]){ test_1(memcxt); }

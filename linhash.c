@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 
 #include "linhash.h"
 #include "hashfns.h"
@@ -19,12 +20,12 @@ const uint16_t  linhash_max_load                = 5;
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
 
 /* linhash expansion routines */
-static void linhash_expand_check(linhash_t* lhtbl);
+static bool linhash_expand_check(linhash_t* lhtbl);
 
-static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
+static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
 
-/* split's the current bin; returns the number of buckets moved to the new bin */
-static size_t linhash_expand_table(linhash_t* lhtbl);
+/* split's the current bin  */
+static bool linhash_expand_table(linhash_t* lhtbl);
  
 /* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
 static uint32_t linhash_offset(linhash_t* lhtbl, const void *p);
@@ -62,16 +63,23 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
 
 
 
-void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
+bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   linhash_cfg_t* lhtbl_cfg;
   size_t index;
+  segmentptr seg;
+  
+  if((lhtbl == NULL) || (memcxt == NULL)){
+    errno = EINVAL;
+    return false;
+  }
   
   assert((lhtbl != NULL) && (memcxt != NULL));
 
   lhtbl_cfg = &lhtbl->cfg;
   
   linhash_cfg_init(lhtbl_cfg, memcxt);
-
+    
+  //iam: should these be more than just asserts?
   assert(is_power_of_two(lhtbl_cfg->segment_size));
 
   assert(is_power_of_two(lhtbl_cfg->initial_directory_size));
@@ -88,7 +96,11 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   
   /* the array of segment pointers */
   lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_size, sizeof(segmentptr)));
-
+  if(lhtbl->directory == NULL){
+    errno = ENOMEM;
+    return false;
+  }
+  
   /* mininum number of bins    [{ N }]   */
   lhtbl->N = mul_size(lhtbl_cfg->segment_size, lhtbl->directory_current);
 
@@ -110,10 +122,16 @@ void init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   assert(is_power_of_two(lhtbl->maxp));
 
   /* create the segments needed by the current directory */
-  for(index = 0; index < lhtbl->directory_current; index++){ 
-    lhtbl->directory[index] = (segmentptr)memcxt->allocate(SEGMENT, sizeof(segment_t));
+  for(index = 0; index < lhtbl->directory_current; index++){
+    seg = (segmentptr)memcxt->allocate(SEGMENT, sizeof(segment_t));
+    lhtbl->directory[index] = seg;
+    if(seg == NULL){
+      errno = ENOMEM;
+      return false;
+    }
   }
 
+  return true;
 }
 
 extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
@@ -237,15 +255,19 @@ bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
   return offset2bucketptr(lhtbl, offset);
 }
 
-/* check if the table needs to be expanded */
-void linhash_expand_check(linhash_t* lhtbl){
+/* check if the table needs to be expanded; true if either it didn't need to be 
+ * expanded, or else it expanded successfully. false if it failed.
+ *
+ */
+bool linhash_expand_check(linhash_t* lhtbl){
   if(lhtbl->count / lhtbl->currentsize > lhtbl->cfg.max_load){
-    linhash_expand_table(lhtbl);
+    return linhash_expand_table(lhtbl);
   }
+  return true;
 }
 
 
-static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
+static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t index;
   size_t oldsz;
   size_t newsz;
@@ -263,7 +285,13 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
+  //iam: sz and len need to use these two accurately throughout.
+  //fix when stable.
   newdir = memcxt->allocate(DIRECTORY, mul_size(newsz, sizeof(segmentptr)));
+  if(newdir == NULL){
+    errno = ENOMEM;
+    return false;
+  }
 
   //DD could try to do realloc and if we succeed we do not need to copy ...
   
@@ -275,14 +303,15 @@ static void linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_size = newsz;
 
   memcxt->release(DIRECTORY, olddir, mul_size(oldsz, sizeof(segmentptr)));
+
+  return true;
 }
 
 
-static size_t linhash_expand_table(linhash_t* lhtbl){
+static bool linhash_expand_table(linhash_t* lhtbl){
   size_t segsz;
   size_t newaddr;
   size_t newindex;
-  size_t moved;
   bucketptr* oldbucketp;
   bucketptr current;
   bucketptr previous;
@@ -293,16 +322,15 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 
   memcxt = lhtbl->cfg.memcxt;
 
-  moved = 0;
-  
   newaddr = add_size(lhtbl->maxp, lhtbl->p);
 
   assert(newaddr < lhtbl->cfg.address_max);
-  
 
   /* see if the directory needs to grow  */
   if(lhtbl->directory_size  ==  lhtbl->directory_current){
-    linhash_expand_directory(lhtbl,  memcxt);
+    if(! linhash_expand_directory(lhtbl,  memcxt)){
+      return false;
+    }
   }
 
 
@@ -317,8 +345,13 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     newsegindex = mod_power_of_two(newaddr, segsz);  
     
     /* expand address space; if necessary create new segment */  
-    if((newsegindex == 0) && (lhtbl->directory[newindex] == NULL)){  
-      lhtbl->directory[newindex] = memcxt->allocate(SEGMENT, mul_size(segsz, sizeof(bucketptr)));
+    if((newsegindex == 0) && (lhtbl->directory[newindex] == NULL)){
+      newseg = memcxt->allocate(SEGMENT, sizeof(segment_t));
+      if(newseg == NULL){
+	errno = ENOMEM;
+	return false;
+      }
+      lhtbl->directory[newindex] = newseg;
       lhtbl->directory_current += 1;
     }
 
@@ -347,7 +380,6 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
       if(linhash_offset(lhtbl, current->key) == newaddr){
 
 	/* it belongs in the new bucket */
-	moved++;
 	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins
 	  newseg->segment[newsegindex] = current;
 	} else {
@@ -374,7 +406,7 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
     }
   } 
 
-  return moved;
+  return true;
 }
 
 
@@ -384,14 +416,18 @@ static size_t linhash_expand_table(linhash_t* lhtbl){
 /* iam Q2: should we insert at the front or back or ...                        */
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
-void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
+bool linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
   bucketptr newbucket;
   bucketptr* binp;
 
   binp = linhash_fetch_bucket(lhtbl, key);
 
   newbucket = lhtbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
-
+  if(newbucket == NULL){
+    errno = ENOMEM;
+    return false;
+  }
+  
   newbucket->key = (void *)key;
   newbucket->value = (void *)value;
 
@@ -402,8 +438,8 @@ void linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
   /* census adjustments */
   lhtbl->count++;
 
-  /* check to see if we need to exand the table; Q5: not really needed for EVERY insert */
-  linhash_expand_check(lhtbl);
+  /* check to see if we need to exand the table */
+  return linhash_expand_check(lhtbl);
 }
 
 void *linhash_lookup(linhash_t* lhtbl, const void *key){

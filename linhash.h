@@ -29,11 +29,14 @@
  * hash is currently uint32_t. So the maximum number of bins is also
  * uint32_t.
  *
+ * We either we run out of memory prior to achieving the maximum number
+ * of bins, or else we achieve the maximum.
+ *
  * Once the maximum number of bins has been reached, we should still
  * be able to function as a hash table, the load will just start to
  * increase, as the linked lists of buckets get longer.  The only real
  * *catastrophic* failure should be when we can no longer create
- * buckets.
+ * buckets. 
  *
  */
 

@@ -198,7 +198,7 @@ void delete_linhash(linhash_t* lhtbl){
 }
 
 
-/* returns the raw offset/index of the bucket that should contain p  [{ hash }] */
+/* returns the raw offset/index of the bin that should contain p  [{ hash }] */
 static uint32_t linhash_offset(linhash_t* lhtbl, const void *p){
   uint32_t jhash;
   uint32_t l;

@@ -21,12 +21,28 @@
 #define DIRECTORY_LENGTH 1024
 
 
+/*
+ *
+ * The directory is an expandable array of segments.  Each segment is
+ * essentially a fixed size array of bins.  Each bin is essentially a
+ * linked list of buckets.  Each bin is "addressed" by its hash.  The
+ * hash is currently uint32_t. So the maximum number of bins is also
+ * uint32_t.
+ *
+ * Once the maximum number of bins has been reached, we should still
+ * be able to function as a hash table, the load will just start to
+ * increase, as the linked lists of buckets get longer.  The only real
+ * *catastrophic* failure should be when we can no longer create
+ * buckets.
+ *
+ */
+
+
 /* need to make a distinction between bins and buckets  */
 /* a bin is the address of an element of a segment       */ 
 /* need a consistent terminology about bins and offsets */
 
 /* the code for contracting a table seems to be missing in Larsen's paper */
-
 
 
 typedef struct bucket_s {

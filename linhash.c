@@ -72,6 +72,9 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   linhash_cfg_t* lhtbl_cfg;
   size_t index;
   segmentptr seg;
+  bool success;
+  size_t dirsz;
+  size_t binsz;
   
   if((lhtbl == NULL) || (memcxt == NULL)){
     errno = EINVAL;
@@ -94,15 +97,27 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory_current = linhash_segments_at_startup; 
 
   
-  /* the array of segment pointers */
-  lhtbl->directory = memcxt->allocate(DIRECTORY, mul_size(lhtbl->directory_length, sizeof(segmentptr)));
+  /* the size of the directory */
+  success = mul_size(lhtbl->directory_length, sizeof(segmentptr), &dirsz);
+  if(!success){
+    errno = EINVAL;
+    return false;
+  }
+    
+  /* the directory; i.e. the array of segment pointers */
+  lhtbl->directory = memcxt->allocate(DIRECTORY, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
   }
   
   /* mininum number of bins    [{ N }]   */
-  lhtbl->N = mul_size(lhtbl_cfg->segment_length, lhtbl->directory_current);
+  success = mul_size(lhtbl_cfg->segment_length, lhtbl->directory_current, &binsz);
+  if(!success){
+    errno = EINVAL;
+    return false;
+  }
+  lhtbl->N = binsz;
 
   /* the number of times the table has doubled in size  [{ L }]   */
   lhtbl->L = 0;
@@ -171,6 +186,8 @@ void delete_linhash(linhash_t* lhtbl){
   bucketptr current_bucket;
   bucketptr next_bucket;
   memcxt_t *memcxt;
+  size_t dirsz;
+  bool success;
 
   seglen = lhtbl->cfg.segment_length;
   memcxt = lhtbl->cfg.memcxt;
@@ -194,7 +211,11 @@ void delete_linhash(linhash_t* lhtbl){
       memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
   }
   
-  memcxt->release(DIRECTORY, lhtbl->directory, mul_size(lhtbl->directory_length, sizeof(segmentptr)));
+  success = mul_size(lhtbl->directory_length, sizeof(segmentptr), &dirsz);
+  assert(success);
+  if(success){
+    memcxt->release(DIRECTORY, lhtbl->directory, dirsz);
+  }
 }
 
 
@@ -270,7 +291,10 @@ bool linhash_expand_check(linhash_t* lhtbl){
 static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t index;
   size_t old_dirlen;
+  size_t old_dirsz;
   size_t new_dirlen;
+  size_t new_dirsz;
+  bool success;
   segmentptr* olddir;
   segmentptr* newdir;
 
@@ -285,7 +309,13 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  newdir = memcxt->allocate(DIRECTORY, mul_size(new_dirlen, sizeof(segmentptr)));
+  success = mul_size(new_dirlen, sizeof(segmentptr), &new_dirsz);
+  if(!success){
+    errno = EINVAL;
+    return false;
+  }
+  newdir = memcxt->allocate(DIRECTORY, new_dirsz);
+
   if(newdir == NULL){
     errno = ENOMEM;
     return false;
@@ -301,7 +331,12 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   
   lhtbl->directory_length = new_dirlen;
 
-  memcxt->release(DIRECTORY, olddir, mul_size(old_dirlen, sizeof(segmentptr)));
+  success = mul_size(old_dirlen, sizeof(segmentptr), &old_dirsz);
+  if(!success){
+    errno = EINVAL;
+    return false;
+  }
+  memcxt->release(DIRECTORY, olddir, old_dirsz);
 
   return true;
 }
@@ -311,6 +346,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
   size_t seglen;
   size_t new_bindex;
   size_t new_segindex;
+  bool success;
   bucketptr* oldbucketp;
   bucketptr current;
   bucketptr previous;
@@ -321,8 +357,12 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
   memcxt = lhtbl->cfg.memcxt;
 
-  new_bindex = add_size(lhtbl->maxp, lhtbl->p);
-
+  success = add_size(lhtbl->maxp, lhtbl->p, &new_bindex);
+  if(!success){
+    errno = EINVAL;
+    return false;
+  }
+  
   assert(new_bindex < lhtbl->cfg.bincount_max);
 
   /* see if the directory needs to grow  */

@@ -2,6 +2,7 @@
 #define _MEMCXT_H
 
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "types.h"
@@ -27,9 +28,9 @@ struct memcxt_s {
 /* memcxt_t is defined in types.h to be a memcxt_s */
 extern memcxt_t* sys_memcxt;
 
-extern size_t add_size(size_t s1, size_t s2);
+extern bool add_size(size_t s1, size_t s2, size_t* sum);
 
-extern size_t mul_size(size_t s1, size_t s2);
+extern bool mul_size(size_t s1, size_t s2, size_t* prod);
 
 
 

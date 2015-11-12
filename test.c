@@ -185,7 +185,9 @@ void test_3(memcxt_t* memcxt){
   size_t zindex;
   size_t alot;
   size_t alsoalot;
-    
+  size_t lots_n_lots;
+  bool success;
+
   void ** menagery;
   
 
@@ -196,6 +198,14 @@ void test_3(memcxt_t* memcxt){
   alot = ((uint64_t)1) << 16;
 
   alsoalot = ((uint64_t)1) << 12;
+
+  success = mul_size(alot, alsoalot, &lots_n_lots);
+    
+  if(!success){
+    return;
+  }
+    
+  fprintf(stderr, "keys         = %zu\n", lots_n_lots);
 
     
   menagery = calloc(alot, sizeof(void *));

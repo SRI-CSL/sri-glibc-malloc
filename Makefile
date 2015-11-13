@@ -1,6 +1,8 @@
 
 
-CFLAGS = -Wall -O3 -DNDEBUG 
+CFLAGS = -Wall 
+
+#-O3 -DNDEBUG 
 
 all: test 
 

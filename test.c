@@ -165,9 +165,13 @@ void test_2(memcxt_t* memcxt){
       assert(found);
     }
 
+    
     menagery[zindex] = NULL;
-
+    
+    
     free(zoo);
+
+    if(!found){ break; }
 
   }
   
@@ -188,7 +192,7 @@ void test_3(memcxt_t* memcxt){
   size_t lots_n_lots;
   bool success;
 
-  void ** menagery;
+  void **menagery;
   
 
   init_linhash(&numerouno, memcxt);
@@ -224,8 +228,9 @@ void test_3(memcxt_t* memcxt){
 	 found = linhash_insert(&numerouno, zoo + index, zoo + index);
 	 if(!found){
 	    fprintf(stderr, "linhash_insert FAILED: zindex = %zu index = %zu\n", zindex, index);
+	    break;
 	  }
-	  assert(found);
+	 assert(found);
 
 	}
       }
@@ -254,6 +259,7 @@ void test_3(memcxt_t* memcxt){
 	  found = linhash_delete(&numerouno, zoo + index);
 	  if(!found){
 	    fprintf(stderr, "linhash_delete FAILED: zindex = %zu index = %zu\n", zindex, index);
+	    break;
 	  }
 	  assert(found);
 	}

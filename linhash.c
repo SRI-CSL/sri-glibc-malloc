@@ -412,7 +412,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
     previous = NULL;
     lastofnew = NULL;
 
-    assert( newseg[newsegindex] == NULL );
+    assert( newseg->segment[newsegindex] == NULL );
 
     while( current != NULL ){
 

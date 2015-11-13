@@ -95,8 +95,6 @@ static void* pool_mmap(void* oldaddr, size_t size){
     memory = mmap(0, size, protection, flags, -1, 0);
   }
   
-  assert(memory != MAP_FAILED);
-
   if(memory == MAP_FAILED){
     memory = NULL;
   }
@@ -108,7 +106,6 @@ static bool pool_munmap(void* memory, size_t size){
   int rcode;
 
   rcode = munmap(memory, size);
-  assert(retcode != -1);
   
   return rcode != -1;
 }
@@ -122,6 +119,9 @@ static void* new_directory(pool_t* pool, size_t size){
 static segment_pool_t* new_segments(void){
   segment_pool_t* sptr;
   sptr = pool_mmap(NULL, sizeof(segment_pool_t));
+  if(sptr == NULL){
+    return NULL;
+  }
   init_segment_pool(sptr);
   return sptr;
 }
@@ -129,6 +129,9 @@ static segment_pool_t* new_segments(void){
 static void* new_buckets(void){
   bucket_pool_t* bptr;
   bptr = pool_mmap(NULL, sizeof(bucket_pool_t));
+  if(bptr == NULL){
+    return NULL;
+  }
   init_bucket_pool(bptr);
   return bptr;
 }
@@ -286,6 +289,9 @@ static bucket_t* alloc_bucket(pool_t* pool){
     assert(bpool_current  == NULL);
 
     bpool_current = new_buckets();
+    if(bpool_current == NULL){
+      return NULL;
+    }
 
     /* put the new bucket up front */
     bpool_current->next_bucket_pool = pool->buckets;
@@ -385,6 +391,9 @@ static segment_t* alloc_segment(pool_t* pool){
 
     
     spool_current = new_segments();
+    if(spool_current == NULL){
+      return NULL;
+    }
 
     /* put the new segment up front */
     spool_current->next_segment_pool = pool->segments;

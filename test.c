@@ -194,14 +194,18 @@ void test_3(memcxt_t* memcxt){
 
   void **menagery;
   
+  const int32_t exp0 = 16;
+  const int32_t exp1 = 14;
 
   init_linhash(&numerouno, memcxt);
 
+  fprintf(stderr, "exp0 = %d exp1 = %d\n", exp0, exp1);
+
   fprintf(stderr, "bincount_max = %zu\n", numerouno.cfg.bincount_max);
 
-  alot = ((uint64_t)1) << 16;
+  alot = ((uint64_t)1) << exp0;
 
-  alsoalot = ((uint64_t)1) << 12;
+  alsoalot = ((uint64_t)1) << exp1;
 
   success = mul_size(alot, alsoalot, &lots_n_lots);
     
@@ -281,3 +285,46 @@ void test_3(memcxt_t* memcxt){
   free(menagery);
     
 }
+
+
+/*
+
+PASCALI:
+
+Using pool_memcxt
+exp0 = 16 exp1 = 12
+bincount_max = 4294967295
+keys         = 268435456
+real	14m10.821s
+user	13m24.247s
+sys	0m45.727s
+
+Using sys_memcxt
+exp0 = 16 exp1 = 12
+bincount_max = 4294967295
+keys         = 268435456
+real	7m1.833s
+user	6m44.852s
+sys	0m16.680s
+
+
+Using pool_memcxt
+exp0 = 16 exp1 = 13
+bincount_max = 4294967295
+keys         = 536870912
+real	28m4.328s
+user	27m5.293s
+sys	0m58.290s
+
+
+Using sys_memcxt
+exp0 = 16 exp1 = 13
+bincount_max = 4294967295
+keys         = 536870912
+real	16m9.654s
+user	15m19.912s
+sys	0m49.196s
+
+
+
+ */

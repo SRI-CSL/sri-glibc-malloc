@@ -234,9 +234,11 @@ static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p){
 
     next_maxp = lhtbl->maxp << 1;
 
-    assert(next_maxp < lhtbl->cfg.directory_length_max);
-	   
-    l = mod_power_of_two(jhash, next_maxp);
+    /* if we can expand to next_maxp we use that */
+    if(next_maxp < lhtbl->cfg.bincount_max){
+      l = mod_power_of_two(jhash, next_maxp);
+    }
+    
   }
   
   return l;

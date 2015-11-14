@@ -30,11 +30,11 @@ static bool linhash_expand_table(linhash_t* lhtbl);
 /* returns the bin index (bindex) of the bin that should contain p  [{ hash }] */
 static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p);
 
-/* returns a pointer to the top bucket at the given bindex  */
-static bucketptr* bindex2bucketptr(linhash_t* lhtbl, uint32_t bindex);
+/* returns a pointer to the bin i.e. the top bucket at the given bindex  */
+static bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
-static size_t bucket_length(bucketptr bucket);
+static size_t bucket_length(bucket_t* bucket);
 
 /* for sanity checking */
 #ifndef NDEBUG
@@ -71,7 +71,7 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
 bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   linhash_cfg_t* lhtbl_cfg;
   size_t index;
-  segmentptr seg;
+  segment_t* seg;
   bool success;
   size_t dirsz;
   size_t binsz;
@@ -98,7 +98,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   
   /* the size of the directory */
-  success = mul_size(lhtbl->directory_length, sizeof(segmentptr), &dirsz);
+  success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -138,7 +138,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
-    seg = (segmentptr)memcxt->allocate(SEGMENT, sizeof(segment_t));
+    seg = (segment_t*)memcxt->allocate(SEGMENT, sizeof(segment_t));
     lhtbl->directory[index] = seg;
     if(seg == NULL){
       errno = ENOMEM;
@@ -152,7 +152,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
-  bucketptr* bp;
+  bucket_t** bp;
   
   fprintf(fp, "directory_length = %lu\n", (unsigned long)lhtbl->directory_length);
   fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
@@ -166,7 +166,7 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   if(showloads){
     fprintf(fp, "bucket lengths: ");
     for(index = 0; index < lhtbl->bincount; index++){
-      bp = bindex2bucketptr(lhtbl, index);
+      bp = bindex2bin(lhtbl, index);
       blen = bucket_length(*bp);
       if(blen != 0){
 	fprintf(fp, "%zu:%zu ", index, blen);
@@ -182,9 +182,9 @@ void delete_linhash(linhash_t* lhtbl){
   size_t seglen;
   size_t segindex;
   size_t index;
-  segmentptr current_segment;
-  bucketptr current_bucket;
-  bucketptr next_bucket;
+  segment_t* current_segment;
+  bucket_t* current_bucket;
+  bucket_t* next_bucket;
   memcxt_t *memcxt;
   size_t dirsz;
   bool success;
@@ -211,7 +211,7 @@ void delete_linhash(linhash_t* lhtbl){
       memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
   }
   
-  success = mul_size(lhtbl->directory_length, sizeof(segmentptr), &dirsz);
+  success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   assert(success);
   if(success){
     memcxt->release(DIRECTORY, lhtbl->directory, dirsz);
@@ -244,8 +244,8 @@ static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p){
   return l;
 }
 
-bucketptr* bindex2bucketptr(linhash_t* lhtbl, uint32_t bindex){
-  segmentptr segptr;
+bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex){
+  segment_t* segptr;
   size_t seglen;
   size_t segindex;
   uint32_t index;
@@ -267,15 +267,15 @@ bucketptr* bindex2bucketptr(linhash_t* lhtbl, uint32_t bindex){
 
 
 /* 
- *  pointer (in the appropriate segment) to the bucketptr 
+ *  pointer (in the appropriate segment) to the bucket_t* 
  *  where the start of the bucket chain should be for p 
  */
-bucketptr* linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
+bucket_t** linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
   uint32_t bindex;
   
   bindex = linhash_bindex(lhtbl, p);
 
-  return bindex2bucketptr(lhtbl, bindex);
+  return bindex2bin(lhtbl, bindex);
 }
 
 /* check if the table needs to be expanded; true if either it didn't need to be 
@@ -297,8 +297,8 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   size_t new_dirlen;
   size_t new_dirsz;
   bool success;
-  segmentptr* olddir;
-  segmentptr* newdir;
+  segment_t** olddir;
+  segment_t** newdir;
 
   old_dirlen = lhtbl->directory_length;
   
@@ -311,7 +311,7 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  success = mul_size(new_dirlen, sizeof(segmentptr), &new_dirsz);
+  success = mul_size(new_dirlen, sizeof(segment_t*), &new_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -333,7 +333,7 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   
   lhtbl->directory_length = new_dirlen;
 
-  success = mul_size(old_dirlen, sizeof(segmentptr), &old_dirsz);
+  success = mul_size(old_dirlen, sizeof(segment_t*), &old_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -349,11 +349,11 @@ static bool linhash_expand_table(linhash_t* lhtbl){
   size_t new_bindex;
   size_t new_segindex;
   bool success;
-  bucketptr* oldbucketp;
-  bucketptr current;
-  bucketptr previous;
-  bucketptr lastofnew;
-  segmentptr newseg;
+  bucket_t** oldbucketp;
+  bucket_t* current;
+  bucket_t* previous;
+  bucket_t* lastofnew;
+  segment_t* newseg;
   size_t newsegindex;
   memcxt_t *memcxt;
 
@@ -377,7 +377,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
   if(new_bindex < lhtbl->cfg.bincount_max){
 
-    oldbucketp = bindex2bucketptr(lhtbl, lhtbl->p);
+    oldbucketp = bindex2bin(lhtbl, lhtbl->p);
 
     seglen = lhtbl->cfg.segment_length;
 
@@ -458,8 +458,8 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
 bool linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
-  bucketptr newbucket;
-  bucketptr* binp;
+  bucket_t* newbucket;
+  bucket_t** binp;
 
   binp = linhash_fetch_bucket(lhtbl, key);
 
@@ -485,8 +485,8 @@ bool linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
 
 void *linhash_lookup(linhash_t* lhtbl, const void *key){
   void* value;
-  bucketptr* binp;
-  bucketptr bucketp;
+  bucket_t** binp;
+  bucket_t* bucketp;
 
   value = NULL;
   binp = linhash_fetch_bucket(lhtbl, key);
@@ -505,9 +505,9 @@ void *linhash_lookup(linhash_t* lhtbl, const void *key){
 
 bool linhash_delete(linhash_t* lhtbl, const void *key){
   bool found = false;
-  bucketptr* binp;
-  bucketptr current_bucketp;
-  bucketptr previous_bucketp;
+  bucket_t** binp;
+  bucket_t* current_bucketp;
+  bucket_t* previous_bucketp;
 
   previous_bucketp = NULL;
   binp = linhash_fetch_bucket(lhtbl, key);
@@ -538,10 +538,10 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
 
 size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
   size_t count;
-  bucketptr* binp;
-  bucketptr current_bucketp;
-  bucketptr previous_bucketp;
-  bucketptr temp_bucketp;
+  bucket_t** binp;
+  bucket_t* current_bucketp;
+  bucket_t* previous_bucketp;
+  bucket_t* temp_bucketp;
 
   count = 0;
   previous_bucketp = NULL;
@@ -574,9 +574,9 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
 }
 
 
-size_t bucket_length(bucketptr bucket){
+size_t bucket_length(bucket_t* bucket){
   size_t count;
-  bucketptr current;
+  bucket_t* current;
 
   count = 0;
   current = bucket;
@@ -587,3 +587,162 @@ size_t bucket_length(bucketptr bucket){
 
   return count;
 }
+
+/*  experimental code below; needs to be cleaned up and debugged */
+
+#if 0
+static void linhash_contract_table(linhash_t* lhtbl);
+
+static void linhash_contract_check(linhash_t* lhtbl){
+    /* iam Q4: better make sure that immediately after an expansion we don't drop below the min_load!! */
+  if((lhtbl->L > 0) && (lhtbl->count / lhtbl->bincount < lhtbl->cfg.min_load)){
+      linhash_contract_table(lhtbl);
+      //fprintf(stderr, "TABLE CONTRACTED\n");
+    }
+}
+
+/* assumes the non-null segments for an prefix of the directory */
+static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
+  size_t index;
+  size_t oldlen;
+  size_t newlen;
+  size_t oldsz;
+  size_t newsz;
+  size_t curlen;
+  segment_t** olddir;
+  segment_t** newdir;
+  bool success;
+
+  oldlen = lhtbl->directory_length;
+  curlen = lhtbl->directory_current;
+  newlen = oldlen  >> 1;
+
+  success = mul_size(newlen, sizeof(segment_t*), &newsz);
+
+  assert(success);
+  
+  success = mul_size(oldlen, sizeof(segment_t*), &oldsz);
+
+  assert(success);
+
+  assert(curlen < newlen);
+  
+  olddir = lhtbl->directory;
+  
+  newdir = memcxt->allocate(DIRECTORY, newsz);
+  
+  for(index = 0; index < newlen; index++){
+    newdir[index] = olddir[index];
+  }
+
+  lhtbl->directory = newdir;
+  lhtbl->directory_length = newlen;
+  
+  memcxt->release(DIRECTORY, olddir, oldsz);
+}
+
+static void linhash_contract_table(linhash_t* lhtbl){
+  size_t seglen;
+  size_t segindex;
+  memcxt_t *memcxt;
+  size_t srcindex;
+  bucket_t** srcbucketp;
+  size_t tgtindex;
+  bucket_t** tgtbucketp;
+  bucket_t* src;
+  bucket_t* tgt;
+  bool success;
+  
+  memcxt = lhtbl->cfg.memcxt;
+
+  /* see if the directory needs to contract; iam Q5 need to ensure we don't get unwanted oscillations  load should enter here?!? */
+  if((lhtbl->directory_length > lhtbl->cfg.initial_directory_length) && lhtbl->directory_current < lhtbl->directory_length  >> 1){
+    //fprintf(stderr, ">DIRECTORY CONTRACTED\n");
+    linhash_contract_directory(lhtbl,  memcxt);
+    //fprintf(stderr, "<DIRECTORY CONTRACTED\n");
+  }
+
+  
+  /* get the two buckets involved; moving src to tgt */
+  if(lhtbl->p == 0){
+    tgtindex = (lhtbl->p >> 1) - 1;
+    srcindex = lhtbl->maxp - 1;
+  } else {
+    tgtindex = lhtbl->p - 1;
+    success = add_size(lhtbl->maxp, lhtbl->p - 1, &srcindex);
+    assert(success);
+  }
+
+  /* update the state variables */
+  lhtbl->p -= 1;
+  if(lhtbl->p == -1){
+    //fprintf(stderr, "STATE CONTRACTED\n");
+    lhtbl->maxp = lhtbl->maxp >> 1;
+    lhtbl->p = lhtbl->maxp - 1;
+    lhtbl->L -= 1;  /* used as a quick test in contraction */
+  }
+
+
+  
+  /* get the two buckets involved; moving src to tgt */
+  // srcindex = add_size(lhtbl->maxp, lhtbl->p);
+
+  if( srcindex >= lhtbl->bincount ){
+    fprintf(stderr, "lhtbl->maxp = %zu\n", lhtbl->maxp);
+    fprintf(stderr, "lhtbl->p = %zu\n", lhtbl->p);
+    fprintf(stderr, "srcindex = %zu\n", srcindex);
+    fprintf(stderr, "bincount = %zu\n", lhtbl->bincount);
+  }
+  assert( srcindex < lhtbl->bincount);
+  
+  srcbucketp = bindex2bin(lhtbl, srcindex);
+
+  if(srcbucketp == NULL){
+    fprintf(stderr, "srcindex = %zu\n", srcindex);
+    fprintf(stderr, "bincount = %zu\n", lhtbl->bincount);
+    return;
+  }
+  
+  assert(srcbucketp != NULL);
+  
+  src = *srcbucketp;
+  *srcbucketp = NULL;
+
+  tgtbucketp = bindex2bin(lhtbl, tgtindex);
+  tgt = *tgtbucketp;
+  
+  /* move the buckets */
+  if(src != NULL){
+
+    if(tgt == NULL){
+
+      fprintf(stderr, "TARGET BUCKET EMPTY tgtindex = %zu\n", tgtindex);
+
+      /* not very likely */
+      *tgtbucketp = src;
+
+    } else {
+      /* easiest is to splice the src bin onto the end of the tgt */
+      while(src->next_bucket != NULL){  src = src->next_bucket; }
+      src->next_bucket = tgt;
+    }
+  } else {
+    fprintf(stderr, "SOURCE BUCKET EMPTY srcindex = %zu\n", srcindex);
+  }
+
+  /* now check if we can eliminate a segment */
+  seglen = lhtbl->cfg.segment_length;
+
+  segindex = srcindex / seglen;
+
+  if(mod_power_of_two(srcindex, seglen) == 0){
+    /* ok we can reclaim it */
+    memcxt->release(SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
+    lhtbl->directory[segindex] = NULL;
+    lhtbl->directory_current -= 1;
+  }
+  
+  lhtbl->bincount -= 1;
+  
+}
+#endif

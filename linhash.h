@@ -41,10 +41,6 @@
  */
 
 
-/* need to make a distinction between bins and buckets  */
-/* a bin is the address of an element of a segment       */ 
-/* need a consistent terminology about bins and offsets */
-
 /* the code for contracting a table seems to be missing in Larsen's paper */
 
 
@@ -55,15 +51,12 @@ typedef struct bucket_s {
   bucket_pool_t * bucket_pool_ptr;  //BD's optimization.
 } bucket_t;
 
-typedef bucket_t*  bucketptr;
 
 typedef struct segment_s {
-  bucketptr segment[SEGMENT_LENGTH];
+  bucket_t* segment[SEGMENT_LENGTH];
   segment_pool_t *segment_pool_ptr;  
 } segment_t;
 
-
-typedef segment_t*  segmentptr;
 
 typedef struct linhash_cfg_s {
 
@@ -100,9 +93,6 @@ typedef struct linhash_cfg_s {
 
   Then  [2^20,  2^26] <= directory_length_max <= [2^22,  2^28]
 
-  
-  Thus 
-
  */
 
 
@@ -113,7 +103,7 @@ typedef struct linhash_s {
 
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
 
-  segmentptr *directory;         /* the array of segment pointers                                          */
+  segment_t** directory;         /* the array of segment pointers                                          */
 
   size_t directory_length;       /* the size of the directory (must be a power of two)                     */
 

@@ -153,6 +153,11 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
   bucket_t** bp;
+
+  size_t maxlength;
+  
+
+  
   
   fprintf(fp, "directory_length = %lu\n", (unsigned long)lhtbl->directory_length);
   fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
@@ -163,18 +168,23 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   fprintf(fp, "bincount = %lu\n", (unsigned long)lhtbl->bincount);
   fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->bincount));
 
+  
+  maxlength = 0;
+  
   if(showloads){
     fprintf(fp, "bucket lengths: ");
-    for(index = 0; index < lhtbl->bincount; index++){
-      bp = bindex2bin(lhtbl, index);
-      blen = bucket_length(*bp);
-      if(blen != 0){
-	fprintf(fp, "%zu:%zu ", index, blen);
-      }
-    }
-    fprintf(fp, "\n");
   }
-  
+
+  for(index = 0; index < lhtbl->bincount; index++){
+    bp = bindex2bin(lhtbl, index);
+    blen = bucket_length(*bp);
+    if( blen > maxlength ){  maxlength = blen; }
+    if(showloads && blen != 0){
+      fprintf(fp, "%zu:%zu ", index, blen);
+    }
+  }
+  fprintf(fp, "\n");
+  fprintf(fp, "maximum length = %zu\n", maxlength);
 }
 
 
@@ -673,6 +683,14 @@ static void linhash_contract_table(linhash_t* lhtbl){
     assert(success);
   }
 
+  /* 
+   * here be the bug: if lhtbl->p = 0 then we cannot just move one
+   * bin, we have to move half of them. so we should make sure that
+   * moving half keeps the load low.
+   */
+
+  
+  
   /* update the state variables */
   lhtbl->p -= 1;
   if(lhtbl->p == -1){

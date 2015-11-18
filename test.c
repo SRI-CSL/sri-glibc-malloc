@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #include "pool.h"
 #include "memcxt.h"
@@ -94,7 +95,7 @@ void test_1(memcxt_t* memcxt){
   for(index = 0; index < K2; index++){
     found = linhash_delete(&numerouno, zoo + index);
     if(!found){
-      fprintf(stderr, "index = %zu\n", index);
+      fprintf(stderr, "index = %" PRIuPTR "\n", index);
     }
     assert(found);
   }
@@ -124,7 +125,7 @@ void test_2(memcxt_t* memcxt){
   for(zindex = 0; zindex < K4; zindex++){
 
     if(0 && (zindex % K == 0)){
-      fprintf(stderr, "zindex = %zu\n", zindex);
+      fprintf(stderr, "zindex = %" PRIuPTR "\n", zindex);
     }
     
     void* zoo = calloc(K4, sizeof(char));
@@ -132,7 +133,7 @@ void test_2(memcxt_t* memcxt){
     for(index = 0; index < K4; index++){
 
       if(0 && (zindex % K == 0) && (index % K == 0)){
-	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
       
       linhash_insert(&numerouno, zoo + index, zoo + index);
@@ -147,7 +148,7 @@ void test_2(memcxt_t* memcxt){
   for(zindex = 0; zindex < K4; zindex++){
 
     if(0 && (zindex % K == 0)){
-      fprintf(stderr, "> zindex = %zu\n", zindex);
+      fprintf(stderr, "> zindex = %" PRIuPTR "\n", zindex);
     }
 
     void* zoo = menagery[zindex];
@@ -155,12 +156,12 @@ void test_2(memcxt_t* memcxt){
     for(index = 0; index < K4; index++){
 
       if(0 && (zindex % K == 0) && (index % K == 0)){
-	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
 
       found = linhash_delete(&numerouno, zoo + index);
       if(!found){
-	fprintf(stderr, "zindex = %zu index = %zu\n", zindex, index);
+	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
       assert(found);
     }
@@ -201,7 +202,7 @@ void test_3(memcxt_t* memcxt){
 
   fprintf(stderr, "exp0 = %d exp1 = %d\n", exp0, exp1);
 
-  fprintf(stderr, "bincount_max = %zu\n", numerouno.cfg.bincount_max);
+  fprintf(stderr, "bincount_max = %" PRIuPTR "\n", numerouno.cfg.bincount_max);
 
   alot = ((uint64_t)1) << exp0;
 
@@ -213,7 +214,7 @@ void test_3(memcxt_t* memcxt){
     return;
   }
     
-  fprintf(stderr, "keys         = %zu\n", lots_n_lots);
+  fprintf(stderr, "keys         = %" PRIuPTR "\n", lots_n_lots);
 
     
   menagery = calloc(alot, sizeof(void *));
@@ -231,7 +232,7 @@ void test_3(memcxt_t* memcxt){
 	for(index = 0; index < alsoalot; index++){
 	 found = linhash_insert(&numerouno, zoo + index, zoo + index);
 	 if(!found){
-	    fprintf(stderr, "linhash_insert FAILED: zindex = %zu index = %zu\n", zindex, index);
+	    fprintf(stderr, "linhash_insert FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;
 	  }
 	 assert(found);
@@ -262,7 +263,7 @@ void test_3(memcxt_t* memcxt){
 	  
 	  found = linhash_delete(&numerouno, zoo + index);
 	  if(!found){
-	    fprintf(stderr, "linhash_delete FAILED: zindex = %zu index = %zu\n", zindex, index);
+	    fprintf(stderr, "linhash_delete FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;
 	  }
 	  assert(found);

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "linhash.h"
 #include "hashfns.h"
@@ -49,6 +50,9 @@ static inline size_t mod_power_of_two(size_t x, size_t y){
   return x & (y - 1);
 }
 
+static inline size_t linhash_load(linhash_t* lhtbl){
+  return lhtbl->count / lhtbl->bincount;
+}
 
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
   cfg->multithreaded            = linhash_multithreaded;
@@ -156,18 +160,14 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
 
   size_t maxlength;
   
-
-  
-  
-  fprintf(fp, "directory_length = %lu\n", (unsigned long)lhtbl->directory_length);
-  fprintf(fp, "directory_current = %lu\n", (unsigned long)lhtbl->directory_current);
-  fprintf(fp, "N = %lu\n", (unsigned long)lhtbl->N);
-  fprintf(fp, "L = %lu\n", (unsigned long)lhtbl->L);
-  fprintf(fp, "count = %lu\n", (unsigned long)lhtbl->count);
-  fprintf(fp, "maxp = %lu\n", (unsigned long)lhtbl->maxp);
-  fprintf(fp, "bincount = %lu\n", (unsigned long)lhtbl->bincount);
-  fprintf(fp, "load = %d\n", (int)(lhtbl->count / lhtbl->bincount));
-
+  fprintf(fp, "directory_length = %" PRIuPTR "\n", lhtbl->directory_length);
+  fprintf(fp, "directory_current = %" PRIuPTR "\n", lhtbl->directory_current);
+  fprintf(fp, "N = %" PRIuPTR "\n", lhtbl->N);
+  fprintf(fp, "L = %" PRIuPTR "\n", lhtbl->L);
+  fprintf(fp, "count = %" PRIuPTR "\n", lhtbl->count);
+  fprintf(fp, "maxp = %" PRIuPTR "\n", lhtbl->maxp);
+  fprintf(fp, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
+  fprintf(fp, "load = %" PRIuPTR "\n", linhash_load(lhtbl));
   
   maxlength = 0;
   
@@ -180,11 +180,11 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
     blen = bucket_length(*bp);
     if( blen > maxlength ){  maxlength = blen; }
     if(showloads && blen != 0){
-      fprintf(fp, "%zu:%zu ", index, blen);
+      fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
     }
   }
   fprintf(fp, "\n");
-  fprintf(fp, "maximum length = %zu\n", maxlength);
+  fprintf(fp, "maximum length = %" PRIuPTR "\n", maxlength);
 }
 
 
@@ -293,7 +293,7 @@ bucket_t** linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
  *
  */
 bool linhash_expand_check(linhash_t* lhtbl){
-  if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (lhtbl->count / lhtbl->bincount > lhtbl->cfg.max_load)){
+  if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (linhash_load(lhtbl) > lhtbl->cfg.max_load)){
     return linhash_expand_table(lhtbl);
   }
   return true;
@@ -605,7 +605,7 @@ static void linhash_contract_table(linhash_t* lhtbl);
 
 static void linhash_contract_check(linhash_t* lhtbl){
     /* iam Q4: better make sure that immediately after an expansion we don't drop below the min_load!! */
-  if((lhtbl->L > 0) && (lhtbl->count / lhtbl->bincount < lhtbl->cfg.min_load)){
+  if((lhtbl->L > 0) && (linhash_load(lhtbl) < lhtbl->cfg.min_load)){
       linhash_contract_table(lhtbl);
       //fprintf(stderr, "TABLE CONTRACTED\n");
     }
@@ -706,18 +706,18 @@ static void linhash_contract_table(linhash_t* lhtbl){
   // srcindex = add_size(lhtbl->maxp, lhtbl->p);
 
   if( srcindex >= lhtbl->bincount ){
-    fprintf(stderr, "lhtbl->maxp = %zu\n", lhtbl->maxp);
-    fprintf(stderr, "lhtbl->p = %zu\n", lhtbl->p);
-    fprintf(stderr, "srcindex = %zu\n", srcindex);
-    fprintf(stderr, "bincount = %zu\n", lhtbl->bincount);
+    fprintf(stderr, "lhtbl->maxp = %" PRIuPTR "\n", lhtbl->maxp);
+    fprintf(stderr, "lhtbl->p = %" PRIuPTR "\n", lhtbl->p);
+    fprintf(stderr, "srcindex = %" PRIuPTR "\n", srcindex);
+    fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
   }
   assert( srcindex < lhtbl->bincount);
   
   srcbucketp = bindex2bin(lhtbl, srcindex);
 
   if(srcbucketp == NULL){
-    fprintf(stderr, "srcindex = %zu\n", srcindex);
-    fprintf(stderr, "bincount = %zu\n", lhtbl->bincount);
+    fprintf(stderr, "srcindex = %" PRIuPTR "\n", srcindex);
+    fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
     return;
   }
   
@@ -734,7 +734,7 @@ static void linhash_contract_table(linhash_t* lhtbl){
 
     if(tgt == NULL){
 
-      fprintf(stderr, "TARGET BUCKET EMPTY tgtindex = %zu\n", tgtindex);
+      fprintf(stderr, "TARGET BUCKET EMPTY tgtindex = %" PRIuPTR "\n", tgtindex);
 
       /* not very likely */
       *tgtbucketp = src;
@@ -745,7 +745,7 @@ static void linhash_contract_table(linhash_t* lhtbl){
       src->next_bucket = tgt;
     }
   } else {
-    fprintf(stderr, "SOURCE BUCKET EMPTY srcindex = %zu\n", srcindex);
+    fprintf(stderr, "SOURCE BUCKET EMPTY srcindex = %" PRIuPTR "\n", srcindex);
   }
 
   /* now check if we can eliminate a segment */

@@ -1089,10 +1089,10 @@ typedef struct chunkinfo* mfastbinptr;
 /* Start address of the heap */
 char *startheap;
 
-/* pointer to the hashtable: struct chunkinfo **hashtable -> *hashtable[] */
+/* pointer to the hashtable: struct chunkinfo **hashtable -> *hashtable[]
 chunkinfoptr *hashtable;
 
-
+ */
 
 /* Initialize the area for chunkinfos and the hashtable and protect 
  * it with non-writable pages 
@@ -1119,35 +1119,6 @@ dnmalloc_init ()
 #define hash(p)  (((unsigned long) p - (unsigned long) startheap) >> 7)
 #endif
 
-static void
-hashtable_add (chunkinfoptr ci)
-{
-}
-
-static void
-hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert)
-{
-}
-
-static void
-hashtable_remove (mchunkptr p) 
-{
-}
-
-/* mmapped chunks are multiples of pagesize, no hash_nexts, just remove from the hashtable */
-#define hashtable_remove_mmapped(p) hashtable[hash(p)] = 0;
-
-static void
-hashtable_skiprm (chunkinfoptr ci_orig, chunkinfoptr ci_todelete)
-{
-
-}
-
-
-static chunkinfoptr
-hashtable_lookup (mchunkptr p)
-{
-}
 
 
 
@@ -1301,7 +1272,6 @@ static void malloc_init_state(av) mstate av;
   mbinptr bin;
 
   void *  morecore_test = MORECORE(0);
-  unsigned long hashval;
 
   /* Test morecore function 
    */
@@ -1362,6 +1332,61 @@ cireg_getfree ()
   return new_chunkinfoptr(&(get_malloc_state()->htbl));
 }
 
+static void
+hashtable_add (chunkinfoptr ci)
+{
+  mstate av = get_malloc_state();
+  if( ! metadata_add(&av->htbl, av->top)){
+    abort();
+  }
+  
+}
+
+static void
+hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert)
+{
+  mstate av = get_malloc_state();
+  if( ! metadata_add(&av->htbl, ci_insert)){
+    abort();
+  }
+
+}
+
+static void
+hashtable_remove (mchunkptr p) 
+{
+  mstate av = get_malloc_state();
+  if( ! metadata_delete(&av->htbl, p)){
+    abort();
+  }
+
+}
+
+static void inline hashtable_remove_mmapped(mchunkptr p){
+  hashtable_remove (p);
+}
+
+static void
+hashtable_skiprm (chunkinfoptr ci_orig, chunkinfoptr ci_todelete)
+{
+  mstate av = get_malloc_state();
+  if( ! metadata_delete(&av->htbl, ci_todelete->chunk)){
+    abort();
+  }
+  
+}
+
+
+static chunkinfoptr
+hashtable_lookup (mchunkptr p)
+{
+  mstate av = get_malloc_state();
+  return metadata_lookup(&av->htbl, p);
+}
+
+
+
+
 /* 
    Other internal utilities operating on mstates
 */
@@ -1382,67 +1407,34 @@ static void     malloc_consolidate();
 static chunkinfoptr
 next_chunkinfo (chunkinfoptr ci)
 {
+
+  /* this gets the chunkinfoptr of the chunk next to ci's chunk: ci->chunk. */
+
    mchunkptr nextp;
-   unsigned long hashval;
-   chunkinfoptr cinfonextp;
    mstate av = get_malloc_state();
    
-   /* ci is not the last element in the linked list, just 
-      return the next chunkinfo from the list 
-   */
-   if (!ci->hash_next)
-     {
-       /* ci is the last element, find the next chunkinfo by 
-	* looking up the chunkinfo for the chunk that is after p's chunk 
-	*/
-       nextp = (mchunkptr) (((char *) (ci->chunk)) + chunksize (ci));
+   nextp = (mchunkptr) (((char *) (ci->chunk)) + chunksize (ci));
+   
+   if(!(nextp == av->top->chunk)){
 
-       if (!(nextp == av->top->chunk)) 
-	 {
-	   hashval = hash (nextp);
-	   /* assert(hashval < AMOUNTHASH); *//* major bottleneck */
-	   cinfonextp = hashtable[hashval];
-	   if (cinfonextp && chunk (cinfonextp) == nextp)
-	     return cinfonextp; 
-	   
-#ifdef DNMALLOC_CHECKS_EXTRA
-	   /* This seems bogus; a chunkinfo may legally have no nextp if
-	    * it's the last one allocated (?)
-	    */
-	   else {
-	     if (cinfonextp)
-	       fprintf (stderr,
-			"Dnmalloc error: could not find a next chunkinfo for the chunk %p in the hashtable at entry %lu, cinfonextp: %p, chunk(cinfonextp): %p, nextp: %p\n This is definitely a bug, please report it to dnmalloc@fort-knox.org.\n",
-			chunk(ci), hashval, cinfonextp, chunk(cinfonextp), nextp);
-	     else
-	       fprintf (stderr,
-			"Dnmalloc error: could not find a next chunkinfo for the chunk %p in the hashtable at entry %lu, cinfonextp: %s, chunk(cinfonextp): %s, nextp: %p\n This is definitely a bug, please report it to dnmalloc@fort-knox.org.\n",
-			chunk(ci), hashval, "null", "null", nextp);
-	   }
-#endif
-	  
-	   return NULL;
-	 }
-       else
-	 {
-	   return av->top;
-	 }
+     return hashtable_lookup (nextp);
 
-     }
-   else
-     {
-       return (ci->hash_next);
-     }
+   }  else {
+     
+     return av->top;
+     
+   }
+
 }
 
 static int is_next_chunk(chunkinfoptr oldp, chunkinfoptr newp) {
-	mchunkptr nextp;
-	if (oldp->hash_next == newp)
-		return 1;
-	nextp = (mchunkptr) (((char *) (oldp->chunk)) + chunksize (oldp));
-	if (nextp == chunk(newp))
-		return 1;
-	return 0;
+  mchunkptr nextp;
+  nextp = (mchunkptr) (((char *) (oldp->chunk)) + chunksize (oldp));
+  if (nextp == chunk(newp)){
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 
@@ -1453,32 +1445,16 @@ static int is_next_chunk(chunkinfoptr oldp, chunkinfoptr newp) {
 static chunkinfoptr
 prev_chunkinfo (chunkinfoptr ci)
 {
-   unsigned int i;
-   chunkinfoptr prev;
-   mchunkptr prevchunk = 0;
-   /* chunkinfoptr temp; */
-   
-   /* Get the hashtable location of the chunkinfo */
-   i = hash (chunk (ci));
-   assert(i < AMOUNTHASH); /* rw */
-      
-   /* Get the first element of the linked list of chunkinfo's that contains p */
-   prev = hashtable[i];
-   
-   if (ci == prev) {
-     prevchunk = (mchunkptr) (((char *) (ci->chunk)) - (ci->prev_size));
-     i = hash(prevchunk);
-     assert(i < AMOUNTHASH); /* rw */
-     /* Loop over the linked list until we reach the last element */
-     for (prev = hashtable[i]; prev->hash_next != 0; prev = prev->hash_next) ;
-   } else {
-     /* p is not the first element in the linked list, we can just 
-	loop over the list and return the previous 
-     */
-     for (prev = hashtable[i]; prev->hash_next != ci; prev = prev->hash_next);
-   }
 
-   return prev;  
+  chunkinfoptr prev;
+  mchunkptr prevchunk;
+
+  prevchunk = (mchunkptr) (((char *) (ci->chunk)) - (ci->prev_size));
+
+  prev = hashtable_lookup (prevchunk);
+
+  return prev;
+  
 }
 
 

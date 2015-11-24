@@ -598,8 +598,3 @@ size_t bucket_length(bucket_t* bucket){
   return count;
 }
 
-/*  experimental code below; needs to be cleaned up and debugged */
-
-#if 0
-#include linhash_contract.c
-#endif

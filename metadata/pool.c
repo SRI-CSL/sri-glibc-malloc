@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#include "linhash.h"
+#include "metadata.h"
 #include "memcxt.h"
 
 #define BP_SCALE  1024

@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#include "linhash.h"
+#include "metadata.h"
 #include "hashfns.h"
 #include "memcxt.h"
 

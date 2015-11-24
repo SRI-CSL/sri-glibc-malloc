@@ -21,6 +21,15 @@ static void test_3(memcxt_t* memcxt);
 #define K4  K2 << 1
 
 
+static inline bool linhash_insert_key(linhash_t* htbl, void * key){
+  bucket_t* newb = new_bucket(htbl);
+  if(newb != NULL){
+    newb->key = key;
+    return linhash_add(htbl, newb);
+  }
+  return false;
+}
+
 int main(int argc, char** argv){
   memcxt_t* memcxt;
   int tests[] = { 0, 0, 1, 0};
@@ -42,31 +51,31 @@ int main(int argc, char** argv){
 
 
 void test_0(memcxt_t* memcxt){
-  int key, value;
+  int key;
   void* look;
   bool success;
   
   init_linhash(&numerouno, memcxt);
 
-  fprintf(stderr, "inserting key = %p  value = %p\n", &key, &value);
+  fprintf(stderr, "inserting key = %p\n", &key);
   
-  linhash_insert(&numerouno, &key, &value);
+  linhash_insert_key(&numerouno, &key);
 
   look = linhash_lookup(&numerouno, &key);
 
-  fprintf(stderr, "key = %p  value = %p look = %p\n", &key, &value, look);
+  fprintf(stderr, "key = %p  look = %p\n", &key, look);
 
   dump_linhash(stderr, &numerouno, true);
 
   success = linhash_delete(&numerouno, &key);
 
-  fprintf(stderr, "key = %p  value = %p success = %d\n", &key, &value, success);
+  fprintf(stderr, "key = %p  success = %d\n", &key, success);
 
   dump_linhash(stderr, &numerouno, true);
 
   success = linhash_delete(&numerouno, &key);
 
-  fprintf(stderr, "key = %p  value = %p success = %d\n", &key, &value, success);
+  fprintf(stderr, "key = %p success = %d\n", &key, success);
 
   dump_linhash(stderr, &numerouno, true);
 
@@ -87,7 +96,7 @@ void test_1(memcxt_t* memcxt){
   init_linhash(&numerouno, memcxt);
 
   for(index = 0; index < K2; index++){
-    linhash_insert(&numerouno, zoo + index, zoo + index);
+    linhash_insert_key(&numerouno, zoo + index);
   }
 
   dump_linhash(stderr, &numerouno, true);
@@ -136,7 +145,7 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
       
-      linhash_insert(&numerouno, zoo + index, zoo + index);
+      linhash_insert_key(&numerouno, zoo + index);
     }
 
     menagery[zindex] = zoo;
@@ -230,7 +239,7 @@ void test_3(memcxt_t* memcxt){
       if(zoo != NULL){
 	
 	for(index = 0; index < alsoalot; index++){
-	 found = linhash_insert(&numerouno, zoo + index, zoo + index);
+	 found = linhash_insert_key(&numerouno, zoo + index);
 	 if(!found){
 	    fprintf(stderr, "linhash_insert FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;

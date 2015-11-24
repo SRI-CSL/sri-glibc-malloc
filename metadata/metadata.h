@@ -14,6 +14,7 @@
 #include <stdio.h>
 
 #include "types.h"
+#include "memcxt.h"
 
 
 #define SEGMENT_LENGTH 256
@@ -40,16 +41,21 @@
  *
  */
 
+#ifndef INTERNAL_SIZE_T
+#define INTERNAL_SIZE_T size_t
+#endif
 
-/* the code for contracting a table seems to be missing in Larsen's paper */
-
-//BD's optimization #2. the bucket should absorb the fields of the chunkinfo struct.
+typedef void * mchunkptr;
 
 typedef struct bucket_s {
-  void *key;
-  void *value;
-  void *next_bucket;
-  bucket_pool_t * bucket_pool_ptr;  //BD's optimization #1.
+  INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes          */
+  INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
+  INTERNAL_SIZE_T   req;           /* Original request size, for guard.  */
+  struct bucket_s*  fd;	           /* double links -- used only if free. */
+  struct bucket_s*  bk;            /* double links -- used only if free. */
+  struct bucket_s*  next_bucket;   /* next bucket in the bin             */
+  mchunkptr key;                  
+  bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
 } bucket_t;
 
 
@@ -146,9 +152,8 @@ extern void delete_linhash(linhash_t* htbl);
  *   -- bad arguments    errno = EINVAL.
  *   BD: also wants it to fail if the key is already in the table.
  */
-extern bool linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
-extern void *linhash_lookup(linhash_t* htbl, const void *key);
+extern bool linhash_add(linhash_t* htbl, bucket_t* bucket);
 
 /* deletes the first bucket keyed by key; returns true if such a bucket was found; false otherwise */
 extern bool linhash_delete(linhash_t* htbl, const void *key);
@@ -158,18 +163,19 @@ extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
 
 extern void dump_linhash(FILE* fp, linhash_t* lhash, bool showloads);
 
+static inline bucket_t* new_bucket(linhash_t* htbl){
+  return htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
+}
 
-/* BD: need a version of ci_getfree() and analagous versions of the _metadata.c
+static inline bool linhash_insert (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert){
+  return linhash_add(htbl, ci_insert);
+}
 
-bucket_t* new_bucket(linhash_t* htbl);
+static inline bool linhash_skiprm (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete){
+  return linhash_delete(htbl, ci_todelete->key);
+}
 
-extern bool linhash_add(linhash_t* htbl, bucket_t* bucket);
-
-extern void linhash_insert2(linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert);
-extern void linhash_skiprm (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete);
-
-extern bucket_t* linhash_lookup2(linhash_t* htbl, const void *key);
- */
+extern bucket_t* linhash_lookup(linhash_t* htbl, const void *key);
 
 #endif
 

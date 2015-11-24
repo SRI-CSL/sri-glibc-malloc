@@ -467,20 +467,10 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 /* iam Q2: should we insert at the front or back or ...                        */
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
-bool linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
-  bucket_t* newbucket;
+bool linhash_add(linhash_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
 
-  binp = linhash_fetch_bucket(lhtbl, key);
-
-  newbucket = lhtbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
-  if(newbucket == NULL){
-    errno = ENOMEM;
-    return false;
-  }
-  
-  newbucket->key = (void *)key;
-  newbucket->value = (void *)value;
+  binp = linhash_fetch_bucket(lhtbl, newbucket->key);
 
   /* for the time being we insert the bucket at the front */
   newbucket->next_bucket = *binp;
@@ -493,8 +483,8 @@ bool linhash_insert(linhash_t* lhtbl, const void *key, const void *value){
   return linhash_expand_check(lhtbl);
 }
 
-void *linhash_lookup(linhash_t* lhtbl, const void *key){
-  void* value;
+bucket_t* linhash_lookup(linhash_t* lhtbl, const void *key){
+  bucket_t* value;
   bucket_t** binp;
   bucket_t* bucketp;
 
@@ -504,7 +494,7 @@ void *linhash_lookup(linhash_t* lhtbl, const void *key){
 
   while(bucketp != NULL){
     if(key == bucketp->key){
-      value = bucketp->value;
+      value = bucketp;
       break;
     }
     bucketp = bucketp->next_bucket;

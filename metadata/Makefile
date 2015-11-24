@@ -1,6 +1,6 @@
 
 
-CFLAGS = -Wall 
+CFLAGS = -Wall -g
 
 #-O3 -DNDEBUG 
 

@@ -35,15 +35,6 @@
 #include "config.h"
 #endif
 
-#if defined (__GNUC__) && __GNUC__ > 2
-# define LIKELY(expression) (__builtin_expect(!!(expression), 1))
-# define UNLIKELY(expression) (__builtin_expect(!!(expression), 0))
-# define __attribute_malloc__ __attribute__ ((__malloc__))
-#else
-# define LIKELY(x)       (x)
-# define UNLIKELY(x)     (x)
-# define __attribute_malloc__ /* Ignore */
-#endif
 
 /*
   Define HAVE_MREMAP to make realloc() use mremap() to re-allocate

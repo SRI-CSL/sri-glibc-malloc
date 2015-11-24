@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "dsassert.h"
+
 
 static void *default_allocate(memtype_t type, size_t size){
   void* mem;

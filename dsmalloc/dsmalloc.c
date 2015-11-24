@@ -602,7 +602,8 @@ static char * dnmalloc_arc4random(void);
 static void dnmalloc_init (void);
 static void malloc_mmap_state(void);
 
-static chunkinfoptr cireg_getfree (void);  
+static chunkinfoptr new_chunkinfoptr(void);  
+static void free_chunkinfoptr(chunkinfoptr);  
 
 static void hashtable_add (chunkinfoptr ci);
 static void hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert);
@@ -1308,7 +1309,7 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
-  av->top = new_chunkinfoptr(&av->htbl);
+  av->top = allocate_chunkinfoptr(&av->htbl);
   av->top->chunk     = (mchunkptr) startheap;
   av->top->size      = 0;
   set_previnuse(av->top);
@@ -1327,10 +1328,18 @@ static void malloc_init_state(av) mstate av;
 
 /* Get a free chunkinfo */
 static chunkinfoptr
-cireg_getfree ()
+new_chunkinfoptr()
 {
-  return new_chunkinfoptr(&(get_malloc_state()->htbl));
+  mstate av = get_malloc_state();
+  return allocate_chunkinfoptr(&(av->htbl));
 }
+
+
+static void free_chunkinfoptr(chunkinfoptr ci){
+  mstate av = get_malloc_state();
+  release_chunkinfoptr(&(av->htbl), ci);
+}
+
 
 static void
 hashtable_add (chunkinfoptr ci)
@@ -1568,17 +1577,17 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
         */
         
         front_misalign = (INTERNAL_SIZE_T) mm & MALLOC_ALIGN_MASK;
-	p = cireg_getfree();
+	p = new_chunkinfoptr();
         
         if (front_misalign > 0) {
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
-          p->hash_next = (chunkinfoptr) correction;
+          //iam: don't touch these: p->hash_next = (chunkinfoptr) correction;
           set_head(p, (size - correction) |INUSE|IS_MMAPPED);
         }
         else {
           p->chunk = (mchunkptr)mm;
-          p->hash_next = 0;
+          //iam: don't touch these: p->hash_next = 0;
           set_head(p, size|INUSE|IS_MMAPPED);
         }
         hashtable_add(p);
@@ -1870,7 +1879,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	fprintf(stderr, "Adjust top, correction %lu\n", correction);
 #endif
         /* hashtable_remove(chunk(av->top)); *//* rw 19.05.2008 removed */
-	av->top =  cireg_getfree();
+	av->top =  new_chunkinfoptr();
         av->top->chunk = (mchunkptr)aligned_brk;
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
 #ifdef DNMALLOC_DEBUG
@@ -1920,7 +1929,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           /* dnmalloc, we need the fencepost to be 16 bytes, however since 
 	     it's marked inuse it will never be coalesced 
 	  */
-          fencepost = cireg_getfree();
+          fencepost = new_chunkinfoptr();
           fencepost->chunk = (mchunkptr) chunk_at_offset(chunk(old_top), 
 							 old_size);
           fencepost->size = 16|INUSE|PREV_INUSE;
@@ -1976,7 +1985,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
     /* check that one of the above allocation paths succeeded */
     if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
       remainder_size = size - nb;
-      remainder = cireg_getfree();
+      remainder = new_chunkinfoptr();
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       av->top = remainder;
       set_head(p, nb | PREV_INUSE | INUSE);
@@ -2221,7 +2230,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       
       /* split and reattach remainder */
       remainder_size = size - nb;
-      remainder = cireg_getfree();
+      remainder = new_chunkinfoptr();
       remainder->chunk = chunk_at_offset(chunk(victim), nb);
       unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
       av->last_remainder = remainder; 
@@ -2312,7 +2321,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
         
 	  /* Split */
 	  if (remainder_size >= MINSIZE) {
-	    remainder = cireg_getfree();
+	    remainder = new_chunkinfoptr();
 	    remainder->chunk = chunk_at_offset(chunk(victim), nb);
 	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
 	    remainder->bk = remainder->fd = unsorted_chunks(av);
@@ -2397,7 +2406,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       
       /* Split */
       if (remainder_size >= MINSIZE) {
-        remainder = cireg_getfree();
+        remainder = new_chunkinfoptr();
         remainder->chunk = chunk_at_offset(chunk(victim), nb);
         
         unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
@@ -2446,7 +2455,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
   size = chunksize(victim);
   
   if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
-     remainder = cireg_getfree();
+     remainder = new_chunkinfoptr();
     remainder_size = size - nb;
     remainder->chunk = chunk_at_offset(chunk(victim), nb);
     av->top = remainder;
@@ -2576,7 +2585,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
         hashtable_skiprm(prevchunk,p);
         /* This chunk no longer exists in any form: release the chunkinfoptr 
 	 */
-        freecilst_add(p);
+        free_chunkinfoptr(p);
         p = prevchunk;
       }
 
@@ -2591,7 +2600,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	    size += nextsize;
 	    set_head(p, size | PREV_INUSE);
 	    hashtable_skiprm(p, nextchunk);
-	    freecilst_add (nextchunk);
+	    free_chunkinfoptr (nextchunk);
 	  }
 	  
 	  set_head(p, size | PREV_INUSE);
@@ -2628,7 +2637,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	  size += nextsize;
 	  set_head(p, size | PREV_INUSE);
 	  hashtable_remove(chunk(av->top));
-	  freecilst_add(av->top);
+	  free_chunkinfoptr(av->top);
 	  av->top = p;
 	  check_chunk(p);
 	}
@@ -2679,15 +2688,17 @@ DL_STATIC void fREe(mem) Void_t* mem;
     */
 
     else {
+      /* iam: puzzle number one 
       int ret;
       INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) p->hash_next;
       av->n_mmaps--;
       av->mmapped_mem -= (size + offset);
       ret = munmap((char*) chunk(p) - offset, size + offset);
       hashtable_remove_mmapped(chunk(p));
-      freecilst_add(p);
-      /* munmap returns non-zero on failure */
+      free_chunkinfoptr(p);
+      // munmap returns non-zero on failure 
       assert(ret == 0);
+      */
     }
   }
 }
@@ -2783,7 +2794,7 @@ static void malloc_consolidate(av) mstate av;
              unlink(prevp, bck, fwd);
              set_head(p, size | PREV_INUSE);	     
              hashtable_skiprm(prevp,p);
-             freecilst_add(p);
+             free_chunkinfoptr(p);
              p=prevp;
           }
           
@@ -2797,7 +2808,7 @@ static void malloc_consolidate(av) mstate av;
 		unlink(nextchunk, bck, fwd);
 		set_head(p, size | PREV_INUSE);
 		hashtable_skiprm(p,nextchunk);
-		freecilst_add(nextchunk);
+		free_chunkinfoptr(nextchunk);
 	      }
 	      
 	      first_unsorted = unsorted_bin->fd;
@@ -2818,7 +2829,7 @@ static void malloc_consolidate(av) mstate av;
 	      size += nextsize;
 	      set_head(p, size | PREV_INUSE);
 	      hashtable_remove(chunk(av->top));
-	      freecilst_add(av->top);
+	      free_chunkinfoptr(av->top);
 	      av->top = p;
 	    }
 	  }
@@ -2949,7 +2960,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
         newp = oldp;
         unlink(next, bck, fwd);
         hashtable_remove(chunk(next));
-        freecilst_add(next);
+        free_chunkinfoptr(next);
 	next = next_chunkinfo(oldp);
 	if (next)
 	  next->prev_size = newsize;
@@ -2973,7 +2984,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 	  newsize += oldsize;
 	  set_head_size(oldp, newsize);
 	  hashtable_skiprm(oldp, newp);
-	  freecilst_add(newp);	  
+	  free_chunkinfoptr(newp);	  
           newp = oldp;
         }
         else {
@@ -3028,7 +3039,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
     remainder_size = newsize - nb;
 
     if (remainder_size >= MINSIZE) { /* split remainder */
-      remainder = cireg_getfree();
+      remainder = new_chunkinfoptr();
       remainder->chunk = chunk_at_offset(chunk(newp), nb);
       set_head_size(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
@@ -3054,8 +3065,8 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
   */
 
   else {
-
-#if HAVE_MREMAP
+//iam: anothe puzzle
+#if 0 //HAVE_MREMAP
     INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) oldp->hash_next;
     size_t pagemask = av->pagesize - 1;
     char *cp;
@@ -3209,17 +3220,17 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
     if ((CHUNK_SIZE_T)(brk - (char*)(chunk(p))) < MINSIZE)
       brk += alignment;
 
-    newp = cireg_getfree();
+    newp = new_chunkinfoptr();
     newp->chunk = (mchunkptr)brk;
     leadsize = brk - (char*)(chunk(p));
     newsize = chunksize(p) - leadsize;
 
     /* For mmapped chunks, just adjust offset */
     if (UNLIKELY(chunk_is_mmapped(p))) {
-      newp->hash_next = (chunkinfoptr) (((INTERNAL_SIZE_T) p->hash_next) + leadsize);
+      //iam: naughty naugthy newp->hash_next = (chunkinfoptr) (((INTERNAL_SIZE_T) p->hash_next) + leadsize);
       set_head(newp, newsize|IS_MMAPPED|INUSE);
       hashtable_remove_mmapped(chunk(p));
-      freecilst_add(p);
+      free_chunkinfoptr(p);
       hashtable_add(newp);
       guard_set(av->guard_stored, newp, bytes, nb);
       return chunk(newp);
@@ -3242,7 +3253,7 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
   if (!chunk_is_mmapped(p)) {
     size = chunksize(p);
     if ((CHUNK_SIZE_T)(size) > (CHUNK_SIZE_T)(nb + MINSIZE)) {
-       remainder = cireg_getfree();
+       remainder = new_chunkinfoptr();
        remainder_size = size - nb;
        remainder->chunk = chunk_at_offset(chunk(p), nb);
        set_head(remainder, remainder_size | PREV_INUSE | INUSE);

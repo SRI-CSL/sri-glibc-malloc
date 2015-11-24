@@ -165,8 +165,12 @@ extern size_t metadata_delete_all(metadata_t* htbl, const void *chunk);
 
 extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
-static inline chunkinfoptr new_chunkinfoptr(metadata_t* htbl){
+static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
   return htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
+}
+
+static inline void release_chunkinfoptr(metadata_t* htbl, chunkinfoptr bucket){
+  htbl->cfg.memcxt->release(BUCKET, bucket, sizeof(bucket_t));
 }
 
 static inline bool metadata_insert (metadata_t* htbl, chunkinfoptr ci_orig, chunkinfoptr ci_insert){
@@ -178,7 +182,7 @@ static inline bool metadata_skiprm (metadata_t* htbl, chunkinfoptr ci_orig, chun
 }
 
 static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
-  chunkinfoptr newb = new_chunkinfoptr(htbl);
+  chunkinfoptr newb = allocate_chunkinfoptr(htbl);
   if(newb != NULL){
     newb->chunk = chunk;
     return metadata_add(htbl, newb);

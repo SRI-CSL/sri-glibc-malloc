@@ -1,5 +1,5 @@
-#ifndef _LINHASH_H
-#define _LINHASH_H
+#ifndef _METADATA_H
+#define _METADATA_H
 
 /*
  * Dynamic hashing, after CACM April 1988 pp 446-457, by Per-Ake Larson.
@@ -65,7 +65,7 @@ typedef struct segment_s {
 } segment_t;
 
 
-typedef struct linhash_cfg_s {
+typedef struct metadata_cfg_s {
 
   memcxt_t *memcxt;                 /* Where we get our memory from                                            */
  
@@ -84,7 +84,7 @@ typedef struct linhash_cfg_s {
   bool multithreaded;               /* are we going to protect against contention                              */
 
 
-} linhash_cfg_t;
+} metadata_cfg_t;
 
 /*
 
@@ -104,9 +104,9 @@ typedef struct linhash_cfg_s {
 
 
 
-typedef struct linhash_s {
+typedef struct metadata_s {
 
-  linhash_cfg_t cfg;             /* configuration constants                                                */
+  metadata_cfg_t cfg;             /* configuration constants                                                */
 
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
 
@@ -128,24 +128,24 @@ typedef struct linhash_s {
 
   size_t bincount;               /* the current number of bins                                             */
   
-} linhash_t;
+} metadata_t;
 
 
 
 
 /* 
- * Initializes a linhash_t object; returns true if successful; false if not.
+ * Initializes a metadata_t object; returns true if successful; false if not.
  * If it returns false it sets errno to explain the error.
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
  *   -- bad arguments    errno = EINVAL.
  */
-extern bool init_linhash(linhash_t* lhash, memcxt_t* memcxt);
+extern bool init_metadata(metadata_t* lhash, memcxt_t* memcxt);
 
-extern void delete_linhash(linhash_t* htbl);
+extern void delete_metadata(metadata_t* htbl);
 
 /* 
- * Inserts the key value pair into the has table. Returns true if successful; false if not.
+ * Adds the bucket to the table according to the key. Returns true if successful; false if not.
  * If it returns false it sets errno to explain the error.
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
@@ -153,29 +153,38 @@ extern void delete_linhash(linhash_t* htbl);
  *   BD: also wants it to fail if the key is already in the table.
  */
 
-extern bool linhash_add(linhash_t* htbl, bucket_t* bucket);
+extern bool metadata_add(metadata_t* htbl, bucket_t* bucket);
+
+extern bucket_t* metadata_lookup(metadata_t* htbl, const void *key);
 
 /* deletes the first bucket keyed by key; returns true if such a bucket was found; false otherwise */
-extern bool linhash_delete(linhash_t* htbl, const void *key);
+extern bool metadata_delete(metadata_t* htbl, const void *key);
 
 /* deletes all buckets keyed by key; returns the number of buckets deleted */
-extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
+extern size_t metadata_delete_all(metadata_t* htbl, const void *key);
 
-extern void dump_linhash(FILE* fp, linhash_t* lhash, bool showloads);
+extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
-static inline bucket_t* new_bucket(linhash_t* htbl){
+static inline bucket_t* new_bucket(metadata_t* htbl){
   return htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
 }
 
-static inline bool linhash_insert (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert){
-  return linhash_add(htbl, ci_insert);
+static inline bool metadata_insert (metadata_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert){
+  return metadata_add(htbl, ci_insert);
 }
 
-static inline bool linhash_skiprm (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete){
-  return linhash_delete(htbl, ci_todelete->key);
+static inline bool metadata_skiprm (metadata_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete){
+  return metadata_delete(htbl, ci_todelete->key);
 }
 
-extern bucket_t* linhash_lookup(linhash_t* htbl, const void *key);
+static inline bool metadata_insert_key(metadata_t* htbl, void * key){
+  bucket_t* newb = new_bucket(htbl);
+  if(newb != NULL){
+    newb->key = key;
+    return metadata_add(htbl, newb);
+  }
+  return false;
+}
 
 #endif
 

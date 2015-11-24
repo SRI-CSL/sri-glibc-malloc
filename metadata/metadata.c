@@ -7,32 +7,32 @@
 #include "memcxt.h"
 
 
-const bool      linhash_multithreaded             = false;
+const bool      metadata_multithreaded             = false;
 
-const size_t    linhash_segment_length            = SEGMENT_LENGTH;
-const size_t    linhash_initial_directory_length  = DIRECTORY_LENGTH;
-const size_t    linhash_segments_at_startup       = 1;
+const size_t    metadata_segment_length            = SEGMENT_LENGTH;
+const size_t    metadata_initial_directory_length  = DIRECTORY_LENGTH;
+const size_t    metadata_segments_at_startup       = 1;
 
-const uint16_t  linhash_min_load                 = 2;   
-const uint16_t  linhash_max_load                 = 5;
+const uint16_t  metadata_min_load                 = 2;   
+const uint16_t  metadata_max_load                 = 5;
 
 
 /* static routines */
-static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
+static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt);
 
-/* linhash expansion routines */
-static bool linhash_expand_check(linhash_t* lhtbl);
+/* metadata expansion routines */
+static bool metadata_expand_check(metadata_t* lhtbl);
 
-static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt);
+static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt);
 
 /* split's the current bin  */
-static bool linhash_expand_table(linhash_t* lhtbl);
+static bool metadata_expand_table(metadata_t* lhtbl);
  
 /* returns the bin index (bindex) of the bin that should contain p  [{ hash }] */
-static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p);
+static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p);
 
 /* returns a pointer to the bin i.e. the top bucket at the given bindex  */
-static bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex);
+static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
@@ -50,16 +50,16 @@ static inline size_t mod_power_of_two(size_t x, size_t y){
   return x & (y - 1);
 }
 
-static inline size_t linhash_load(linhash_t* lhtbl){
+static inline size_t metadata_load(metadata_t* lhtbl){
   return lhtbl->count / lhtbl->bincount;
 }
 
-static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
-  cfg->multithreaded            = linhash_multithreaded;
-  cfg->segment_length           = linhash_segment_length;
-  cfg->initial_directory_length = linhash_initial_directory_length;
-  cfg->min_load                 = linhash_min_load;   
-  cfg->max_load                 = linhash_max_load;
+static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt){
+  cfg->multithreaded            = metadata_multithreaded;
+  cfg->segment_length           = metadata_segment_length;
+  cfg->initial_directory_length = metadata_initial_directory_length;
+  cfg->min_load                 = metadata_min_load;   
+  cfg->max_load                 = metadata_max_load;
   cfg->memcxt                   = memcxt;
   cfg->bincount_max             = UINT32_MAX;
   cfg->directory_length_max     = cfg->bincount_max / SEGMENT_LENGTH;
@@ -72,8 +72,8 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
 
 
 
-bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
-  linhash_cfg_t* lhtbl_cfg;
+bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
+  metadata_cfg_t* lhtbl_cfg;
   size_t index;
   segment_t* seg;
   bool success;
@@ -89,7 +89,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
 
   lhtbl_cfg = &lhtbl->cfg;
   
-  linhash_cfg_init(lhtbl_cfg, memcxt);
+  metadata_cfg_init(lhtbl_cfg, memcxt);
     
 
   /* lock for resolving contention  (only when cfg->multithreaded)   */
@@ -98,7 +98,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   }
 
   lhtbl->directory_length = lhtbl_cfg->initial_directory_length;
-  lhtbl->directory_current = linhash_segments_at_startup; 
+  lhtbl->directory_current = metadata_segments_at_startup; 
 
   
   /* the size of the directory */
@@ -153,7 +153,7 @@ bool init_linhash(linhash_t* lhtbl, memcxt_t* memcxt){
   return true;
 }
 
-extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
+extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
   bucket_t** bp;
@@ -167,7 +167,7 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
   fprintf(fp, "count = %" PRIuPTR "\n", lhtbl->count);
   fprintf(fp, "maxp = %" PRIuPTR "\n", lhtbl->maxp);
   fprintf(fp, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
-  fprintf(fp, "load = %" PRIuPTR "\n", linhash_load(lhtbl));
+  fprintf(fp, "load = %" PRIuPTR "\n", metadata_load(lhtbl));
   
   maxlength = 0;
   
@@ -188,7 +188,7 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
 }
 
 
-void delete_linhash(linhash_t* lhtbl){
+void delete_metadata(metadata_t* lhtbl){
   size_t seglen;
   size_t segindex;
   size_t index;
@@ -230,7 +230,7 @@ void delete_linhash(linhash_t* lhtbl){
 
 
 /* returns the raw bindex/index of the bin that should contain p  [{ hash }] */
-static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p){
+static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
   uint32_t jhash;
   uint32_t l;
   size_t next_maxp;
@@ -254,7 +254,7 @@ static uint32_t linhash_bindex(linhash_t* lhtbl, const void *p){
   return l;
 }
 
-bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex){
+bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex){
   segment_t* segptr;
   size_t seglen;
   size_t segindex;
@@ -280,10 +280,10 @@ bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex){
  *  pointer (in the appropriate segment) to the bucket_t* 
  *  where the start of the bucket chain should be for p 
  */
-bucket_t** linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
+bucket_t** metadata_fetch_bucket(metadata_t* lhtbl, const void *p){
   uint32_t bindex;
   
-  bindex = linhash_bindex(lhtbl, p);
+  bindex = metadata_bindex(lhtbl, p);
 
   return bindex2bin(lhtbl, bindex);
 }
@@ -292,15 +292,15 @@ bucket_t** linhash_fetch_bucket(linhash_t* lhtbl, const void *p){
  * expanded, or else it expanded successfully. false if it failed.
  *
  */
-bool linhash_expand_check(linhash_t* lhtbl){
-  if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (linhash_load(lhtbl) > lhtbl->cfg.max_load)){
-    return linhash_expand_table(lhtbl);
+bool metadata_expand_check(metadata_t* lhtbl){
+  if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (metadata_load(lhtbl) > lhtbl->cfg.max_load)){
+    return metadata_expand_table(lhtbl);
   }
   return true;
 }
 
 
-static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
+static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   size_t index;
   size_t old_dirlen;
   size_t old_dirsz;
@@ -354,7 +354,7 @@ static bool linhash_expand_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 }
 
 
-static bool linhash_expand_table(linhash_t* lhtbl){
+static bool metadata_expand_table(metadata_t* lhtbl){
   size_t seglen;
   size_t new_bindex;
   size_t new_segindex;
@@ -379,7 +379,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
   /* see if the directory needs to grow  */
   if(lhtbl->directory_length  ==  lhtbl->directory_current){
-    if(! linhash_expand_directory(lhtbl,  memcxt)){
+    if(! metadata_expand_directory(lhtbl,  memcxt)){
       return false;
     }
   }
@@ -428,7 +428,7 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 
     while( current != NULL ){
 
-      if(linhash_bindex(lhtbl, current->key) == new_bindex){
+      if(metadata_bindex(lhtbl, current->key) == new_bindex){
 
 	/* it belongs in the new bucket */
 	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins
@@ -467,10 +467,10 @@ static bool linhash_expand_table(linhash_t* lhtbl){
 /* iam Q2: should we insert at the front or back or ...                        */
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
-bool linhash_add(linhash_t* lhtbl, bucket_t* newbucket){
+bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
 
-  binp = linhash_fetch_bucket(lhtbl, newbucket->key);
+  binp = metadata_fetch_bucket(lhtbl, newbucket->key);
 
   /* for the time being we insert the bucket at the front */
   newbucket->next_bucket = *binp;
@@ -480,16 +480,16 @@ bool linhash_add(linhash_t* lhtbl, bucket_t* newbucket){
   lhtbl->count++;
 
   /* check to see if we need to exand the table */
-  return linhash_expand_check(lhtbl);
+  return metadata_expand_check(lhtbl);
 }
 
-bucket_t* linhash_lookup(linhash_t* lhtbl, const void *key){
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *key){
   bucket_t* value;
   bucket_t** binp;
   bucket_t* bucketp;
 
   value = NULL;
-  binp = linhash_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, key);
   bucketp = *binp;
 
   while(bucketp != NULL){
@@ -503,14 +503,14 @@ bucket_t* linhash_lookup(linhash_t* lhtbl, const void *key){
   return value;
 }
 
-bool linhash_delete(linhash_t* lhtbl, const void *key){
+bool metadata_delete(metadata_t* lhtbl, const void *key){
   bool found = false;
   bucket_t** binp;
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
 
   previous_bucketp = NULL;
-  binp = linhash_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, key);
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
@@ -536,7 +536,7 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
   return found;
 }
 
-size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
+size_t metadata_delete_all(metadata_t* lhtbl, const void *key){
   size_t count;
   bucket_t** binp;
   bucket_t* current_bucketp;
@@ -545,7 +545,7 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
 
   count = 0;
   previous_bucketp = NULL;
-  binp = linhash_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, key);
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){

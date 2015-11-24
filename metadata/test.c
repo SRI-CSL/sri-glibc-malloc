@@ -8,7 +8,7 @@
 #include "pool.h"
 #include "memcxt.h"
 
-linhash_t numerouno;
+metadata_t numerouno;
 
 
 static void test_0(memcxt_t* memcxt);
@@ -21,14 +21,6 @@ static void test_3(memcxt_t* memcxt);
 #define K4  K2 << 1
 
 
-static inline bool linhash_insert_key(linhash_t* htbl, void * key){
-  bucket_t* newb = new_bucket(htbl);
-  if(newb != NULL){
-    newb->key = key;
-    return linhash_add(htbl, newb);
-  }
-  return false;
-}
 
 int main(int argc, char** argv){
   memcxt_t* memcxt;
@@ -55,31 +47,31 @@ void test_0(memcxt_t* memcxt){
   void* look;
   bool success;
   
-  init_linhash(&numerouno, memcxt);
+  init_metadata(&numerouno, memcxt);
 
   fprintf(stderr, "inserting key = %p\n", &key);
   
-  linhash_insert_key(&numerouno, &key);
+  metadata_insert_key(&numerouno, &key);
 
-  look = linhash_lookup(&numerouno, &key);
+  look = metadata_lookup(&numerouno, &key);
 
   fprintf(stderr, "key = %p  look = %p\n", &key, look);
 
-  dump_linhash(stderr, &numerouno, true);
+  dump_metadata(stderr, &numerouno, true);
 
-  success = linhash_delete(&numerouno, &key);
+  success = metadata_delete(&numerouno, &key);
 
   fprintf(stderr, "key = %p  success = %d\n", &key, success);
 
-  dump_linhash(stderr, &numerouno, true);
+  dump_metadata(stderr, &numerouno, true);
 
-  success = linhash_delete(&numerouno, &key);
+  success = metadata_delete(&numerouno, &key);
 
   fprintf(stderr, "key = %p success = %d\n", &key, success);
 
-  dump_linhash(stderr, &numerouno, true);
+  dump_metadata(stderr, &numerouno, true);
 
-  delete_linhash(&numerouno);
+  delete_metadata(&numerouno);
 
   dump_pool(stderr);
  
@@ -93,25 +85,25 @@ void test_1(memcxt_t* memcxt){
   
   void* zoo = calloc(K2, sizeof(char));
   
-  init_linhash(&numerouno, memcxt);
+  init_metadata(&numerouno, memcxt);
 
   for(index = 0; index < K2; index++){
-    linhash_insert_key(&numerouno, zoo + index);
+    metadata_insert_key(&numerouno, zoo + index);
   }
 
-  dump_linhash(stderr, &numerouno, true);
+  dump_metadata(stderr, &numerouno, true);
     
   for(index = 0; index < K2; index++){
-    found = linhash_delete(&numerouno, zoo + index);
+    found = metadata_delete(&numerouno, zoo + index);
     if(!found){
       fprintf(stderr, "index = %" PRIuPTR "\n", index);
     }
     assert(found);
   }
   
-  dump_linhash(stderr, &numerouno, true);
+  dump_metadata(stderr, &numerouno, true);
 
-  delete_linhash(&numerouno);
+  delete_metadata(&numerouno);
 
   free(zoo);
   
@@ -126,7 +118,7 @@ void test_2(memcxt_t* memcxt){
   void ** menagery;
   
 
-  init_linhash(&numerouno, memcxt);
+  init_metadata(&numerouno, memcxt);
 
   menagery = calloc(K4, sizeof(void *));
 
@@ -145,14 +137,14 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
       
-      linhash_insert_key(&numerouno, zoo + index);
+      metadata_insert_key(&numerouno, zoo + index);
     }
 
     menagery[zindex] = zoo;
 
   }
 
-  dump_linhash(stderr, &numerouno, false);
+  dump_metadata(stderr, &numerouno, false);
 
   for(zindex = 0; zindex < K4; zindex++){
 
@@ -168,7 +160,7 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
 
-      found = linhash_delete(&numerouno, zoo + index);
+      found = metadata_delete(&numerouno, zoo + index);
       if(!found){
 	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
@@ -185,9 +177,9 @@ void test_2(memcxt_t* memcxt){
 
   }
   
-  dump_linhash(stderr, &numerouno, false);
+  dump_metadata(stderr, &numerouno, false);
 
-  delete_linhash(&numerouno);
+  delete_metadata(&numerouno);
 
   free(menagery);
   
@@ -207,7 +199,7 @@ void test_3(memcxt_t* memcxt){
   const int32_t exp0 = 16;
   const int32_t exp1 = 14;
 
-  init_linhash(&numerouno, memcxt);
+  init_metadata(&numerouno, memcxt);
 
   fprintf(stderr, "exp0 = %d exp1 = %d\n", exp0, exp1);
 
@@ -239,9 +231,9 @@ void test_3(memcxt_t* memcxt){
       if(zoo != NULL){
 	
 	for(index = 0; index < alsoalot; index++){
-	 found = linhash_insert_key(&numerouno, zoo + index);
+	 found = metadata_insert_key(&numerouno, zoo + index);
 	 if(!found){
-	    fprintf(stderr, "linhash_insert FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
+	    fprintf(stderr, "metadata_insert FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;
 	  }
 	 assert(found);
@@ -256,7 +248,7 @@ void test_3(memcxt_t* memcxt){
   
   fprintf(stderr, "\n");
   
-  dump_linhash(stderr, &numerouno, false);
+  dump_metadata(stderr, &numerouno, false);
 
   if(menagery != NULL){
     for(zindex = 0; zindex < alot; zindex++){
@@ -270,9 +262,9 @@ void test_3(memcxt_t* memcxt){
       
 	for(index = 0; index < alsoalot; index++){
 	  
-	  found = linhash_delete(&numerouno, zoo + index);
+	  found = metadata_delete(&numerouno, zoo + index);
 	  if(!found){
-	    fprintf(stderr, "linhash_delete FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
+	    fprintf(stderr, "metadata_delete FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;
 	  }
 	  assert(found);
@@ -288,53 +280,12 @@ void test_3(memcxt_t* memcxt){
   }
   fprintf(stderr, "\n");
   
-  dump_linhash(stderr, &numerouno, false);
+  dump_metadata(stderr, &numerouno, false);
   
-  delete_linhash(&numerouno);
+  delete_metadata(&numerouno);
   
   free(menagery);
     
 }
 
 
-/*
-
-PASCALI:
-
-Using pool_memcxt
-exp0 = 16 exp1 = 12
-bincount_max = 4294967295
-keys         = 268435456
-real	14m10.821s
-user	13m24.247s
-sys	0m45.727s
-
-Using sys_memcxt
-exp0 = 16 exp1 = 12
-bincount_max = 4294967295
-keys         = 268435456
-real	7m1.833s
-user	6m44.852s
-sys	0m16.680s
-
-
-Using pool_memcxt
-exp0 = 16 exp1 = 13
-bincount_max = 4294967295
-keys         = 536870912
-real	28m4.328s
-user	27m5.293s
-sys	0m58.290s
-
-
-Using sys_memcxt
-exp0 = 16 exp1 = 13
-bincount_max = 4294967295
-keys         = 536870912
-real	16m9.654s
-user	15m19.912s
-sys	0m49.196s
-
-
-
- */

@@ -25,8 +25,8 @@ struct memcxt_s {
   void (*release)(memtype_t, void*, size_t);
 };
 
-/* memcxt_t is defined in types.h to be a memcxt_s */
-extern memcxt_t* sys_memcxt;
+
+extern void init_sys_memcxt(memcxt_t* smem);
 
 extern bool add_size(size_t s1, size_t s2, size_t* sum);
 

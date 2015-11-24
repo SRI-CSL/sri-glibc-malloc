@@ -1,9 +1,10 @@
 #include "pool.h"
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include "dsassert.h"
 #include "metadata.h"
 #include "memcxt.h"
 
@@ -454,18 +455,17 @@ static void *pool_allocate(pool_t* pool, memtype_t type, size_t size);
 
 static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size);
 
-
-
 static void *_pool_allocate(memtype_t type, size_t size);
 
 static void _pool_release(memtype_t type, void *ptr, size_t size);
 
 
-
-
-memcxt_t _pool_memcxt = { _pool_allocate, _pool_release };
-
-memcxt_t *pool_memcxt = &_pool_memcxt;
+void init_pool_memcxt(memcxt_t* pmem){
+  if(pmem != NULL){
+    pmem->allocate =  _pool_allocate;
+    pmem->release = _pool_release;
+  }
+}
 
 
 static void *_pool_allocate(memtype_t type, size_t size){

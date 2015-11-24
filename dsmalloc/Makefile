@@ -40,11 +40,13 @@ endif
 # -Wall -g
 #-O3 -DNDEBUG 
 
+TCFLAGS= -g -pthread -DUSE_MALLOC=1
+
 all: $(LIB) test 
 
 
-$(LIB): dsmalloc.o hashfns.o memcxt.o pool.o metadata.o
-	$(CC) -O2 $(LIBFLAGS) -o $(LIB) dsmalloc.o hashfns.o memcxt.o pool.o metadata.o
+$(LIB): dsmalloc.o hashfns.o memcxt.o pool.o metadata.o dsassert.o
+	$(CC) -O2 $(LIBFLAGS) -o $(LIB) dsmalloc.o hashfns.o memcxt.o pool.o metadata.o dsassert.o
 ifeq ($(BUILD_PLATFORM),LINUX)
 	rm -f libdsmalloc.so && ln -s libdsmalloc.so.1.0 libdsmalloc.so && \
 	rm -f libdsmalloc.so.1 && ln -s libdsmalloc.so.1.0 libdsmalloc.so.1
@@ -54,8 +56,8 @@ endif
 %.o: %.c %.h 
 	${CC} ${CFLAGS} $< -c 
 
-test: hashfns.o memcxt.o pool.o metadata.o test.o
-	${CC} hashfns.o memcxt.o pool.o metadata.o test.o -o test
+test: hashfns.o memcxt.o pool.o metadata.o test.o dsassert.o
+	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
 
 mtest: mt-test1
 	@./mtestdrive.sh

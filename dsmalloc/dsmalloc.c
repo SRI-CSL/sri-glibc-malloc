@@ -20,6 +20,9 @@
 */
 
 #include "dsmalloc.h" 
+#include "dsassert.h" 
+#include "pool.h" 
+
 
 /* --------------------- public wrappers ---------------------- */
 
@@ -516,30 +519,8 @@ void * anon_mmap (void *addr, size_t length, int prot, int flags)
   -----------------------  Chunk representations -----------------------
 */
 
+#include "metadata.h"
 
-
-typedef void * mchunkptr;
-
-struct chunkinfo {
-  INTERNAL_SIZE_T      prev_size;     /* Size of previous in bytes             */
-  INTERNAL_SIZE_T      size;          /* Size in bytes, including overhead.    */
-  INTERNAL_SIZE_T      req;           /* Original request size, for guard.     */
-  struct chunkinfo*    hash_next;     /* contains a pointer to the next chunk 
-				       * in the linked list if the hash
-				       * value is the same as the chunk        */
-  struct chunkinfo*    fd;	      /* double links -- used only if free.    */
-  struct chunkinfo*    bk;
-  mchunkptr chunk;
-};
-
-typedef struct chunkinfo* chunkinfoptr;
-
-struct cireginfo {
-  unsigned long position;             /* iam: looks to be the index to the next free  */
-  struct cireginfo* next_region;
-  struct chunkinfo *freelist;
-  unsigned long freecounter; 
-};
 
 /*
   ---------- Size and alignment checks and conversions ----------
@@ -621,9 +602,7 @@ static char * dnmalloc_arc4random(void);
 static void dnmalloc_init (void);
 static void malloc_mmap_state(void);
 
-static void cireg_extend (void);
-
-static chunkinfoptr cireg_getfree (void);
+static chunkinfoptr cireg_getfree (void);  
 
 static void hashtable_add (chunkinfoptr ci);
 static void hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert);
@@ -1113,11 +1092,6 @@ char *startheap;
 /* pointer to the hashtable: struct chunkinfo **hashtable -> *hashtable[] */
 chunkinfoptr *hashtable;
 
-/* Current chunkinfo region */
-struct cireginfo *currciinfo = 0;
-struct cireginfo *firstciinfo = 0;
-
-unsigned long totalcictr = 0;
 
 
 /* Initialize the area for chunkinfos and the hashtable and protect 
@@ -1126,231 +1100,17 @@ unsigned long totalcictr = 0;
 static void
 dnmalloc_init ()
 {
-   void *hashtb;
-   int mprot;
-   int flags = MAP_PRIVATE;
-
    /* Allocate the malloc_state struct */
    malloc_mmap_state();
-
-   /* Use MAP_NORESERVE if available (Solaris, HP-UX; most other
-    * systems use defered allocation anyway.
-    */
-#ifdef MAP_NORESERVE
-   flags |= MAP_NORESERVE;
-#endif
 
    /* Always start at 0, hashtable covers whole 32bit address space
     */
 #define STARTHEAP_IS_ZERO
    startheap = 0;
 
-   /* Map space for the hashtable */
-#if PARANOIA > 1
-   hashtb = MMAP(0, HASHTABLESIZE+(2*PGSIZE), PROT_READ|PROT_WRITE, flags);
-#else
-   hashtb = MMAP(0, HASHTABLESIZE+PGSIZE, PROT_READ|PROT_WRITE, flags);
-#endif
-
-#ifdef NDEBUG
-   if (hashtb == MAP_FAILED) {
-      fprintf (stderr, "Couldn't mmap hashtable: %s\n", strerror (errno));
-      abort ();
-   }
-#else
-   assert(hashtb != MAP_FAILED);
-#endif
-
-   /* Protect the hashtable with non-writable pages */
-   mprot = mprotect(hashtb, (size_t) PGSIZE, PROT_NONE);
-#ifdef NDEBUG
-   if (mprot == -1) {
-     fprintf (stderr, "Couldn't mprotect first non-rw page for hashtable: %s\n",
-	      strerror (errno));
-     abort ();
-   }
-#else
-   assert(mprot != -1);
-#endif
-
-   /* HP-UX: Cannot do arithmetic with pointers to objects of unknown size. */
-   hashtable = (chunkinfoptr *) (((char*)hashtb) + PGSIZE);
-
-   /* Protect the hashtable with non-writable pages */
-#if PARANOIA > 1
-   mprot = mprotect((void*)((char*)hashtb+HASHTABLESIZE+PGSIZE), (size_t) PGSIZE, PROT_NONE);
-#ifdef NDEBUG
-   if (mprot == -1) {
-     fprintf (stderr, "Couldn't mprotect last non-rw page for hashtable: %s\n",
-	      strerror (errno));
-     abort ();
-   }
-#else
-   assert(mprot != -1);
-#endif
-#endif
 }
 
 
-
-/* Extend the region for chunk infos by mapping more memory before the region */
-static void
-cireg_extend ()
-{
-   void *newcireg;
-   int mprot;
-   struct cireginfo *tempciinfo = 0;
-   
-#if PARANOIA > 1
-   newcireg = MMAP(0, CIREGSIZE+(2*PGSIZE), PROT_READ|PROT_WRITE, MAP_PRIVATE);
-#else
-   newcireg = MMAP(0, CIREGSIZE+PGSIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE);
-#endif
-
-#ifdef NDEBUG
-   if (newcireg == MAP_FAILED)
-   {
-	   fprintf (stderr, "Couldn't extend chunkinfo region: %s\n",
-		    strerror (errno));
-	   abort ();
-   }
-#else
-   assert(newcireg != MAP_FAILED);
-#endif
-   mprot = mprotect(newcireg, PGSIZE, PROT_NONE);
-#ifdef NDEBUG
-   if (mprot == -1) {
-	   fprintf (stderr, "Couldn't mprotect first non-rw page for extended region: %s\n",
-		    strerror (errno));
-	   abort ();
-   }
-#else
-   assert(mprot != -1);
-#endif
-   newcireg = ((char*)newcireg)+PGSIZE;
-   
-#if PARANOIA > 1
-   mprot = mprotect((void*)((char*)newcireg+CIREGSIZE), (size_t) PGSIZE, PROT_NONE);
-#ifdef NDEBUG
-   if (mprot == -1) {
-     fprintf (stderr, "Couldn't mprotect last non-rw page for extended region: %s\n",
-	      strerror (errno));
-     abort ();
-   }
-#else
-   assert(mprot != -1);
-#endif
-#endif
-
-   tempciinfo = currciinfo;
-   currciinfo = (struct cireginfo *) newcireg;
-   if (tempciinfo)
-	   tempciinfo->next_region = currciinfo;
-   currciinfo->position = 1;
-   currciinfo->freecounter = NUMBER_FREE_CHUNKS;
-   if (!firstciinfo)
-	   firstciinfo = currciinfo;
-   totalcictr++;
-}
-
-
-/* Get a free chunkinfo */
-static chunkinfoptr
-cireg_getfree ()
-{
-   chunkinfoptr freeci;
-   chunkinfoptr freelst = 0;
-   struct cireginfo *newciinfo = firstciinfo;
-   
-   if (newciinfo) {
-   	freelst = newciinfo->freelist;
-    
-	if (!freelst && newciinfo->next_region) {
-	  do {
-	    newciinfo = newciinfo->next_region;
-	    freelst = newciinfo->freelist;
-	  } while (!freelst && newciinfo->next_region);
-	}
-   }
-
-   /* Check if there are any free chunkinfos on the list of free chunkinfos */
-   if (freelst)
-   {
-      freeci = freelst;
-      newciinfo->freelist = freelst->fd;
-      newciinfo->freecounter--;
-      /* memset(freeci, 0, sizeof(struct chunkinfo)); */
-      freeci->prev_size = 0;
-      freeci->size      = 0;
-      freeci->req       = 0;
-      freeci->hash_next = NULL;
-      freeci->fd        = NULL;
-      freeci->bk        = NULL;
-      freeci->chunk     = NULL;
-      return (freeci);
-   }
-   else
-   {
-     /* No free chunkinfos, check if chunkinfo region still has place 
-      * for a chunkinfo. If not, extend the region. 
-      */
-     if (UNLIKELY(!currciinfo || currciinfo->position == NUMBER_FREE_CHUNKS))
-       cireg_extend ();
-     /* Get a chunkinfo from the chunkinfo region */
-     freeci = (chunkinfoptr) currciinfo + currciinfo->position; 
-     currciinfo->freecounter--;
-     currciinfo->position++;
-     return (freeci);
-   }
-}
-
-static void freeciregion(struct cireginfo *freeme) {
-  /* free the chunkinfo region */
-  struct cireginfo *newciinfo = firstciinfo;
-  struct cireginfo *prevciinfo = firstciinfo;
-  void *unmapme;
-  while (newciinfo && newciinfo != freeme) {
-    prevciinfo = newciinfo;
-    newciinfo = newciinfo->next_region;
-  }
-  assert(freeme == newciinfo); /* rw */
-  assert(newciinfo != NULL);   /* rw */
-  if (newciinfo)
-    prevciinfo->next_region = newciinfo->next_region;
-  unmapme = (void *) ((char*)freeme - PGSIZE);
-#if PARANOIA > 1
-  munmap(unmapme, CIREGSIZE+(2*PGSIZE));
-#else
-  munmap(unmapme, CIREGSIZE+PGSIZE);
-#endif
-}
-
-
-static void freecilst_add(chunkinfoptr p) {
-
-  struct cireginfo *newciinfo;
-  newciinfo = currciinfo;
-  if (((chunkinfoptr) newciinfo < p) && (p  <  (chunkinfoptr) (newciinfo+NUMBER_FREE_CHUNKS))) {
-    p->fd = newciinfo->freelist;
-    newciinfo->freelist = p;
-    newciinfo->freecounter++;
-  } else {
-    newciinfo = firstciinfo;
-    if (newciinfo) {
-      do {
-	if (((chunkinfoptr) newciinfo < p) && (p  <  (chunkinfoptr) (newciinfo+NUMBER_FREE_CHUNKS))) {
-	  p->fd = newciinfo->freelist;
-	  newciinfo->freelist = p;
-	  newciinfo->freecounter++;
-	  if (UNLIKELY(newciinfo->freecounter == NUMBER_FREE_CHUNKS))
-	    freeciregion(newciinfo);
-	  break;
-	}
-	newciinfo = newciinfo->next_region;
-      } while (newciinfo);
-    }
-  }
-}
 
 /* Calculate the hash table entry for a chunk */
 #ifdef STARTHEAP_IS_ZERO
@@ -1362,148 +1122,16 @@ static void freecilst_add(chunkinfoptr p) {
 static void
 hashtable_add (chunkinfoptr ci)
 {
-  chunkinfoptr temp, next;
-  unsigned long hashval;
-  mchunkptr cic = chunk (ci);
-  
-  hashval = hash (cic);
-  
-  if (hashval < AMOUNTHASH) {
-    
-    temp = hashtable[hashval];
-    
-#ifdef DNMALLOC_DEBUG
-    fprintf(stderr, "hashtable_add: %p, %lu\n", chunk(ci), hashval);
-#endif
-    
-    /* If no pointer to a chunk info list is stored at this location 
-     * in the hashtable or if the chunk's address is smaller than the 
-     * one present, add the chunk to the front of the linked list
-     */
-    if (temp == 0 || chunk (temp) > cic)
-      {
-	ci->hash_next = temp;
-	hashtable[hashval] = ci;
-	if (!temp) /* more likely case */
-	  goto out;
-	temp->prev_size = chunksize(ci);
-	return;
-      }
-    else
-      {
-	/* We must place the chunk in the linked list for this hashentry
-	 * Loop to end of list or to a position where temp's chunk's address 
-	 * is larger than the new chunkinfo's chunk's address
-	 */
-	if (!temp->hash_next || (chunk (temp->hash_next) > cic))
-	  {
-	    ci->hash_next = temp->hash_next;
-	    temp->hash_next = ci;
-	  }
-	else
-	  {
-	    while ((temp->hash_next != 0) && (chunk (temp->hash_next) < cic))
-	      {
-		temp = temp->hash_next;
-	      }
-	    /* Place in linked list if not already there */
-	    if (!temp->hash_next || !(chunk (temp->hash_next) == cic))
-	      {
-		ci->hash_next = temp->hash_next;
-		temp->hash_next = ci;
-	      }
-	  }
-      }
-  }
-  else {
-#ifdef DNMALLOC_CHECKS
-    if (hashval >= AMOUNTHASH) {
-      fprintf(stderr, "Dnmalloc error: trying to write outside of the bounds of the hashtable, this is definitely a bug, please email dnmalloc@fort-knox.org (hashval: %lu, AMOUNTHASH: %lu, HEAPMAXSIZE_HALF %lu PGSIZE %ld CHUNKINFOPAGE %ld chunk: %p, chunkinfo: %p, startheap: %p).\n", hashval, AMOUNTHASH, HEAPMAXSIZE_HALF, PGSIZE, CHUNKINFOPAGE, chunk(ci), ci, startheap);
-      abort();
-    }
-#else
-    assert(hashval < AMOUNTHASH);
-#endif
-  }
-  
- out:
-  next = next_chunkinfo(ci);
-  if (!next)
-     return;
-  next->prev_size = chunksize(ci);
 }
 
 static void
 hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert)
 {
-   chunkinfoptr next;
-
-#ifdef DNMALLOC_DEBUG
-   fprintf(stderr, "hashtable_ins: %p, %lu\n", chunk(ci_insert), 
-	   (unsigned long)hash(chunk(ci_insert));
-#endif
-
-   if (hash(chunk(ci_orig)) != hash(chunk(ci_insert))) {
-      hashtable_add(ci_insert);  
-   }
-   else {
-      ci_insert->hash_next = ci_orig->hash_next;
-      ci_orig->hash_next = ci_insert;
-
-      /* added for prevsize */
-      if (!(ci_insert->hash_next))
-	      next = next_chunkinfo(ci_insert);
-      else
-	      next = ci_insert->hash_next;
-
-      if (!next)
-	{
-	  ci_insert->prev_size = chunksize(ci_orig);
-	}
-      else
-	{
-	  next->prev_size = chunksize(ci_insert);
-	  ci_insert->prev_size = chunksize(ci_orig);
-	}
-   }
 }
 
 static void
 hashtable_remove (mchunkptr p) 
 {
-  chunkinfoptr prevtemp, temp;
-  unsigned long hashval;
-  
-  hashval = hash (p);
-#ifdef DNMALLOC_DEBUG
-  fprintf(stderr, "hashtable_rem: %p, %lu\n", p, hashval);
-#endif
-  assert(hashval < AMOUNTHASH); /* rw */
-  prevtemp = temp = hashtable[hashval];
-  if (chunk (temp) == p) {
-    hashtable[hashval] = temp->hash_next;
-  } 
-  else
-    {
-      if (temp && chunk (temp) != p) {
-	do
-	  {
-	    prevtemp = temp;
-	    temp = temp->hash_next;
-	  } while (temp && chunk (temp) != p);
-      }
-#ifdef DNMALLOC_CHECKS
-      if (!temp) {
-	fprintf (stderr,
-		 "Dnmalloc error (hash_rm): could not find a chunkinfo for the chunk %p in the hashtable at entry %lu\n This is definitely a bug, please report it to dnmalloc@fort-knox.org.\n",
-		 p, hashval);
-	abort();
-      }
-#else
-      assert(temp != NULL);
-#endif
-      prevtemp->hash_next = temp->hash_next;
-    }
 }
 
 /* mmapped chunks are multiples of pagesize, no hash_nexts, just remove from the hashtable */
@@ -1512,76 +1140,13 @@ hashtable_remove (mchunkptr p)
 static void
 hashtable_skiprm (chunkinfoptr ci_orig, chunkinfoptr ci_todelete)
 {
-   unsigned long hashval;
-   chunkinfoptr next;
-   
-#ifdef DNMALLOC_DEBUG
-   fprintf(stderr, "hashtable_ski: %p, %lu\n", chunk(ci_todelete), hash(chunk(ci_todelete)));
-#endif
 
-   if (ci_orig->hash_next != ci_todelete) {
-     hashval = hash(chunk(ci_todelete));
-     assert(hashval < AMOUNTHASH); /* rw */
-#ifdef DNMALLOC_CHECKS
-     if (hashtable[hashval] != ci_todelete ) {
-	   fprintf(stderr, "Dnmalloc error: trying to delete wrong value (hash: %lu): ci_todelete: %p (%p), hashtable[hashval]: %p (%p)\n This is definitely a bug, please report it to dnmalloc@fort-knox.org.\n", hashval, ci_todelete, chunk(ci_todelete), hashtable[hashval], chunk(hashtable[hashval]));
-     }
-#else
-     assert(hashtable[hashval] == ci_todelete);
-#endif
-     hashtable[hashval] = ci_todelete->hash_next;
-   }
-
-   else {
-     ci_orig->hash_next = ci_todelete->hash_next;
-     if (!ci_orig->hash_next) {
-       next = next_chunkinfo(ci_orig);
-     } else {
-       next = ci_orig->hash_next;
-     }
-     if (next)
-       next->prev_size = chunksize(ci_orig);
-
-   } 
 }
 
 
 static chunkinfoptr
 hashtable_lookup (mchunkptr p)
 {
-   chunkinfoptr ci;
-   unsigned long hashval;
-   
-   /* if we were called wrongly
-    * if ((char *) p < startheap) return 0;
-    */
-   if ((char *) p >= startheap)
-     {
-       hashval = hash (p);
-       assert(hashval < AMOUNTHASH); /* rw */
-       ci = hashtable[hashval];
-       if (ci && chunk (ci) == p)
-	 return ci;
-
-       if (ci) {
-	 do {
-	   ci = ci->hash_next;
-	 } while (ci && chunk (ci) != p);
-       }
-#ifdef DNMALLOC_CHECKS
-       // This should never occur but if it does, we'd like to know
-       if (!ci) {
-	 fprintf (stderr,
-		  "Dnmalloc error: could not find a chunkinfo for the chunk %p in the hashtable at entry %lu\n This is definitely a bug, please report it to dnmalloc@fort-knox.org.\n",
-		  p, hashval);
-	 abort();
-       }
-#else
-       assert(ci != NULL);
-#endif
-       return ci;
-     }
-   return 0;
 }
 
 
@@ -1635,6 +1200,13 @@ struct malloc_state {
   INTERNAL_SIZE_T  max_sbrked_mem;
   INTERNAL_SIZE_T  max_mmapped_mem;
   INTERNAL_SIZE_T  max_total_mem;
+
+  /* pool memory for the metadata */
+  memcxt_t memcxt;
+
+  /* metadata */
+  metadata_t htbl;      
+
 };
 
 typedef struct malloc_state *mstate;
@@ -1739,18 +1311,6 @@ static void malloc_init_state(av) mstate av;
     {
       set_nonmorecore32bit(av);
     }
-  else
-    {
-      /* On 64bit systems, the heap may be located above the
-       * 32bit address space. Since mmap() probably still can be
-       * convinced to map within 32bit, we don't use sbrk().
-       */
-      hashval = hash (morecore_test);
-      if (hashval >= AMOUNTHASH) 
-	{
-	  set_nonmorecore32bit(av);
-	}
-    }
 
   
   /* Establish circular links for normal bins */
@@ -1772,16 +1332,34 @@ static void malloc_init_state(av) mstate av;
 
   set_max_fast(av, DEFAULT_MXFAST);
 
-  av->top = cireg_getfree ();
+  init_pool_memcxt(&av->memcxt);
+
+  if( ! init_metadata(&av->htbl, &av->memcxt)){
+    abort();
+  }
+
+  av->top = new_chunkinfoptr(&av->htbl);
   av->top->chunk     = (mchunkptr) startheap;
   av->top->size      = 0;
   set_previnuse(av->top);
   clear_inuse(av->top);
-  hashtable[0]       = av->top;
+
+  if( ! metadata_add(&av->htbl, av->top)){
+    abort();
+  }
+
   av->pagesize       = malloc_getpagesize;
 
   memcpy(av->guard_stored, dnmalloc_arc4random(), GUARD_SIZE);
 
+
+}
+
+/* Get a free chunkinfo */
+static chunkinfoptr
+cireg_getfree ()
+{
+  return new_chunkinfoptr(&(get_malloc_state()->htbl));
 }
 
 /* 

@@ -1,3 +1,6 @@
+#ifndef _DSMALLOC_H
+#define _DSMALLOC_H
+
 /* The following preprocessor macros are tested, 
  *   and hence should have #define directives:
  *
@@ -120,75 +123,6 @@ extern int errno;
 #define PARANOIA 9
 #endif
 
-  /* Using assert() with multithreading will cause the code 
-   * to deadlock since glibc __assert_fail will call malloc().
-   * We need our very own assert().
-   */
-typedef void assert_handler_tp(const char * error, const char *file, int line);
-
-#if  PARANOIA > 0
-
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
-#if !defined(SAMHAIN) 
-static void default_assert_handler(const char *error, 
-				   const char *file, int line)
-{
-#ifdef HAVE_WRITEV
-  struct iovec iov[5];
-  ssize_t rcode;
-  char * i1 = "assertion failed (";
-  char * i3 = "): ";
-  char * i5 = "\n";
-
-  iov[0].iov_base = i1;               iov[0].iov_len = strlen(i1); 
-  iov[1].iov_base = (char*) file;     iov[1].iov_len = strlen(file); 
-  iov[2].iov_base = i3;               iov[2].iov_len = strlen(i3); 
-  iov[3].iov_base = (char*) error;    iov[3].iov_len = strlen(error); 
-  iov[4].iov_base = i5;               iov[4].iov_len = strlen(i5); 
-  rcode = writev(STDERR_FILENO, iov, 5);
-  if(rcode < 0){
-    //not much we can do ...
-  }
-#else
-  fputs("assertion failed (", stderr);
-  fputs(file, stderr);
-  fputs("): ", stderr);
-  fputs(error, stderr);
-  fputc('\n', stderr);
-#endif
-  abort();
-}
-static assert_handler_tp *assert_handler = default_assert_handler;
-#else
-extern void safe_fatal(const char *error, 
-		       const char *file, int line);
-static assert_handler_tp *assert_handler = safe_fatal;
-#endif
-
-#define assert(x)                               \
-  do {		                                \
-    if (UNLIKELY(!(x))) {			\
-      assert_handler(#x, __FILE__, __LINE__);	\
-    }                                           \
-  } while (0)
-
-#else
-
-static assert_handler_tp *assert_handler = NULL;
-#define NDEBUG
-#define assert(x) ((void)0)
-
-#endif
-
-assert_handler_tp *dnmalloc_set_handler(assert_handler_tp *new)
-{
-  assert_handler_tp *old = assert_handler;
-  assert_handler = new;
-  return old;
-}
 
 
 #include <stdarg.h>
@@ -1174,3 +1108,5 @@ void     public_mSTATs();
   ========================================================================
 */
 
+
+#endif

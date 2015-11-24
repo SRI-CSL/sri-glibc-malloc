@@ -1,7 +1,6 @@
 #include "memcxt.h"
 
 
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,11 +17,13 @@ static void default_release(memtype_t type, void *ptr, size_t ptr_sz){
   free(ptr);
 }
 
+void init_sys_memcxt(memcxt_t* smem){
+  if(smem != NULL){
+    smem->allocate =  default_allocate;
+    smem->release = default_release;
+  }
+}
 
-memcxt_t default_memcxt = { default_allocate, default_release };
-
-
-memcxt_t *sys_memcxt = &default_memcxt;
 
 
 /* Add two size_t values, checking for overflow */

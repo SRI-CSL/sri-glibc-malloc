@@ -68,7 +68,7 @@ run_mtest1
 
 if [ $? -eq 0 ]
 then
-    run_tmest1 30 12 3000 150000 400
+    run_mtest1 30 12 3000 150000 400
 fi
 
 if [ $? -eq 0 ]

@@ -1,10 +1,11 @@
-#include <assert.h>
+//#include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
 
 #include "metadata.h"
 #include "hashfns.h"
 #include "memcxt.h"
+#include "dsassert.h"
 
 
 const bool      metadata_multithreaded             = false;

@@ -6,7 +6,9 @@
 #include "types.h"
 
 
-extern memcxt_t *pool_memcxt;
+
+extern void init_pool_memcxt(memcxt_t* pmem);
+
 
 
 extern void dump_pool(FILE*);

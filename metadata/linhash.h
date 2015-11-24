@@ -43,6 +43,8 @@
 
 /* the code for contracting a table seems to be missing in Larsen's paper */
 
+//BD's optimization #2. the bucket should absorb the fields of the chunkinfo struct.
+
 typedef struct bucket_s {
   void *key;
   void *value;
@@ -142,6 +144,7 @@ extern void delete_linhash(linhash_t* htbl);
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
  *   -- bad arguments    errno = EINVAL.
+ *   BD: also wants it to fail if the key is already in the table.
  */
 extern bool linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
@@ -155,6 +158,18 @@ extern size_t linhash_delete_all(linhash_t* htbl, const void *key);
 
 extern void dump_linhash(FILE* fp, linhash_t* lhash, bool showloads);
 
+
+/* BD: need a version of ci_getfree() and analagous versions of the _metadata.c
+
+bucket_t* new_bucket(linhash_t* htbl);
+
+extern bool linhash_add(linhash_t* htbl, bucket_t* bucket);
+
+extern void linhash_insert2(linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert);
+extern void linhash_skiprm (linhash_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete);
+
+extern bucket_t* linhash_lookup2(linhash_t* htbl, const void *key);
+ */
 
 #endif
 

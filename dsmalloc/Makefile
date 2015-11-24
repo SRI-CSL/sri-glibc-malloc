@@ -57,8 +57,15 @@ endif
 test: hashfns.o memcxt.o pool.o metadata.o test.o
 	${CC} hashfns.o memcxt.o pool.o metadata.o test.o -o test
 
+mtest: mt-test1
+	@./mtestdrive.sh
+
+mt-test1: mt-test1.c $(LIB)
+	$(CC) $(TCFLAGS) -o mt-test1 mt-test1.c $(LINK)
+
+
 clean:
-	rm -rf *~ *.o test test.dSYM
+	rm -rf *~ *.o test test.dSYM mt-test1 $(LIB)
 
 
 

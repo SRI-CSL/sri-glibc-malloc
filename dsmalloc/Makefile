@@ -67,15 +67,9 @@ mtest0: mtest0.c $(mobj)
 mtest1: mtest1.c $(mobj)
 	$(CC) $(TCFLAGS) -o mtest1 mtest1.c $(mobj)
 
-mtest: mt-test1
-	@./mtestdrive.sh
-
-mt-test1: mt-test1.c $(LIB)
-	$(CC) $(TCFLAGS) -o mt-test1 mt-test1.c $(LINK)
-
 
 clean:
-	rm -rf *~ *.o test test.dSYM mt-test1 mtest0 mtest1 $(LIB)
+	rm -rf *~ *.o test test.dSYM mtest0 mtest1 $(LIB)
 
 
 

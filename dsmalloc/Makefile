@@ -14,12 +14,15 @@ DEFS = -DHAVE_MMAP=1          \
 OS   =  $(shell uname)
 ARCH =  $(shell uname -p)
 
+OPTIMIZATION=0
+
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 ######  DARWIN
+
 BUILD_PLATFORM=DARWIN
 
-CFLAGS = -O2 -fPIC $(DEFS) -DHAVE_MEMCPY -DDARWIN -Wall
+CFLAGS = -O${OPTIMIZATION} -fPIC $(DEFS) -DHAVE_MEMCPY -DDARWIN -Wall
 LIB = libdsmalloc.dynlib
 LIBFLAGS = -dynamiclib 
 LINK = libdsmalloc.dynlib
@@ -27,9 +30,10 @@ LINK = libdsmalloc.dynlib
 else
 
 ######## LINUX
+
 BUILD_PLATFORM=LINUX
 
-CFLAGS = -g -fPIC $(DEFS) -rdynamic -Wall -O0
+CFLAGS = -g -fPIC $(DEFS) -rdynamic -Wall -O${OPTIMIZATION}
 LIB = libdsmalloc.so.1.0
 LIBFLAGS = -g -shared -Wl,-soname,libdsmalloc.so.1
 LINK = -L. -ldsmalloc
@@ -37,18 +41,17 @@ LINK = -L. -ldsmalloc
 
 endif
 
-# -Wall -g
-#-O3 -DNDEBUG 
+TCFLAGS= -g -pthread
 
-TCFLAGS= -g -pthread -DUSE_MALLOC=1
+metaobj= hashfns.o memcxt.o pool.o metadata.o 
 
-mobj=hashfns.o memcxt.o pool.o metadata.o dsassert.o dsmalloc.o
+mobj= dsassert.o dsmalloc.o
 
 all: $(LIB) test 
 
 
-$(LIB): $(mobj)
-	$(CC) -O2 $(LIBFLAGS) -o $(LIB) $(mobj)
+$(LIB): $(metaobj) $(mobj)
+	$(CC) -O${OPTIMIZATION} $(LIBFLAGS) -o $(LIB) $(metaobj) $(mobj)
 ifeq ($(BUILD_PLATFORM),LINUX)
 	rm -f libdsmalloc.so && ln -s libdsmalloc.so.1.0 libdsmalloc.so && \
 	rm -f libdsmalloc.so.1 && ln -s libdsmalloc.so.1.0 libdsmalloc.so.1
@@ -58,14 +61,14 @@ endif
 %.o: %.c %.h 
 	${CC} ${CFLAGS} $< -c 
 
-test: hashfns.o memcxt.o pool.o metadata.o test.o dsassert.o
+test: $(metaobj) test.o dsassert.o
 	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
 
-mtest0: mtest0.c $(mobj)
-	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(mobj)
+mtest0: mtest0.c $(metaobj) $(mobj)
+	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(metaobj) $(mobj)
 
-mtest1: mtest1.c $(mobj)
-	$(CC) $(TCFLAGS) -o mtest1 mtest1.c $(mobj)
+mtest1: mtest1.c $(metaobj) $(mobj)
+	$(CC) $(TCFLAGS) -o mtest1 mtest1.c $(metaobj) $(mobj)
 
 
 clean:

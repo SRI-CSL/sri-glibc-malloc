@@ -1034,59 +1034,6 @@ typedef struct chunkinfo* mfastbinptr;
 
 /* ----------------- dnmalloc -------------------- */
 
-/* size of pages */
-#define PGSIZE malloc_getpagesize
-/* pointer size */
-#define PTRSIZE sizeof(long)
-
-
-
-/* TODO: mmapped chunks are always multiples of pagesize -> we're wasting 
-   address space: the hashtable has granularity of 16*8, set it to something 
-   closer to pagesize for mmapped chunks (current waste: 32 positions/mmapped 
-   page) 
-*/
-
-/* The maximum heap size that dnmalloc can operate with
- * represented in hex to avoid annoying gcc warning
- *
- * Avoid integer overflow, cover complete 32bit address 
- * space for portability. With deferred allocation, the
- * hashtable size is a non-issue.
- */
-#define HEAPMAXSIZE_HALF 0x80000000UL
-
-/* How many elements are stored in the linked list */
-#define LINKEDLSTELS 8
-
-/* Minimum size of a chunk */
-#define MINCHUNKSIZE 16
-
-/* The amount of hashtable entries for each page:
- * Pagesize divded by the numer of elements in the linkedlists
- * divided by the minimum chunk size
-*/
-#define CHUNKINFOPAGE (PGSIZE / LINKEDLSTELS / MINCHUNKSIZE)
-
-/* The amount of hashtable entries needed to manage the memory:
- * Maximum heap size divided by page size multiplied by the amount
- * of chunk info's per page 
-*/
-#define AMOUNTHASH ((HEAPMAXSIZE_HALF / PGSIZE) * CHUNKINFOPAGE * 2)
-
-/* Initial size of the map for the hashtable 
- * Amount of entries muliplied by pointer size
-*/
-#define  HASHTABLESIZE (AMOUNTHASH * PTRSIZE)
-
-/* Amount of free chunks that the system should allocate at the start */
-#define NUMBER_FREE_CHUNKS 32768
-
-/* Initial size of the chunk info region, 
- * also used when growing the region
- */
-#define CIREGSIZE (NUMBER_FREE_CHUNKS * sizeof(struct chunkinfo))
-
 /* Start address of the heap */
 char *startheap;
 
@@ -3502,8 +3449,6 @@ DL_STATIC void mSTATs()
 {
   struct mallinfo mi = mALLINFo();
 
-  fprintf(stderr, "hashtable = %10lu MB\n", 
-	  (CHUNK_SIZE_T)(HASHTABLESIZE / (1024*1024)));
   fprintf(stderr, "max system bytes = %10lu\n",
           (CHUNK_SIZE_T)(mi.usmblks));
   fprintf(stderr, "system bytes     = %10lu  (%10lu sbrked, %10lu mmaped)\n",

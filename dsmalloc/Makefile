@@ -42,11 +42,13 @@ endif
 
 TCFLAGS= -g -pthread -DUSE_MALLOC=1
 
+mobj=hashfns.o memcxt.o pool.o metadata.o dsassert.o dsmalloc.o
+
 all: $(LIB) test 
 
 
-$(LIB): dsmalloc.o hashfns.o memcxt.o pool.o metadata.o dsassert.o
-	$(CC) -O2 $(LIBFLAGS) -o $(LIB) dsmalloc.o hashfns.o memcxt.o pool.o metadata.o dsassert.o
+$(LIB): $(mobj)
+	$(CC) -O2 $(LIBFLAGS) -o $(LIB) $(mobj)
 ifeq ($(BUILD_PLATFORM),LINUX)
 	rm -f libdsmalloc.so && ln -s libdsmalloc.so.1.0 libdsmalloc.so && \
 	rm -f libdsmalloc.so.1 && ln -s libdsmalloc.so.1.0 libdsmalloc.so.1
@@ -59,6 +61,9 @@ endif
 test: hashfns.o memcxt.o pool.o metadata.o test.o dsassert.o
 	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
 
+mtest0: mtest0.c $(mobj)
+	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(mobj)
+
 mtest: mt-test1
 	@./mtestdrive.sh
 
@@ -67,7 +72,7 @@ mt-test1: mt-test1.c $(LIB)
 
 
 clean:
-	rm -rf *~ *.o test test.dSYM mt-test1 $(LIB)
+	rm -rf *~ *.o test test.dSYM mt-test1 mtest0 $(LIB)
 
 
 

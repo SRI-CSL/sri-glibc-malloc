@@ -29,7 +29,7 @@ else
 ######## LINUX
 BUILD_PLATFORM=LINUX
 
-CFLAGS = -g -fPIC $(DEFS) -rdynamic -Wall -O2 
+CFLAGS = -g -fPIC $(DEFS) -rdynamic -Wall -O0
 LIB = libdsmalloc.so.1.0
 LIBFLAGS = -g -shared -Wl,-soname,libdsmalloc.so.1
 LINK = -L. -ldsmalloc
@@ -64,6 +64,9 @@ test: hashfns.o memcxt.o pool.o metadata.o test.o dsassert.o
 mtest0: mtest0.c $(mobj)
 	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(mobj)
 
+mtest1: mtest1.c $(mobj)
+	$(CC) $(TCFLAGS) -o mtest1 mtest1.c $(mobj)
+
 mtest: mt-test1
 	@./mtestdrive.sh
 
@@ -72,7 +75,7 @@ mt-test1: mt-test1.c $(LIB)
 
 
 clean:
-	rm -rf *~ *.o test test.dSYM mt-test1 mtest0 $(LIB)
+	rm -rf *~ *.o test test.dSYM mt-test1 mtest0 mtest1 $(LIB)
 
 
 

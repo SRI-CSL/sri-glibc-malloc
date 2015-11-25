@@ -498,8 +498,15 @@ void * anon_mmap (void *addr, size_t length, int prot, int flags)
 #endif
 
 #if defined(MAP_32BIT)
+//
+// BD: we don't want the MAP_32BIT flag here (otherwise mmap
+// fails with valgrind).
+//
+// #define MMAP(addr, size, prot, flags)
+//  (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_32BIT, -1, 0))
+//
 #define MMAP(addr, size, prot, flags) \
- (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_32BIT, -1, 0))
+ (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS, -1, 0))
 #elif defined(__sun)
 /* 
  * Hint an address within 32bit address space
@@ -1225,13 +1232,14 @@ static void malloc_mmap_state()
 
   void * foo = MMAP(0, size+(2*pagesize), PROT_READ|PROT_WRITE, MAP_PRIVATE);
 
-
 #ifdef NDEBUG
    if (foo == MAP_FAILED) {
       fprintf (stderr, "Couldn't mmap struct malloc_state: %s\n", strerror (errno));
       abort ();
    }
 #else
+   fprintf(stderr, "foo = %p, errno = %d\n", foo, errno);
+   perror("malloc_mmap_state");
    assert(foo != MAP_FAILED);
 #endif
 

@@ -552,6 +552,8 @@ static char * dnmalloc_arc4random(void);
 static void malloc_mmap_state(void);
 
 static chunkinfoptr new_chunkinfoptr(void);  
+
+/* iam: i think skiprm et al already releases p; we should think about this; the api change need a rethink. */
 static void free_chunkinfoptr(chunkinfoptr);  
 
 static void hashtable_add (chunkinfoptr ci);
@@ -1196,6 +1198,8 @@ new_chunkinfoptr()
 }
 
 
+/* iam: better check the uses of these; may be a mistake on my part */
+/* iam: these folow removals from the metadata hashtabe, which already releases p; we should think about this; the api change need a rethink. */
 static void free_chunkinfoptr(chunkinfoptr ci){
   mstate av = get_malloc_state();
   release_chunkinfoptr(&(av->htbl), ci);
@@ -2655,6 +2659,7 @@ static void malloc_consolidate(av) mstate av;
              unlink(prevp, bck, fwd);
              set_head(p, size | PREV_INUSE);	     
              hashtable_skiprm(prevp,p);
+	     /* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */
              free_chunkinfoptr(p);
              p=prevp;
           }
@@ -2669,6 +2674,7 @@ static void malloc_consolidate(av) mstate av;
 		unlink(nextchunk, bck, fwd);
 		set_head(p, size | PREV_INUSE);
 		hashtable_skiprm(p,nextchunk);
+		/* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */		
 		free_chunkinfoptr(nextchunk);
 	      }
 	      
@@ -2690,6 +2696,7 @@ static void malloc_consolidate(av) mstate av;
 	      size += nextsize;
 	      set_head(p, size | PREV_INUSE);
 	      hashtable_remove(chunk(av->top));
+	     /* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */
 	      free_chunkinfoptr(av->top);
 	      av->top = p;
 	    }
@@ -2821,6 +2828,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
         newp = oldp;
         unlink(next, bck, fwd);
         hashtable_remove(chunk(next));
+	/* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */
         free_chunkinfoptr(next);
 	next = next_chunkinfo(oldp);
 	if (next)
@@ -2845,6 +2853,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 	  newsize += oldsize;
 	  set_head_size(oldp, newsize);
 	  hashtable_skiprm(oldp, newp);
+	  /* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */
 	  free_chunkinfoptr(newp);	  
           newp = oldp;
         }
@@ -3091,6 +3100,7 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
       //iam: naughty naugthy newp->hash_next = (chunkinfoptr) (((INTERNAL_SIZE_T) p->hash_next) + leadsize);
       set_head(newp, newsize|IS_MMAPPED|INUSE);
       hashtable_remove_mmapped(chunk(p));
+      /* iam: i think skiprm already releases p; we should think about this; the api change need a rethink. */
       free_chunkinfoptr(p);
       hashtable_add(newp);
       guard_set(av->guard_stored, newp, bytes, nb);

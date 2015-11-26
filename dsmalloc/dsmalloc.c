@@ -549,7 +549,6 @@ static char * guard_set_q;
 /* dnmalloc forward declarations */
 
 static char * dnmalloc_arc4random(void);
-static void dnmalloc_init (void);
 static void malloc_mmap_state(void);
 
 static chunkinfoptr new_chunkinfoptr(void);  
@@ -984,42 +983,6 @@ typedef struct chunkinfo* mfastbinptr;
 
 /* ----------------- dnmalloc -------------------- */
 
-/* Start address of the heap */
-char *startheap;
-
-/* pointer to the hashtable: struct chunkinfo **hashtable -> *hashtable[]
-chunkinfoptr *hashtable;
-
- */
-
-/* Initialize the area for chunkinfos and the hashtable and protect 
- * it with non-writable pages 
- */
-static void
-dnmalloc_init ()
-{
-   /* Allocate the malloc_state struct */
-   malloc_mmap_state();
-
-   /* Always start at 0, hashtable covers whole 32bit address space
-    */
-#define STARTHEAP_IS_ZERO
-   startheap = 0;
-
-}
-
-
-
-/* Calculate the hash table entry for a chunk */
-#ifdef STARTHEAP_IS_ZERO
-#define hash(p)  (((unsigned long) p) >> 7)
-#else
-#define hash(p)  (((unsigned long) p - (unsigned long) startheap) >> 7)
-#endif
-
-
-
-
 /*
    ----------- Internal state representation and initialization -----------
 */
@@ -1208,7 +1171,7 @@ static void malloc_init_state(av) mstate av;
   }
 
   av->top = allocate_chunkinfoptr(&av->htbl);
-  av->top->chunk     = (mchunkptr) startheap;
+  av->top->chunk     = (mchunkptr) 0;
   av->top->size      = 0;
   set_previnuse(av->top);
   clear_inuse(av->top);
@@ -2739,7 +2702,7 @@ static void malloc_consolidate(av) mstate av;
   }
   else {
     // Initialize dnmalloc
-    dnmalloc_init();
+    malloc_mmap_state();
     malloc_init_state(get_malloc_state());
     check_malloc_state();
   }

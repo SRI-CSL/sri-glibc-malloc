@@ -428,7 +428,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 
     while( current != NULL ){
 
-      if(metadata_bindex(lhtbl, current->key) == new_bindex){
+      if(metadata_bindex(lhtbl, current->chunk) == new_bindex){
 
 	/* it belongs in the new bucket */
 	if( lastofnew == NULL ){      //BD & DD should preserve the order of the buckets in BOTH the old and new bins
@@ -470,7 +470,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
 
-  binp = metadata_fetch_bucket(lhtbl, newbucket->key);
+  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
 
   /* for the time being we insert the bucket at the front */
   newbucket->next_bucket = *binp;
@@ -483,17 +483,17 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   return metadata_expand_check(lhtbl);
 }
 
-bucket_t* metadata_lookup(metadata_t* lhtbl, const void *key){
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   bucket_t* value;
   bucket_t** binp;
   bucket_t* bucketp;
 
   value = NULL;
-  binp = metadata_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, chunk);
   bucketp = *binp;
 
   while(bucketp != NULL){
-    if(key == bucketp->key){
+    if(chunk == bucketp->chunk){
       value = bucketp;
       break;
     }
@@ -503,18 +503,18 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *key){
   return value;
 }
 
-bool metadata_delete(metadata_t* lhtbl, const void *key){
+bool metadata_delete(metadata_t* lhtbl, const void *chunk){
   bool found = false;
   bucket_t** binp;
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
 
   previous_bucketp = NULL;
-  binp = metadata_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, chunk);
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
-    if(key == current_bucketp->key){
+    if(chunk == current_bucketp->chunk){
       found = true;
       
       if(previous_bucketp == NULL){
@@ -536,7 +536,7 @@ bool metadata_delete(metadata_t* lhtbl, const void *key){
   return found;
 }
 
-size_t metadata_delete_all(metadata_t* lhtbl, const void *key){
+size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   size_t count;
   bucket_t** binp;
   bucket_t* current_bucketp;
@@ -545,12 +545,12 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *key){
 
   count = 0;
   previous_bucketp = NULL;
-  binp = metadata_fetch_bucket(lhtbl, key);
+  binp = metadata_fetch_bucket(lhtbl, chunk);
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
     
-    if(key == current_bucketp->key){
+    if(chunk == current_bucketp->chunk){
       count++;
       
       if(previous_bucketp == NULL){

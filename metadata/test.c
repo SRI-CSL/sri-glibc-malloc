@@ -23,51 +23,55 @@ static void test_3(memcxt_t* memcxt);
 
 
 int main(int argc, char** argv){
-  memcxt_t* memcxt;
+  memcxt_t memcxt;
   int tests[] = { 0, 0, 1, 0};
 
-  memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
+  if(argc > 1){
+    init_sys_memcxt(&memcxt);
+  } else {
+    init_pool_memcxt(&memcxt);
+  }
 
   fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
 
-  if(tests[0]){ test_0(memcxt); }
+  if(tests[0]){ test_0(&memcxt); }
   
-  if(tests[1]){ test_1(memcxt); }
+  if(tests[1]){ test_1(&memcxt); }
 
-  if(tests[2]){ test_2(memcxt); }
+  if(tests[2]){ test_2(&memcxt); }
 
-  if(tests[3]){ test_3(memcxt); }
+  if(tests[3]){ test_3(&memcxt); }
   
   return 0;
 }
 
 
 void test_0(memcxt_t* memcxt){
-  int key;
+  int chunk;
   void* look;
   bool success;
   
   init_metadata(&numerouno, memcxt);
 
-  fprintf(stderr, "inserting key = %p\n", &key);
+  fprintf(stderr, "inserting chunk = %p\n", &chunk);
   
-  metadata_insert_key(&numerouno, &key);
+  metadata_insert_chunk(&numerouno, &chunk);
 
-  look = metadata_lookup(&numerouno, &key);
+  look = metadata_lookup(&numerouno, &chunk);
 
-  fprintf(stderr, "key = %p  look = %p\n", &key, look);
-
-  dump_metadata(stderr, &numerouno, true);
-
-  success = metadata_delete(&numerouno, &key);
-
-  fprintf(stderr, "key = %p  success = %d\n", &key, success);
+  fprintf(stderr, "chunk = %p  look = %p\n", &chunk, look);
 
   dump_metadata(stderr, &numerouno, true);
 
-  success = metadata_delete(&numerouno, &key);
+  success = metadata_delete(&numerouno, &chunk);
 
-  fprintf(stderr, "key = %p success = %d\n", &key, success);
+  fprintf(stderr, "chunk = %p  success = %d\n", &chunk, success);
+
+  dump_metadata(stderr, &numerouno, true);
+
+  success = metadata_delete(&numerouno, &chunk);
+
+  fprintf(stderr, "chunk = %p success = %d\n", &chunk, success);
 
   dump_metadata(stderr, &numerouno, true);
 
@@ -88,7 +92,7 @@ void test_1(memcxt_t* memcxt){
   init_metadata(&numerouno, memcxt);
 
   for(index = 0; index < K2; index++){
-    metadata_insert_key(&numerouno, zoo + index);
+    metadata_insert_chunk(&numerouno, zoo + index);
   }
 
   dump_metadata(stderr, &numerouno, true);
@@ -137,7 +141,7 @@ void test_2(memcxt_t* memcxt){
 	fprintf(stderr, "zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
       }
       
-      metadata_insert_key(&numerouno, zoo + index);
+      metadata_insert_chunk(&numerouno, zoo + index);
     }
 
     menagery[zindex] = zoo;
@@ -215,7 +219,7 @@ void test_3(memcxt_t* memcxt){
     return;
   }
     
-  fprintf(stderr, "keys         = %" PRIuPTR "\n", lots_n_lots);
+  fprintf(stderr, "chunks         = %" PRIuPTR "\n", lots_n_lots);
 
     
   menagery = calloc(alot, sizeof(void *));
@@ -231,7 +235,7 @@ void test_3(memcxt_t* memcxt){
       if(zoo != NULL){
 	
 	for(index = 0; index < alsoalot; index++){
-	 found = metadata_insert_key(&numerouno, zoo + index);
+	 found = metadata_insert_chunk(&numerouno, zoo + index);
 	 if(!found){
 	    fprintf(stderr, "metadata_insert FAILED: zindex = %" PRIuPTR " index = %" PRIuPTR "\n", zindex, index);
 	    break;

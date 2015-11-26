@@ -47,17 +47,18 @@
 
 typedef void * mchunkptr;
 
-typedef struct bucket_s {
+typedef struct chunkinfo {
   INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes          */
   INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
   INTERNAL_SIZE_T   req;           /* Original request size, for guard.  */
-  struct bucket_s*  fd;	           /* double links -- used only if free. */
-  struct bucket_s*  bk;            /* double links -- used only if free. */
-  struct bucket_s*  next_bucket;   /* next bucket in the bin             */
-  mchunkptr key;                  
+  struct chunkinfo*  fd;	   /* double links -- used only if free. */
+  struct chunkinfo*  bk;           /* double links -- used only if free. */
+  struct chunkinfo*  next_bucket;  /* next bucket in the bin             */
+  mchunkptr chunk;                  
   bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
 } bucket_t;
 
+typedef bucket_t* chunkinfoptr;
 
 typedef struct segment_s {
   bucket_t* segment[SEGMENT_LENGTH];
@@ -145,42 +146,46 @@ extern bool init_metadata(metadata_t* lhash, memcxt_t* memcxt);
 extern void delete_metadata(metadata_t* htbl);
 
 /* 
- * Adds the bucket to the table according to the key. Returns true if successful; false if not.
+ * Adds the bucket to the table according to the chunk. Returns true if successful; false if not.
  * If it returns false it sets errno to explain the error.
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
  *   -- bad arguments    errno = EINVAL.
- *   BD: also wants it to fail if the key is already in the table.
+ *   BD: also wants it to fail if the chunk is already in the table.
  */
 
-extern bool metadata_add(metadata_t* htbl, bucket_t* bucket);
+extern bool metadata_add(metadata_t* htbl, chunkinfoptr bucket);
 
-extern bucket_t* metadata_lookup(metadata_t* htbl, const void *key);
+extern chunkinfoptr metadata_lookup(metadata_t* htbl, const void *chunk);
 
-/* deletes the first bucket keyed by key; returns true if such a bucket was found; false otherwise */
-extern bool metadata_delete(metadata_t* htbl, const void *key);
+/* deletes the first bucket keyed by chunk; returns true if such a bucket was found; false otherwise */
+extern bool metadata_delete(metadata_t* htbl, const void *chunk);
 
-/* deletes all buckets keyed by key; returns the number of buckets deleted */
-extern size_t metadata_delete_all(metadata_t* htbl, const void *key);
+/* deletes all buckets keyed by chunk; returns the number of buckets deleted */
+extern size_t metadata_delete_all(metadata_t* htbl, const void *chunk);
 
 extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
-static inline bucket_t* new_bucket(metadata_t* htbl){
+static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
   return htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
 }
 
-static inline bool metadata_insert (metadata_t* htbl, bucket_t* ci_orig, bucket_t* ci_insert){
+static inline void release_chunkinfoptr(metadata_t* htbl, chunkinfoptr bucket){
+  htbl->cfg.memcxt->release(BUCKET, bucket, sizeof(bucket_t));
+}
+
+static inline bool metadata_insert (metadata_t* htbl, chunkinfoptr ci_orig, chunkinfoptr ci_insert){
   return metadata_add(htbl, ci_insert);
 }
 
-static inline bool metadata_skiprm (metadata_t* htbl, bucket_t* ci_orig, bucket_t* ci_todelete){
-  return metadata_delete(htbl, ci_todelete->key);
+static inline bool metadata_skiprm (metadata_t* htbl, chunkinfoptr ci_orig, chunkinfoptr ci_todelete){
+  return metadata_delete(htbl, ci_todelete->chunk);
 }
 
-static inline bool metadata_insert_key(metadata_t* htbl, void * key){
-  bucket_t* newb = new_bucket(htbl);
+static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
+  chunkinfoptr newb = allocate_chunkinfoptr(htbl);
   if(newb != NULL){
-    newb->key = key;
+    newb->chunk = chunk;
     return metadata_add(htbl, newb);
   }
   return false;

@@ -40,5 +40,7 @@ int main(void) {
 
   free(bank);
 
+  malloc_stats();
+
   return 0;
 }

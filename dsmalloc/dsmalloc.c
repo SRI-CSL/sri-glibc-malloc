@@ -3344,6 +3344,8 @@ DL_STATIC void mSTATs()
 {
   struct mallinfo mi = mALLINFo();
 
+  mstate av = get_malloc_state();
+
   fprintf(stderr, "max system bytes = %10lu\n",
           (CHUNK_SIZE_T)(mi.usmblks));
   fprintf(stderr, "system bytes     = %10lu  (%10lu sbrked, %10lu mmaped)\n",
@@ -3352,7 +3354,10 @@ DL_STATIC void mSTATs()
           (CHUNK_SIZE_T)(mi.hblkhd));
   fprintf(stderr, "in use bytes     = %10lu\n",
           (CHUNK_SIZE_T)(mi.uordblks + mi.hblkhd));
+  fprintf(stderr, "\nhashtable:\n");
+  dump_metadata(stderr, &(av->htbl), false);
 
+  
 }
 
 

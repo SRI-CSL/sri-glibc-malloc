@@ -47,7 +47,7 @@ metaobj= hashfns.o memcxt.o pool.o metadata.o
 
 mobj= dsassert.o dsmalloc.o
 
-all: $(LIB) test 
+all: $(LIB) tests 
 
 
 $(LIB): $(metaobj) $(mobj)

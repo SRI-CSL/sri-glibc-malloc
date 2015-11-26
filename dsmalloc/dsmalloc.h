@@ -24,6 +24,7 @@
  *   HAVE_SCHED_YIELD Define id the 'sched_yield' function is available
  */
 
+#include "dsassert.h"
 
 /*
   __STD_C should be nonzero if using ANSI-standard C compiler, a C++
@@ -628,9 +629,9 @@ struct mallinfo {
   representable value of a size_t.
 */
 #if __STD_C
-Void_t*  public_mALLOc(size_t) __attribute_malloc__;
+  Void_t*  public_mALLOc(size_t) __attribute__((malloc)); 
 #else
-Void_t*  public_mALLOc();
+  Void_t*  public_mALLOc();
 #endif
 
 /*
@@ -656,7 +657,7 @@ void     public_fREe();
   set to zero.
 */
 #if __STD_C
-Void_t*  public_cALLOc(size_t, size_t) __attribute_malloc__;
+  Void_t*  public_cALLOc(size_t, size_t) __attribute_malloc__;
 #else
 Void_t*  public_cALLOc();
 #endif

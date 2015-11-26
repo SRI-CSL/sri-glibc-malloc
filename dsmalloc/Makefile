@@ -61,6 +61,9 @@ endif
 %.o: %.c %.h 
 	${CC} ${CFLAGS} $< -c 
 
+
+tests: test mtest0 mtest1
+
 test: $(metaobj) test.o dsassert.o
 	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
 

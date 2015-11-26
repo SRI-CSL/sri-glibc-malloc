@@ -449,77 +449,20 @@ do {                                                                          \
 
 /* ------------------ MMAP support ------------------  */
 
-
-#if defined(HAVE_FCNTL_H)
+/* iam: cleaned up this mess */
 #include <fcntl.h>
-#endif
-
-#if defined(HAVE_SYS_MMAN_H)
 #include <sys/mman.h>
-#endif
 
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
-#define MAP_ANONYMOUS MAP_ANON
+# define MAP_ANONYMOUS MAP_ANON
 #endif
 
-/* 
-   Nearly all versions of mmap support MAP_ANONYMOUS, 
-   so the following is unlikely to be needed, but is
-   supplied just in case.
-*/
-
-#ifndef MAP_ANONYMOUS
-
-/* rw 19.05.2008 changed to avoid cached file descriptor, untested 
- */
-void * anon_mmap (void *addr, size_t length, int prot, int flags)
-{
-  void * retval   = NULL;
-  int dev_zero_fd = -1; /* File descriptor for /dev/zero. */
-
-  dev_zero_fd = open("/dev/zero", O_RDWR);
-  if (dev_zero_fd >= 0)
-    {
-      retval = mmap((addr), (size), (prot), (flags), dev_zero_fd, 0);
-      /* closing the file descriptor does not unmap the region */
-      close(dev_zero_fd); 
-    }
-  return retval;
-}
-  
-#define MMAP(addr, size, prot, flags) \
-  (anon_mmap((addr), (size), (prot), (flags)))
-
-
-#else /* have MAP_ANONYMOUS */
-
-#if !defined(MAP_32BIT) && defined(MAP_ADDR32)
-#define MAP_32BIT MAP_ADDR32
+#ifndef MAP_NORESERVE
+# define MAP_NORESERVE 0
 #endif
 
-#if defined(MAP_32BIT)
-//
-// BD: we don't want the MAP_32BIT flag here (otherwise mmap
-// fails with valgrind).
-//
-// #define MMAP(addr, size, prot, flags)
-//  (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_32BIT, -1, 0))
-//
 #define MMAP(addr, size, prot, flags) \
- (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS, -1, 0))
-#elif defined(__sun)
-/* 
- * Hint an address within 32bit address space
- */
-#define MMAP(addr, size, prot, flags) \
- (mmap((void*)0xC0000000, (size), (prot), (flags)|MAP_ANONYMOUS, -1, 0))
-#else
-/* *BSD */
-#define MMAP(addr, size, prot, flags) \
- (mmap((void*)0x80000000, (size), (prot), (flags)|MAP_ANONYMOUS, -1, 0))
-#endif
-
-#endif /* have MAP_ANONYMOUS */
+  (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0))
 
 
 /*

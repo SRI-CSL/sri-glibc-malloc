@@ -22,20 +22,25 @@ static void test_3(memcxt_t* memcxt);
 
 
 int main(int argc, char** argv){
-  memcxt_t* memcxt;
-  int tests[] = { 0, 1, 0, 0};
+  memcxt_t memcxt;
+  int tests[] = { 0, 0, 1, 0};
 
-  memcxt = (argc > 1) ? sys_memcxt : pool_memcxt;
+  if(argc > 1){
+    init_sys_memcxt(&memcxt);
+  } else {
+    init_pool_memcxt(&memcxt);
+  }
+
 
   fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
 
-  if(tests[0]){ test_0(memcxt); }
+  if(tests[0]){ test_0(&memcxt); }
   
-  if(tests[1]){ test_1(memcxt); }
+  if(tests[1]){ test_1(&memcxt); }
 
-  if(tests[2]){ test_2(memcxt); }
+  if(tests[2]){ test_2(&memcxt); }
 
-  if(tests[3]){ test_3(memcxt); }
+  if(tests[3]){ test_3(&memcxt); }
   
   return 0;
 }
@@ -119,8 +124,9 @@ void test_2(memcxt_t* memcxt){
 
   init_linhash(&numerouno, memcxt);
 
-  menagery = calloc(K4, sizeof(void *));
+  dump_linhash(stderr, &numerouno, false);
 
+  menagery = calloc(K4, sizeof(void *));
   
   for(zindex = 0; zindex < K4; zindex++){
 

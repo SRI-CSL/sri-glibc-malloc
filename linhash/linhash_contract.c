@@ -48,31 +48,73 @@ static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
   memcxt->release(DIRECTORY, olddir, oldsz);
 }
 
+static inline void check_index(size_t index, const char* name, linhash_t* lhtbl){
+  if( index >= lhtbl->bincount ){
+    fprintf(stderr, "%s index = %" PRIuPTR "\n", name, index);
+    fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
+    fprintf(stderr, "lhtbl->maxp = %" PRIuPTR "\n", lhtbl->maxp);
+    fprintf(stderr, "lhtbl->p = %" PRIuPTR "\n", lhtbl->p);
+  }
+  assert( index < lhtbl->bincount);
+}
+
+/* move all the buckets in the src bin to the tgt bin */
+static void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
+  bucket_t* src;
+  bucket_t* tgt;
+  bucket_t* tmp;
+
+  assert(srcbin != NULL);
+  assert(tgtbin != NULL);
+  
+  src = *srcbin;
+  tgt = *tgtbin;
+
+  /* move the buckets */
+  if(src != NULL){
+
+    if(tgt == NULL){
+
+      /* not very likely */
+      *tgtbin = src;
+      *srcbin = NULL;
+      
+    } else {
+      /* easiest is to splice the src bin onto the end of the tgt */
+      tmp = tgt;
+      while(tmp->next_bucket != NULL){  tmp = tmp->next_bucket; }
+      tmp->next_bucket = src;
+      *srcbin = NULL;
+    }
+  } 
+}
+
 static void linhash_contract_table(linhash_t* lhtbl){
   size_t seglen;
   size_t segindex;
   memcxt_t *memcxt;
   size_t srcindex;
-  bucket_t** srcbucketp;
+  bucket_t** srcbin;
   size_t tgtindex;
-  bucket_t** tgtbucketp;
-  bucket_t* src;
-  bucket_t* tgt;
+  bucket_t** tgtbin;
   bool success;
   
   memcxt = lhtbl->cfg.memcxt;
 
-  /* see if the directory needs to contract; iam Q5 need to ensure we don't get unwanted oscillations  load should enter here?!? */
-  if((lhtbl->directory_length > lhtbl->cfg.initial_directory_length) && lhtbl->directory_current < lhtbl->directory_length  >> 1){
-    //fprintf(stderr, ">DIRECTORY CONTRACTED\n");
+  /* 
+     see if the directory needs to contract; 
+     iam Q5: need to ensure we don't get unwanted oscillations;
+     should load should enter here?!? 
+  */
+  if((lhtbl->directory_length > lhtbl->cfg.initial_directory_length) &&
+     (lhtbl->directory_current < lhtbl->directory_length  >> 1)){
     linhash_contract_directory(lhtbl,  memcxt);
-    //fprintf(stderr, "<DIRECTORY CONTRACTED\n");
   }
 
   
   /* get the two buckets involved; moving src to tgt */
   if(lhtbl->p == 0){
-    tgtindex = (lhtbl->p >> 1) - 1;
+    tgtindex = (lhtbl->maxp >> 1) - 1;
     srcindex = lhtbl->maxp - 1;
   } else {
     tgtindex = lhtbl->p - 1;
@@ -80,71 +122,35 @@ static void linhash_contract_table(linhash_t* lhtbl){
     assert(success);
   }
 
+  check_index(srcindex, "src",  lhtbl);
+
+  check_index(tgtindex, "tgt",  lhtbl);
+
+
   /* 
    * here be the bug: if lhtbl->p = 0 then we cannot just move one
    * bin, we have to move half of them. so we should make sure that
    * moving half keeps the load low.
    */
 
-  
-  
   /* update the state variables */
   lhtbl->p -= 1;
   if(lhtbl->p == -1){
-    //fprintf(stderr, "STATE CONTRACTED\n");
     lhtbl->maxp = lhtbl->maxp >> 1;
     lhtbl->p = lhtbl->maxp - 1;
     lhtbl->L -= 1;  /* used as a quick test in contraction */
   }
 
-
-  
   /* get the two buckets involved; moving src to tgt */
-  // srcindex = add_size(lhtbl->maxp, lhtbl->p);
+  
+  srcbin = bindex2bin(lhtbl, srcindex);
 
-  if( srcindex >= lhtbl->bincount ){
-    fprintf(stderr, "lhtbl->maxp = %" PRIuPTR "\n", lhtbl->maxp);
-    fprintf(stderr, "lhtbl->p = %" PRIuPTR "\n", lhtbl->p);
-    fprintf(stderr, "srcindex = %" PRIuPTR "\n", srcindex);
-    fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
-  }
-  assert( srcindex < lhtbl->bincount);
-  
-  srcbucketp = bindex2bin(lhtbl, srcindex);
+  tgtbin = bindex2bin(lhtbl, tgtindex);
 
-  if(srcbucketp == NULL){
-    fprintf(stderr, "srcindex = %" PRIuPTR "\n", srcindex);
-    fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
-    return;
-  }
-  
-  assert(srcbucketp != NULL);
-  
-  src = *srcbucketp;
-  *srcbucketp = NULL;
-
-  tgtbucketp = bindex2bin(lhtbl, tgtindex);
-  tgt = *tgtbucketp;
-  
   /* move the buckets */
-  if(src != NULL){
+  move_buckets(srcbin, tgtbin);
 
-    if(tgt == NULL){
-
-      fprintf(stderr, "TARGET BUCKET EMPTY tgtindex = %" PRIuPTR "\n", tgtindex);
-
-      /* not very likely */
-      *tgtbucketp = src;
-
-    } else {
-      /* easiest is to splice the src bin onto the end of the tgt */
-      while(src->next_bucket != NULL){  src = src->next_bucket; }
-      src->next_bucket = tgt;
-    }
-  } else {
-    fprintf(stderr, "SOURCE BUCKET EMPTY srcindex = %" PRIuPTR "\n", srcindex);
-  }
-
+  
   /* now check if we can eliminate a segment */
   seglen = lhtbl->cfg.segment_length;
 

@@ -16,6 +16,9 @@ const size_t    linhash_segments_at_startup       = 1;
 const uint16_t  linhash_min_load                 = 2;   
 const uint16_t  linhash_max_load                 = 5;
 
+/* toggle for enabling table contraction */
+#define CONTRACTION_ENABLED  1
+
 
 /* static routines */
 static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt);
@@ -177,14 +180,17 @@ extern void dump_linhash(FILE* fp, linhash_t* lhtbl, bool showloads){
 
   for(index = 0; index < lhtbl->bincount; index++){
     bp = bindex2bin(lhtbl, index);
+    assert(bp != NULL);
     blen = bucket_length(*bp);
     if( blen > maxlength ){  maxlength = blen; }
     if(showloads && blen != 0){
       fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
     }
   }
-  fprintf(fp, "\n");
-  fprintf(fp, "maximum length = %" PRIuPTR "\n", maxlength);
+  if(showloads){
+    fprintf(fp, "\n");
+  }
+  fprintf(fp, "maximum length = %" PRIuPTR "\n\n", maxlength);
 }
 
 
@@ -260,7 +266,10 @@ bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex){
   size_t segindex;
   uint32_t index;
 
-  assert( bindex < lhtbl->bincount );
+  //assert( bindex < lhtbl->bincount );
+  if( ! ( bindex < lhtbl->bincount ) ){
+    return NULL;
+  }
   
   seglen = lhtbl->cfg.segment_length;
 
@@ -513,6 +522,11 @@ void *linhash_lookup(linhash_t* lhtbl, const void *key){
   return value;
 }
 
+/*  experimental code below; needs to be cleaned up and debugged */
+#if CONTRACTION_ENABLED
+#include "linhash_contract.c"
+#endif
+
 bool linhash_delete(linhash_t* lhtbl, const void *key){
   bool found = false;
   bucket_t** binp;
@@ -543,6 +557,13 @@ bool linhash_delete(linhash_t* lhtbl, const void *key){
     current_bucketp = current_bucketp->next_bucket;
   }
 
+#if CONTRACTION_ENABLED
+  /* should we contract */
+  if(found){
+    linhash_contract_check(lhtbl);
+  }
+#endif
+  
   return found;
 }
 
@@ -580,6 +601,13 @@ size_t linhash_delete_all(linhash_t* lhtbl, const void *key){
   /* census adjustments */
   lhtbl->count -= count;
 
+#if CONTRACTION_ENABLED
+  /* should we contract */
+  if(count > 0){
+    linhash_contract_check(lhtbl);
+  }
+#endif
+
   return count;
 }
 
@@ -598,8 +626,4 @@ size_t bucket_length(bucket_t* bucket){
   return count;
 }
 
-/*  experimental code below; needs to be cleaned up and debugged */
 
-#if 0
-#include linhash_contract.c
-#endif

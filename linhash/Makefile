@@ -1,6 +1,6 @@
 
 
-CFLAGS = -Wall 
+CFLAGS = -Wall -g
 
 #-O3 -DNDEBUG 
 
@@ -10,7 +10,7 @@ all: test
 	${CC} ${CFLAGS} $< -c 
 
 test: hashfns.o  memcxt.o pool.o linhash.o test.o
-	${CC} hashfns.o memcxt.o pool.o linhash.o test.o -o test
+	${CC} ${CFLAGS} hashfns.o memcxt.o pool.o linhash.o test.o -o test
 
 clean:
 	rm -rf *~ *.o test test.dSYM

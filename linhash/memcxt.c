@@ -19,11 +19,12 @@ static void default_release(memtype_t type, void *ptr, size_t ptr_sz){
 }
 
 
-memcxt_t default_memcxt = { default_allocate, default_release };
-
-
-memcxt_t *sys_memcxt = &default_memcxt;
-
+void init_sys_memcxt(memcxt_t* smem){
+  if(smem != NULL){
+    smem->allocate =  default_allocate;
+    smem->release = default_release;
+  }
+}
 
 /* Add two size_t values, checking for overflow */
 bool add_size(size_t s1, size_t s2, size_t* sum){

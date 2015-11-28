@@ -266,7 +266,7 @@ bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex){
   size_t segindex;
   uint32_t index;
 
-  //assert( bindex < lhtbl->bincount );
+  assert( bindex < lhtbl->bincount );
   if( ! ( bindex < lhtbl->bincount ) ){
     return NULL;
   }

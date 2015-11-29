@@ -1,12 +1,6 @@
 #ifndef _METADATA_H
 #define _METADATA_H
 
-/*
- * Dynamic hashing, after CACM April 1988 pp 446-457, by Per-Ake Larson.
- * [{ X }] refers to the concept X in Larson's paper.
- *
- */
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -21,9 +15,12 @@
 
 #define DIRECTORY_LENGTH 1024
 
-/* this is a version of linhash customized to the dnmalloc scenario */
 
 /*
+ *
+ * Dynamic hashing, after CACM April 1988 pp 446-457, by Per-Ake Larson.
+ * [{ X }] refers to the concept X in Larson's paper.
+ *
  *
  * The directory is an expandable array of segments.  Each segment is
  * essentially a fixed size array of bins.  Each bin is essentially a
@@ -66,24 +63,14 @@ typedef struct segment_s {
 
 
 typedef struct metadata_cfg_s {
-
   memcxt_t *memcxt;                 /* Where we get our memory from                                            */
- 
   size_t segment_length;            /* segment length; larsen uses 256; we could use  4096 or 2^18 = 262144    */
-
   size_t initial_directory_length;  /* Larsen's directory is static ( also 256), ours will have to be dynamic  */
-
   size_t directory_length_max;      /* Currently don't get this big (see note following this)                  */
-
   size_t bincount_max;              /* the maximum number of bins: directory_length_max * segment_length       */
-  
   uint16_t min_load;                /* Not sure if Larsen ever specifies his value for this                    */
-
   uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                      */
-
   bool multithreaded;               /* are we going to protect against contention                              */
-
-
 } metadata_cfg_t;
 
 /*
@@ -105,29 +92,17 @@ typedef struct metadata_cfg_s {
 
 
 typedef struct metadata_s {
-
   metadata_cfg_t cfg;             /* configuration constants                                                */
-
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
-
   segment_t** directory;         /* the array of segment pointers                                          */
-
   size_t directory_length;       /* the size of the directory (must be a power of two)                     */
-
   size_t directory_current;      /* the number of segments in the directory                                */
-
   size_t N;                      /* mininum number of buckets    [{ N }]                                   */
-  
   size_t L;                      /* the number of times the table has doubled in size  [{ L }]             */
-
   size_t p;                      /* index of the next bin due to be split  [{ p :  0 <= p < N * 2^L }]     */
-
   size_t count;                  /* the total number of records in the table                               */
- 
   size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
-
   size_t bincount;               /* the current number of bins                                             */
-  
 } metadata_t;
 
 
@@ -147,14 +122,19 @@ extern void delete_metadata(metadata_t* htbl);
 /* 
  * Adds the bucket to the table according to the chunk. Returns true if successful; false if not.
  * If it returns false it sets errno to explain the error.
+ * It is allowed to insert the same bucket multiple times. The buckets accumulate in this case.
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
  *   -- bad arguments    errno = EINVAL.
- *   BD: also wants it to fail if the chunk is already in the table.
  */
 
 extern bool metadata_add(metadata_t* htbl, chunkinfoptr bucket);
 
+/*
+ * Returns the (first) bucket associated with the chunk in the table, and NULL
+ * if it is not found.
+ *
+ */
 extern chunkinfoptr metadata_lookup(metadata_t* htbl, const void *chunk);
 
 /* deletes the first bucket keyed by chunk; returns true if such a bucket was found; false otherwise */

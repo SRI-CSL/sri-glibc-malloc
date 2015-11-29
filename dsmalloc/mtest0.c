@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "dsmalloc.h"
+
 int main(void) {
   char *test = malloc(1001);
   fprintf(stderr, "test = malloc(1001): got %p\n", test);

@@ -41,7 +41,7 @@ LINK = -L. -ldsmalloc
 
 endif
 
-TCFLAGS= -g -pthread
+TCFLAGS=  $(CFLAGS) -g -pthread
 
 metaobj= hashfns.o memcxt.o pool.o metadata.o 
 
@@ -75,7 +75,7 @@ mtest1: mtest1.c $(metaobj) $(mobj)
 
 
 clean:
-	rm -rf *~ *.o test test.dSYM mtest0 mtest1 $(LIB)
+	rm -rf *~ *.o test *.dSYM mtest0 mtest1 $(LIB)
 
 
 

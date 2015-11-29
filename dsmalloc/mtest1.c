@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#include "dsmalloc.h"
+
 #define BNK_SIZE 37
 
 int main(void) {

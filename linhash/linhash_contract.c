@@ -98,7 +98,7 @@ static void linhash_contract_table(linhash_t* lhtbl){
   size_t tgtindex;
   bucket_t** tgtbin;
   bool success;
-  
+
   memcxt = lhtbl->cfg.memcxt;
 
   /* 
@@ -128,18 +128,12 @@ static void linhash_contract_table(linhash_t* lhtbl){
 
 
   /* 
-   * here be the bug: if lhtbl->p = 0 then we cannot just move one
+   * here be the bug (???): if lhtbl->p = 0 then we cannot just move one
    * bin, we have to move half of them. so we should make sure that
    * moving half keeps the load low.
+   *
+   * if there is such a bug, why can't I tickle it?
    */
-
-  /* update the state variables */
-  lhtbl->p -= 1;
-  if(lhtbl->p == -1){
-    lhtbl->maxp = lhtbl->maxp >> 1;
-    lhtbl->p = lhtbl->maxp - 1;
-    lhtbl->L -= 1;  /* used as a quick test in contraction */
-  }
 
   /* get the two buckets involved; moving src to tgt */
   
@@ -163,6 +157,15 @@ static void linhash_contract_table(linhash_t* lhtbl){
     lhtbl->directory_current -= 1;
   }
   
+  /* update the state variables */
+  lhtbl->p -= 1;
+  if(lhtbl->p == -1){
+    lhtbl->maxp = lhtbl->maxp >> 1;
+    lhtbl->p = lhtbl->maxp - 1;
+    lhtbl->L -= 1;  /* used as a quick test in contraction */
+  }
+
+
   lhtbl->bincount -= 1;
   
 }

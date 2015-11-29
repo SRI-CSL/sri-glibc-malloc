@@ -17,13 +17,13 @@ static void test_2(memcxt_t* memcxt);
 static void test_3(memcxt_t* memcxt);
 
 #define K   1024
-#define K2  K << 1
-#define K4  K2 << 1
+#define K2  (K << 1)
+#define K4  (K2 << 1)
 
 
 int main(int argc, char** argv){
   memcxt_t memcxt;
-  int tests[] = { 0, 0, 1, 0};
+  int tests[] = { 0, 0, 0, 1};
 
   if(argc > 1){
     init_sys_memcxt(&memcxt);
@@ -190,6 +190,7 @@ void test_2(memcxt_t* memcxt){
   
 }
 
+
 void test_3(memcxt_t* memcxt){
   bool found;
   size_t index;
@@ -202,7 +203,7 @@ void test_3(memcxt_t* memcxt){
   void **menagery;
   
   const int32_t exp0 = 16;
-  const int32_t exp1 = 14;
+  const int32_t exp1 = 12;
 
   init_linhash(&numerouno, memcxt);
 
@@ -221,7 +222,6 @@ void test_3(memcxt_t* memcxt){
   }
     
   fprintf(stderr, "keys         = %" PRIuPTR "\n", lots_n_lots);
-
     
   menagery = calloc(alot, sizeof(void *));
   if(menagery != NULL){

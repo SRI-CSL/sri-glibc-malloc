@@ -4,7 +4,6 @@ static void linhash_contract_check(linhash_t* lhtbl){
     /* iam Q4: better make sure that immediately after an expansion we don't drop below the min_load!! */
   if((lhtbl->L > 0) && (linhash_load(lhtbl) < lhtbl->cfg.min_load)){
       linhash_contract_table(lhtbl);
-      //fprintf(stderr, "TABLE CONTRACTED\n");
     }
 }
 
@@ -49,6 +48,7 @@ static void linhash_contract_directory(linhash_t* lhtbl, memcxt_t* memcxt){
 }
 
 static inline void check_index(size_t index, const char* name, linhash_t* lhtbl){
+#ifndef NDEBUG
   if( index >= lhtbl->bincount ){
     fprintf(stderr, "%s index = %" PRIuPTR "\n", name, index);
     fprintf(stderr, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
@@ -56,6 +56,7 @@ static inline void check_index(size_t index, const char* name, linhash_t* lhtbl)
     fprintf(stderr, "lhtbl->p = %" PRIuPTR "\n", lhtbl->p);
   }
   assert( index < lhtbl->bincount);
+#endif
 }
 
 /* move all the buckets in the src bin to the tgt bin */
@@ -125,15 +126,6 @@ static void linhash_contract_table(linhash_t* lhtbl){
   check_index(srcindex, "src",  lhtbl);
 
   check_index(tgtindex, "tgt",  lhtbl);
-
-
-  /* 
-   * here be the bug (???): if lhtbl->p = 0 then we cannot just move one
-   * bin, we have to move half of them. so we should make sure that
-   * moving half keeps the load low.
-   *
-   * if there is such a bug, why can't I tickle it?
-   */
 
   /* get the two buckets involved; moving src to tgt */
   

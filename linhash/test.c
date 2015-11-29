@@ -23,7 +23,7 @@ static void test_3(memcxt_t* memcxt);
 
 int main(int argc, char** argv){
   memcxt_t memcxt;
-  int tests[] = { 0, 0, 0, 1};
+  int tests[] = { 0, 0, 1, 0};
 
   if(argc > 1){
     init_sys_memcxt(&memcxt);

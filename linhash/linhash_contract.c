@@ -1,7 +1,7 @@
 static void linhash_contract_table(linhash_t* lhtbl);
 
 static void linhash_contract_check(linhash_t* lhtbl){
-    /* iam Q4: better make sure that immediately after an expansion we don't drop below the min_load!! */
+    /* iam: better make sure that immediately after an expansion we don't drop below the min_load!! */
   if((lhtbl->L > 0) && (linhash_load(lhtbl) < lhtbl->cfg.min_load)){
       linhash_contract_table(lhtbl);
     }
@@ -60,7 +60,7 @@ static inline void check_index(size_t index, const char* name, linhash_t* lhtbl)
 }
 
 /* move all the buckets in the src bin to the tgt bin */
-static void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
+static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
   bucket_t* src;
   bucket_t* tgt;
   bucket_t* tmp;
@@ -104,7 +104,7 @@ static void linhash_contract_table(linhash_t* lhtbl){
 
   /* 
      see if the directory needs to contract; 
-     iam Q5: need to ensure we don't get unwanted oscillations;
+     iam: need to ensure we don't get unwanted oscillations;
      should load should enter here?!? 
   */
   if((lhtbl->directory_length > lhtbl->cfg.initial_directory_length) &&

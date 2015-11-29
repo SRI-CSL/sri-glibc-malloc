@@ -16,6 +16,8 @@
 #include "types.h"
 
 
+
+
 #define SEGMENT_LENGTH 256
 
 #define DIRECTORY_LENGTH 1024
@@ -139,12 +141,20 @@ extern void delete_linhash(linhash_t* htbl);
 /* 
  * Inserts the key value pair into the has table. Returns true if successful; false if not.
  * If it returns false it sets errno to explain the error.
+ * It is allowed to insert multiple entries for a particular key. The key-value pairs
+ * accumulate in this case.
+ *
  * It can fail due to:
  *   -- lack of memory   errno = ENOMEM.
  *   -- bad arguments    errno = EINVAL.
  */
 extern bool linhash_insert(linhash_t* htbl, const void *key, const void *value);
 
+/*
+ * Returns the (first) value associated with the key in the table, and NULL
+ * if it is not found.
+ *
+ */
 extern void *linhash_lookup(linhash_t* htbl, const void *key);
 
 /* deletes the first bucket keyed by key; returns true if such a bucket was found; false otherwise */

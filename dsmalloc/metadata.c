@@ -18,7 +18,7 @@ const uint16_t  metadata_min_load                 = 2;
 const uint16_t  metadata_max_load                 = 5;
 
 /* toggle for enabling table contraction */
-#define CONTRACTION_ENABLED  1
+#define CONTRACTION_ENABLED  0
 
 /* static routines */
 static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt);

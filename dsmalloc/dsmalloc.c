@@ -1090,8 +1090,10 @@ static void malloc_mmap_state()
       abort ();
    }
 #else
-   fprintf(stderr, "foo = %p, errno = %d\n", foo, errno);
-   perror("malloc_mmap_state");
+   if (foo == MAP_FAILED) {
+     fprintf(stderr, "foo = %p, errno = %d\n", foo, errno);
+     perror("malloc_mmap_state");
+   }
    assert(foo != MAP_FAILED);
 #endif
 

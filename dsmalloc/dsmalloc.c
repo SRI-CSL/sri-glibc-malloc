@@ -3015,7 +3015,13 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
   chunkinfoptr       remainder;      /* spare room at end to split off */
   CHUNK_SIZE_T    remainder_size; /* its size */
   INTERNAL_SIZE_T size;
+
+#ifndef NDEBUG
+
   mstate          av;
+  av = get_malloc_state();
+
+#endif
 
   /* If need less alignment than we give anyway, just relay to malloc */
 
@@ -3046,7 +3052,6 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
 
   if (m == 0) return 0; /* propagate failure */
 
-  av = get_malloc_state();
 
   p = hashtable_lookup((mchunkptr) m);
 

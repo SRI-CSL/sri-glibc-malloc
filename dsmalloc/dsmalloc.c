@@ -214,6 +214,7 @@ void dnmalloc_fork_child(void) {
 }
 static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 {
+  fprintf(stderr, "locking\n");
   if (dnmalloc_use_mutex)
     {
       int rc = pthread_mutex_lock(mutex);
@@ -235,6 +236,8 @@ static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 }
 static int dnmalloc_mutex_unlock(pthread_mutex_t *mutex)
 {
+  fprintf(stderr, "unlocking\n");
+
   if (dnmalloc_use_mutex)
     {
       --malloc_active;

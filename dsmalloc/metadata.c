@@ -617,6 +617,30 @@ size_t bucket_length(bucket_t* bucket){
 }
 
 
+
+
+
+
+bool forall_metadata(metadata_t* lhtbl, chunck_check_t checkfn, chunkinfoptr top){
+  size_t index;
+  bucket_t** bin;
+  bucket_t* bucket;
+  
+  for(index = 0; index < lhtbl->bincount; index++){
+    bin = bindex2bin(lhtbl, index);
+    bucket = *bin;
+    while(bucket != NULL){
+      if( ! checkfn(lhtbl, bucket, top) ){ return false; }
+      bucket = bucket->next_bucket;
+    }
+  }
+  return true;
+}
+
+
+
+
+
 #if CONTRACTION_ENABLED
 
 static void metadata_contract_check(metadata_t* lhtbl){
@@ -780,7 +804,6 @@ static void metadata_contract_table(metadata_t* lhtbl){
   lhtbl->bincount -= 1;
   
 }
-
 
 #endif
 

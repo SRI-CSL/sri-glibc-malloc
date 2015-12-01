@@ -175,6 +175,10 @@ static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
   return false;
 }
 
+typedef bool (*chunck_check_t)(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top);
+
+extern bool forall_metadata(metadata_t* lhash, chunck_check_t checkfn, chunkinfoptr top);
+
 #endif
 
 

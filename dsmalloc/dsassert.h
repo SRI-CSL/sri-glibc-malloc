@@ -12,11 +12,15 @@
 # define __attribute_malloc__ /* Ignore */
 #endif
 
+/* Obtain a backtrace and print it to stderr. */
 
-  /* Using assert() with multithreading will cause the code 
-   * to deadlock since glibc __assert_fail will call malloc().
-   * We need our very own assert().
-   */
+void print_trace (void);
+
+
+/* Using assert() with multithreading will cause the code 
+ * to deadlock since glibc __assert_fail will call malloc().
+ * We need our very own assert().
+ */
 
 typedef void assert_handler_tp(const char * error, const char *file, int line);
 
@@ -28,7 +32,7 @@ typedef void assert_handler_tp(const char * error, const char *file, int line);
 
 
 #define assert(x)                               \
-  do {		                                \
+  do {		                         	\
     if (UNLIKELY(!(x))) {			\
       assert_handler(#x, __FILE__, __LINE__);	\
     }                                           \

@@ -23,6 +23,12 @@
 #include "dsassert.h" 
 #include "pool.h" 
 
+#include <stdbool.h>
+
+static bool metadata_is_consistent(void);
+
+static bool metadata_initialized = false;
+
 
 /* --------------------- public wrappers ---------------------- */
 
@@ -212,9 +218,12 @@ void dnmalloc_fork_child(void) {
     pthread_mutex_unlock(&mALLOC_MUTEx); 
 #endif
 }
+/* iam: make use of the MALLOC_PREACTION and MALLOC_POSTACTION hooks */
 static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 {
-  fprintf(stderr, "locking\n");
+
+  assert(metadata_is_consistent());
+
   if (dnmalloc_use_mutex)
     {
       int rc = pthread_mutex_lock(mutex);
@@ -236,7 +245,8 @@ static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 }
 static int dnmalloc_mutex_unlock(pthread_mutex_t *mutex)
 {
-  fprintf(stderr, "unlocking\n");
+
+  assert(metadata_is_consistent());
 
   if (dnmalloc_use_mutex)
     {
@@ -1174,6 +1184,9 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
+  //iam: debugging hack.
+  metadata_initialized = true;
+
   av->top = allocate_chunkinfoptr(&av->htbl);
   av->top->chunk     = (mchunkptr) 0;
   av->top->size      = 0;
@@ -1188,7 +1201,7 @@ static void malloc_init_state(av) mstate av;
 
   memcpy(av->guard_stored, dnmalloc_arc4random(), GUARD_SIZE);
 
-
+  fprintf(stderr, "malloc_init_state OK\n");
 }
 
 /* Get a free chunkinfo */
@@ -1331,6 +1344,53 @@ prev_chunkinfo (chunkinfoptr ci)
   return prev;
 }
 
+/*
+  typedef bool (*chunck_check_t)(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top);
+
+  extern bool forall_metadata(metadata_t* lhash, chunck_check_t checkfn, chunkinfoptr top);
+
+*/
+
+bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
+  chunkinfoptr previous;
+  chunkinfoptr next;
+  next = next_chunkinfo(ci);
+  if(next == NULL){
+    fprintf(stderr, "next is NULL top = %p ci = %p\n", top, ci);
+    return false;
+  }
+  if(next->prev_size != ci->size){
+    fprintf(stderr, "top = %p ci = %p next = %p\n", top, ci, next);
+    fprintf(stderr, "next->prev_size = %zu ci->size = %zu\n", next->prev_size, ci->size);
+    return false;
+  }
+  if(ci != top){
+    previous = prev_chunkinfo(ci);
+    if(previous->size |= ci->prev_size){
+      fprintf(stderr, "top = %p previous = %p ci = %p\n next = %p\n", top, previous, ci, next);
+      fprintf(stderr, "previous->size = %zu ci->prev_size = %zu\n", previous->size, ci->prev_size);
+      return false;
+    }
+  } 
+  return true;
+}
+
+/* 
+ * iam: this can get called prior to init_malloc_state because of the "clever"
+ * way malloc_consolidate  is used to call it. :-(
+ * hence the metadata_initialized hack.
+ */
+
+static bool metadata_is_consistent(void){ 
+  mstate av;
+  if(!metadata_initialized){
+    return true;
+  } else {
+    av = get_malloc_state();
+    fprintf(stderr, "Checking metadata\n");
+    return forall_metadata(&(av->htbl), &metadata_chunk_ok, av->top); 
+  }
+}
 
 /*
   Debugging support

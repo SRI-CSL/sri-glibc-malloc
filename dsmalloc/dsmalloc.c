@@ -27,8 +27,6 @@
 
 static bool metadata_is_consistent(void);
 
-static bool metadata_initialized = false;
-
 
 /* --------------------- public wrappers ---------------------- */
 
@@ -221,8 +219,7 @@ void dnmalloc_fork_child(void) {
 /* iam: make use of the MALLOC_PREACTION and MALLOC_POSTACTION hooks */
 static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 {
-
-  assert(metadata_is_consistent());
+  (void) metadata_is_consistent();
 
   if (dnmalloc_use_mutex)
     {
@@ -246,7 +243,7 @@ static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 static int dnmalloc_mutex_unlock(pthread_mutex_t *mutex)
 {
 
-  assert(metadata_is_consistent());
+  (void) metadata_is_consistent();
 
   if (dnmalloc_use_mutex)
     {
@@ -1045,6 +1042,13 @@ struct malloc_state {
   INTERNAL_SIZE_T  max_mmapped_mem;
   INTERNAL_SIZE_T  max_total_mem;
 
+  /*
+   * Flag: set true once the mstate is initialized
+   * We use it instead of checking whether av->top == 0 to trigger initialization,
+   * because we want to keep av->top to NULL until we really allocate it in sysmalloc.
+   */
+  int initialized;
+
   /* pool memory for the metadata */
   memcxt_t memcxt;
 
@@ -1184,11 +1188,11 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
-  //iam: debugging hack.
-  metadata_initialized = true;
+  //  av->top = NULL
 
+  //BD: attempt to get things to work!
   av->top = allocate_chunkinfoptr(&av->htbl);
-  av->top->chunk     = (mchunkptr) 0;
+  av->top->chunk     = (char*) (MORECORE(0));
   av->top->size      = 0;
   set_previnuse(av->top);
   clear_inuse(av->top);
@@ -1200,6 +1204,8 @@ static void malloc_init_state(av) mstate av;
   av->pagesize       = malloc_getpagesize;
 
   memcpy(av->guard_stored, dnmalloc_arc4random(), GUARD_SIZE);
+
+  av->initialized = true;
 
   fprintf(stderr, "malloc_init_state OK\n");
 }
@@ -1354,19 +1360,22 @@ prev_chunkinfo (chunkinfoptr ci)
 bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
   chunkinfoptr previous;
   chunkinfoptr next;
+
+  // TODO: just after initialization, the av->top maps to a fake empty chunk
+  // if ci == av->top and av->top is empty, then we get next == ci
   next = next_chunkinfo(ci);
   if(next == NULL){
     fprintf(stderr, "next is NULL top = %p ci = %p\n", top, ci);
     return false;
   }
-  if(next->prev_size != ci->size){
+  if(next->prev_size != chunksize(ci)) {
     fprintf(stderr, "top = %p ci = %p next = %p\n", top, ci, next);
     fprintf(stderr, "next->prev_size = %zu ci->size = %zu\n", next->prev_size, ci->size);
     return false;
   }
   if(ci != top){
     previous = prev_chunkinfo(ci);
-    if(previous->size |= ci->prev_size){
+    if (chunksize(previous) != ci->prev_size){
       fprintf(stderr, "top = %p previous = %p ci = %p\n next = %p\n", top, previous, ci, next);
       fprintf(stderr, "previous->size = %zu ci->prev_size = %zu\n", previous->size, ci->prev_size);
       return false;
@@ -1381,15 +1390,17 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
  * hence the metadata_initialized hack.
  */
 
-static bool metadata_is_consistent(void){ 
+static bool metadata_is_consistent(void){
+  static unsigned counter = 0;
   mstate av;
-  if(!metadata_initialized){
+
+  av = get_malloc_state();
+  if (av == NULL || ! av->initialized) {
     return true;
-  } else {
-    av = get_malloc_state();
-    fprintf(stderr, "Checking metadata\n");
-    return forall_metadata(&(av->htbl), &metadata_chunk_ok, av->top); 
   }
+  fprintf(stderr, "Checking metadata (%u)\n", counter);
+  counter ++;
+  return forall_metadata(&(av->htbl), metadata_chunk_ok, av->top); 
 }
 
 /*
@@ -1503,7 +1514,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 	/*       
 	  BD: the previous comment comes from the original dlmalloc.
-	  In dnmalloc. the correction is stored not in the prev_size field
+	  In dnmalloc, the correction is stored not in the prev_size field
 	  but in the hash_next field. Not sure why since prev_size does
           exist in the metadata.
 
@@ -1554,8 +1565,14 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   /* Record incoming configuration of top */
 
   old_top  = av->top;
-  old_size = chunksize(old_top);
-  old_end  = (char*)(chunk_at_offset(chunk(old_top), old_size));
+  if (old_top == NULL) {
+    assert(0);
+    old_size = 0;
+    old_end = (char*)(MORECORE(0));
+  } else {
+    old_size = chunksize(old_top);
+    old_end  = (char*)(chunk_at_offset(chunk(old_top), old_size));
+  }
 
   brk = snd_brk = (char*)(MORECORE_FAILURE); 
 
@@ -1927,7 +1944,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       av->top = remainder;
       set_head(p, nb | PREV_INUSE | INUSE);
       set_head(remainder, remainder_size | PREV_INUSE);
-      hashtable_insert (p, av->top);
+      remainder->prev_size = nb; // BD: don't want a special case for top
+      hashtable_add(remainder);
       check_malloced_chunk(p, nb);
 #ifdef DNMALLOC_DEBUG
       fprintf(stderr, "Return any (total %lu)\n", 
@@ -2392,7 +2410,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
   size = chunksize(victim);
   
   if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
-     remainder = new_chunkinfoptr();
+    remainder = new_chunkinfoptr();
     remainder_size = size - nb;
     remainder->chunk = chunk_at_offset(chunk(victim), nb);
     av->top = remainder;
@@ -3381,7 +3399,7 @@ DL_STATIC struct mallinfo mALLINFo()
   int nfastblocks;
 
   /* Ensure initialization */
-  if (!av || av->top == 0) {
+  if (!av || !av->initialized) {
     malloc_consolidate(av);
     av = get_malloc_state();
   }

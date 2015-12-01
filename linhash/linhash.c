@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #include "linhash.h"
@@ -52,17 +53,42 @@ static bucket_t** bindex2bin(linhash_t* lhtbl, uint32_t bindex);
 static size_t bucket_length(bucket_t* bucket);
 
 /* for sanity checking */
-#ifndef NDEBUG
 static bool is_power_of_two(uint32_t n) {
   return (n & (n - 1)) == 0;
 }
-#endif
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
 static inline size_t mod_power_of_two(size_t x, size_t y){
   assert(is_power_of_two(y));
   return x & (y - 1);
 }
+
+/* 
+ *   Returns the next power of two >= x, maxing
+ *   out at 2^31.
+ *
+ *   http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+ *
+ */
+static uint32_t next_power_of_two(uint32_t num){
+  uint32_t val;
+  if(num == 0){
+    val = 2;
+  } else if(num > (((uint32_t)1) << 31)){
+    val = (((uint32_t)1) << 31);
+  } else {
+    val = num;
+    val--;
+    val |= val >> 1;
+    val |= val >> 2;
+    val |= val >> 4;
+    val |= val >> 8;
+    val |= val >> 16;
+    val++;
+  }
+  return val;
+}
+
 
 static inline size_t linhash_load(linhash_t* lhtbl){
   return lhtbl->count / lhtbl->bincount;
@@ -78,10 +104,20 @@ static void linhash_cfg_init(linhash_cfg_t* cfg, memcxt_t* memcxt){
   cfg->bincount_max             = UINT32_MAX;
   cfg->directory_length_max     = cfg->bincount_max / SEGMENT_LENGTH;
 
-  //iam: should these be more than just asserts?
   assert(is_power_of_two(cfg->segment_length));
   assert(is_power_of_two(cfg->initial_directory_length));
 
+  /* in non debug mode we do our best... */
+
+  if(!is_power_of_two(cfg->segment_length)){
+    cfg->segment_length = next_power_of_two(cfg->segment_length);
+  }
+  
+  if(!is_power_of_two(cfg->initial_directory_length)){
+    cfg->initial_directory_length = next_power_of_two(cfg->initial_directory_length);
+  }
+  
+  
 }
 
 

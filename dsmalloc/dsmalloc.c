@@ -1269,6 +1269,16 @@ static void     malloc_consolidate();
 /* dnmalloc functions */
 /* needs mstate so moved here */
 
+static int is_next_chunk(chunkinfoptr oldp, chunkinfoptr newp) {
+  mchunkptr nextp;
+  nextp = (mchunkptr) (((char *) (oldp->chunk)) + chunksize (oldp));
+  if (nextp == chunk(newp)){
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 static chunkinfoptr
 next_chunkinfo (chunkinfoptr ci)
 {
@@ -1292,15 +1302,6 @@ next_chunkinfo (chunkinfoptr ci)
 
 }
 
-static int is_next_chunk(chunkinfoptr oldp, chunkinfoptr newp) {
-  mchunkptr nextp;
-  nextp = (mchunkptr) (((char *) (oldp->chunk)) + chunksize (oldp));
-  if (nextp == chunk(newp)){
-    return 1;
-  } else {
-    return 0;
-  }
-}
 
 
 
@@ -1317,9 +1318,14 @@ prev_chunkinfo (chunkinfoptr ci)
   prevchunk = (mchunkptr) (((char *) (ci->chunk)) - (ci->prev_size));
 
   prev = hashtable_lookup (prevchunk);
+  
+  if(!is_next_chunk(prev, ci)){
+    fprintf(stderr, "prev->chunk = %p prev->size = %zu ci->chunk = %p, ci->prev_size = %zu\n", prev->chunk,  chunksize(prev), ci->chunk, ci->prev_size);
+    fprintf(stderr, "ci->chunk - prev->chunk = %zu\n", ci->chunk - prev->chunk);
+  }
+  assert(is_next_chunk(prev, ci));
 
   return prev;
-  
 }
 
 
@@ -2539,6 +2545,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
     */
 
     else {
+      fprintf(stderr, "Puzzle number one\n");
       /* iam: puzzle number one 
       int ret;
       INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) p->hash_next;
@@ -2911,6 +2918,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 
   else {
 //iam: anothe puzzle
+    fprintf(stderr, "Puzzle number two\n");
 #if 0 //HAVE_MREMAP
     INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) oldp->hash_next;
     size_t pagemask = av->pagesize - 1;

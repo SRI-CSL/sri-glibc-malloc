@@ -1341,11 +1341,12 @@ prev_chunkinfo (chunkinfoptr ci)
 
   prev = hashtable_lookup (prevchunk);
   
-  if(!is_next_chunk(prev, ci)){
-    fprintf(stderr, "prev->chunk = %p prev->size = %zu ci->chunk = %p, ci->prev_size = %zu\n", prev->chunk,  chunksize(prev), ci->chunk, ci->prev_size);
-    fprintf(stderr, "ci->chunk - prev->chunk = %zu\n", ci->chunk - prev->chunk);
+  if((prev != ci) && !is_next_chunk(prev, ci)){
+    fprintf(stderr, "prev_chunkinfo: prev = %p ci = %p\n", prev,  ci);
+    fprintf(stderr, "prev_chunkinfo: prev->chunk = %p prev->size = %zu ci->chunk = %p, ci->prev_size = %zu\n", prev->chunk,  chunksize(prev), ci->chunk, ci->prev_size);
+    fprintf(stderr, "prev_chunkinfo: ci->chunk - prev->chunk = %zu\n", ci->chunk - prev->chunk);
   }
-  assert(is_next_chunk(prev, ci));
+  //assert(is_next_chunk(prev, ci));
 
   return prev;
 }
@@ -1365,19 +1366,23 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
   // if ci == av->top and av->top is empty, then we get next == ci
   next = next_chunkinfo(ci);
   if(next == NULL){
-    fprintf(stderr, "next is NULL top = %p ci = %p\n", top, ci);
-    return false;
+    //fprintf(stderr, "metadata_chunk_ok: next is NULL top = %p ci = %p\n", top, ci);
+    return true;
+  }
+  if((next->prev_size == 0) || (ci->prev_size == 0)){
+    //that pesky old initial block...
+    return true;
   }
   if(next->prev_size != chunksize(ci)) {
-    fprintf(stderr, "top = %p ci = %p next = %p\n", top, ci, next);
-    fprintf(stderr, "next->prev_size = %zu ci->size = %zu\n", next->prev_size, ci->size);
+    fprintf(stderr, "metadata_chunk_ok: top = %p ci = %p next = %p\n", top, ci, next);
+    fprintf(stderr, "metadata_chunk_ok: next->prev_size = %zu ci->size = %zu\n", next->prev_size, ci->size);
     return false;
   }
   if(ci != top){
     previous = prev_chunkinfo(ci);
     if (chunksize(previous) != ci->prev_size){
-      fprintf(stderr, "top = %p previous = %p ci = %p\n next = %p\n", top, previous, ci, next);
-      fprintf(stderr, "previous->size = %zu ci->prev_size = %zu\n", previous->size, ci->prev_size);
+      fprintf(stderr, "metadata_chunk_ok: top = %p previous = %p ci = %p\n next = %p\n", top, previous, ci, next);
+      fprintf(stderr, "metadata_chunk_ok: previous->size = %zu ci->prev_size = %zu\n", previous->size, ci->prev_size);
       return false;
     }
   } 
@@ -1391,15 +1396,18 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
  */
 
 static bool metadata_is_consistent(void){
-  static unsigned counter = 0;
   mstate av;
+
+#if 0
+  static unsigned counter = 0;
+  fprintf(stderr, "Checking metadata (%u)\n", counter);
+  counter ++;
+#endif
 
   av = get_malloc_state();
   if (av == NULL || ! av->initialized) {
     return true;
   }
-  fprintf(stderr, "Checking metadata (%u)\n", counter);
-  counter ++;
   return forall_metadata(&(av->htbl), metadata_chunk_ok, av->top); 
 }
 

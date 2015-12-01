@@ -151,6 +151,7 @@ static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
   retval->size = 0; 
   retval->req = 0; 
   retval->chunk = NULL; 
+  retval->next_bucket = NULL; 
   return retval;
 }
 
@@ -166,7 +167,7 @@ static inline bool metadata_skiprm (metadata_t* htbl, chunkinfoptr ci_orig, chun
   return metadata_delete(htbl, ci_todelete->chunk);
 }
 
-static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
+static inline bool metadata_insert_chunk(metadata_t* htbl, void *chunk){
   chunkinfoptr newb = allocate_chunkinfoptr(htbl);
   if(newb != NULL){
     newb->chunk = chunk;

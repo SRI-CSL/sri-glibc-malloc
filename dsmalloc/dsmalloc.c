@@ -1440,11 +1440,23 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           and in memalign(), and still be able to compute proper
           address argument for later munmap in free() and realloc().
         */
-        
+
+	/*       
+	  BD: the previous comment comes from the original dlmalloc.
+	  In dnmalloc. the correction is stored not in the prev_size field
+	  but in the hash_next field. Not sure why since prev_size does
+          exist in the metadata.
+
+	  Also: it's likely that front_misalign is always zero (assuming mmap
+	  returns a page-aligned address and MALLOC_ALIGN_MASK is a reasonable
+          number.)
+	*/
+
         front_misalign = (INTERNAL_SIZE_T) mm & MALLOC_ALIGN_MASK;
 	p = new_chunkinfoptr();
         
         if (front_misalign > 0) {
+	  assert(0); // BD: just to make sure.
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
           //iam: don't touch these: p->hash_next = (chunkinfoptr) correction;
@@ -1503,7 +1515,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   assert(!have_fastchunks(av));
 
   /* Request enough space for nb + pad + overhead */
-  size = nb + av->top_pad + MINSIZE;
+  size = nb + av->top_pad + MINSIZE; // BD: could this overflow? Do we have an upper bound on nb?
 
   /*
     If contiguous, we can subtract out existing space that we hope to

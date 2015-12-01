@@ -8,7 +8,8 @@ DEFS = -DHAVE_MMAP=1          \
 	-DHAVE_FCNTL_H=1      \
 	-DHAVE_SYS_MMAN_H=1   \
 	-DUSE_MALLOC_LOCK=1   \
-	-DPARANOIA=9
+	-DPARANOIA=9          \
+        -DDNMALLOC_DEBUG=1
 
 
 OS   =  $(shell uname)

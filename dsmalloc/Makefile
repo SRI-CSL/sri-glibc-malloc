@@ -64,7 +64,7 @@ endif
 	${CC} ${CFLAGS} $< -c 
 
 
-tests: test mtest0 mtest1
+tests: test mtest0 mtest1 mtest2
 
 test: $(metaobj) test.o dsassert.o
 	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
@@ -77,7 +77,7 @@ mtest1: mtest1.c $(metaobj) $(mobj)
 
 
 clean:
-	rm -rf *~ *.o test *.dSYM mtest0 mtest1 $(LIB)
+	rm -rf *~ *.o test *.dSYM mtest0 mtest1 mtest2 $(LIB)
 
 
 

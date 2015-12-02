@@ -2232,8 +2232,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       remainder->bk = remainder->fd = unsorted_chunks(av);
       
       set_head(victim, nb | PREV_INUSE|INUSE);
-      set_head(remainder, remainder_size | PREV_INUSE);      
-      hashtable_insert(victim, remainder);
+      set_head(remainder, remainder_size | PREV_INUSE); 
+      remainder->prev_size = nb;
+      hashtable_add(remainder);
 
       check_malloced_chunk(victim, nb);
       guard_set(av->guard_stored, victim, bytes, nb);
@@ -2323,7 +2324,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
 	    remainder->bk = remainder->fd = unsorted_chunks(av);
 	    set_head(victim, nb | PREV_INUSE | INUSE);
 	    set_head(remainder, remainder_size | PREV_INUSE);
-	    hashtable_insert(victim, remainder);
+	    remainder->prev_size = nb;
+	    hashtable_add(remainder);
 	    check_malloced_chunk(victim, nb);
 	    guard_set(av->guard_stored, victim, bytes, nb);
 	    return chunk(victim);
@@ -2414,7 +2416,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
         
         set_head(victim, nb | PREV_INUSE | INUSE);
         set_head(remainder, remainder_size | PREV_INUSE);
-        hashtable_insert(victim, remainder);
+	remainder->prev_size = nb;
+        hashtable_add(remainder);
         check_malloced_chunk(victim, nb);
 	guard_set(av->guard_stored, victim, bytes, nb);
         return chunk(victim);
@@ -2580,6 +2583,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
         size += prevsize;
         unlink(prevchunk, bck, fwd);
 	set_head(p, size | PREV_INUSE);
+	fprintf(stderr, "coalescing 1\n");
         hashtable_skiprm(prevchunk,p);
         p = prevchunk;
       }
@@ -2594,6 +2598,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	    unlink(nextchunk, bck, fwd);
 	    size += nextsize;
 	    set_head(p, size | PREV_INUSE);
+	    fprintf(stderr, "coalescing 2\n");
 	    hashtable_skiprm(p, nextchunk);
 	  }
 	  
@@ -2630,6 +2635,7 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	else {
 	  size += nextsize;
 	  set_head(p, size | PREV_INUSE);
+	  fprintf(stderr, "coalescing remove 1\n");
 	  hashtable_remove(chunk(av->top));
 	  av->top = p;
 	  check_chunk(p);
@@ -2784,6 +2790,7 @@ static void malloc_consolidate(av) mstate av;
 #endif
              unlink(prevp, bck, fwd);
              set_head(p, size | PREV_INUSE);	     
+	     fprintf(stderr, "coalescing 3\n");
              hashtable_skiprm(prevp,p);
              p=prevp;
           }
@@ -2797,6 +2804,7 @@ static void malloc_consolidate(av) mstate av;
 		size += nextsize;
 		unlink(nextchunk, bck, fwd);
 		set_head(p, size | PREV_INUSE);
+		fprintf(stderr, "coalescing 4\n");
 		hashtable_skiprm(p,nextchunk);
 	      }
 	      
@@ -2817,6 +2825,7 @@ static void malloc_consolidate(av) mstate av;
 	    else {
 	      size += nextsize;
 	      set_head(p, size | PREV_INUSE);
+	      fprintf(stderr, "coalescing remove 2\n");
 	      hashtable_remove(chunk(av->top));
 	      av->top = p;
 	    }
@@ -2931,6 +2940,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
           (CHUNK_SIZE_T)(newsize = oldsize + chunksize(next)) >=
           (CHUNK_SIZE_T)(nb + MINSIZE)) {
          set_head_size(oldp, nb);
+	 fprintf(stderr, "coalescing remove 3\n");
          hashtable_remove(chunk(av->top));
          av->top->chunk = chunk_at_offset(chunk(oldp), nb);
          set_head(av->top, (newsize - nb) | PREV_INUSE);
@@ -2947,6 +2957,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
                (CHUNK_SIZE_T)(nb)) {
         newp = oldp;
         unlink(next, bck, fwd);
+	fprintf(stderr, "coalescing remove 4\n");
         hashtable_remove(chunk(next));
 	next = next_chunkinfo(oldp);
 	if (next)
@@ -2970,6 +2981,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 	if (UNLIKELY(is_next_chunk(oldp, newp))) {
 	  newsize += oldsize;
 	  set_head_size(oldp, newsize);
+	  fprintf(stderr, "coalescing 5\n");
 	  hashtable_skiprm(oldp, newp);
           newp = oldp;
         }
@@ -3031,7 +3043,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
       set_head_size(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
       remainder->prev_size = nb;
-      hashtable_insert(newp, remainder);
+      hashtable_add(remainder);
       /* Mark remainder as inuse so free() won't complain */
       set_all_inuse(remainder);
       guard_set(av->guard_stored, remainder, 0, remainder_size);
@@ -3221,7 +3233,7 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
 
     /* For mmapped chunks, just adjust offset */
     if (UNLIKELY(chunk_is_mmapped(p))) {
-      //iam: naughty naugthy newp->hash_next = (chunkinfoptr) (((INTERNAL_SIZE_T) p->hash_next) + leadsize);
+      newp->prev_size = p->prev_size + leadsize;
       set_head(newp, newsize|IS_MMAPPED|INUSE);
       hashtable_remove_mmapped(chunk(p));
       hashtable_add(newp);
@@ -3232,6 +3244,7 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
     /* Otherwise, give back leader, use the rest */
     set_head(newp, newsize | PREV_INUSE | INUSE);
     set_head_size(p, leadsize);
+    newp->prev_size = leadsize;
     set_all_inuse(newp);
     hashtable_add(newp); /* 20.05.2008 rw */
     guard_set(av->guard_stored, p, 0, leadsize);
@@ -3252,6 +3265,7 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
       set_head_size(p, nb);
+      remainder->prev_size = nb;
       hashtable_add(remainder); /* 20.05.2008 rw */
       guard_set(av->guard_stored, remainder, 0, remainder_size);
       fREe(chunk(remainder));

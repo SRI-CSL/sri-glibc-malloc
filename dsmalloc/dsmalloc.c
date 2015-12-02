@@ -1208,6 +1208,7 @@ static void malloc_init_state(av) mstate av;
   av->initialized = true;
 
   fprintf(stderr, "malloc_init_state OK\n");
+  fprintf(stderr, "first av->top: %p\n", av->top);
 }
 
 /* Get a free chunkinfo */
@@ -1223,7 +1224,7 @@ static void
 hashtable_add (chunkinfoptr ci)
 {
   mstate av = get_malloc_state();
-  if( ! metadata_add(&av->htbl, av->top)){
+  if( ! metadata_add(&av->htbl, ci)){
     abort();
   }
   
@@ -1304,24 +1305,20 @@ static int is_next_chunk(chunkinfoptr oldp, chunkinfoptr newp) {
 static chunkinfoptr
 next_chunkinfo (chunkinfoptr ci)
 {
-
   /* this gets the chunkinfoptr of the chunk next to ci's chunk: ci->chunk. */
-
    mchunkptr nextp;
-   mstate av = get_malloc_state();
-   
+   mstate av;
+
+   assert(!chunk_is_mmapped(ci));
+
+   av = get_malloc_state();
    nextp = (mchunkptr) (((char *) (ci->chunk)) + chunksize (ci));
-   
-   if(!(nextp == av->top->chunk)){
 
-     return hashtable_lookup (nextp);
-
-   }  else {
-     
+   if (nextp == av->top->chunk) {
      return av->top;
-     
+   } else {
+     return hashtable_lookup (nextp);
    }
-
 }
 
 
@@ -1331,23 +1328,18 @@ next_chunkinfo (chunkinfoptr ci)
 /* Since we disposed of prev_size, we need this function to find the previous */
 
 static chunkinfoptr
-prev_chunkinfo (chunkinfoptr ci)
-{
-
+prev_chunkinfo (chunkinfoptr ci) { 
   chunkinfoptr prev;
   mchunkptr prevchunk;
 
-  prevchunk = (mchunkptr) (((char *) (ci->chunk)) - (ci->prev_size));
+  assert(!chunk_is_mmapped(ci));
 
-  prev = hashtable_lookup (prevchunk);
-  
-  if((prev != ci) && !is_next_chunk(prev, ci)){
-    fprintf(stderr, "prev_chunkinfo: prev = %p ci = %p\n", prev,  ci);
-    fprintf(stderr, "prev_chunkinfo: prev->chunk = %p prev->size = %zu ci->chunk = %p, ci->prev_size = %zu\n", prev->chunk,  chunksize(prev), ci->chunk, ci->prev_size);
-    fprintf(stderr, "prev_chunkinfo: ci->chunk - prev->chunk = %zu\n", ci->chunk - prev->chunk);
+  if (ci->prev_size == 0) {
+    prev = NULL;
+  } else {
+    prevchunk = (mchunkptr) (((char *) (ci->chunk)) - (ci->prev_size));
+    prev = hashtable_lookup (prevchunk);
   }
-  //assert(is_next_chunk(prev, ci));
-
   return prev;
 }
 
@@ -1358,34 +1350,78 @@ prev_chunkinfo (chunkinfoptr ci)
 
 */
 
-bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top){
+/*
+ * BD: intuition (to be confirmed)
+ *
+ * We have three bits of metadata per chunk:
+ * - inuse
+ * - prev_inuse
+ * - mmapped
+ *
+ * An mmapped chunk was allocated via mmapped. It's in use. It has no predecessor and no successor.
+ * Also the prev_size field of mmapped chunks stores a correction constant (i.e., if mmap returns
+ * x and x is not aligned then the chunk will start at x + correction such that x + correction
+ * is aligned).
+ *
+ * For non-mmapped chunks:
+ * - The prev_inuse bit is set for ci if either ci has no predecessor chunk or if ci's predecessor 
+ *   chunk is inuse.
+ * - In the original dlmalloc, there's no actual inuse bit for ci. To mark that ci is in use,
+ *   some macros set the prev_inuse bit of ci's successor chunk.
+ */
+bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
   chunkinfoptr previous;
   chunkinfoptr next;
+  bool inuse_prev, prev_inuse;
+  bool inuse, next_prev_inuse;
 
-  // TODO: just after initialization, the av->top maps to a fake empty chunk
-  // if ci == av->top and av->top is empty, then we get next == ci
-  next = next_chunkinfo(ci);
-  if(next == NULL){
-    //fprintf(stderr, "metadata_chunk_ok: next is NULL top = %p ci = %p\n", top, ci);
+  if (chunk_is_mmapped(ci)) {
+    // nothing to check (regarding next and prev)
     return true;
   }
-  if((next->prev_size == 0) || (ci->prev_size == 0)){
-    //that pesky old initial block...
+
+  if (ci->size == 0) {
+    // Can't do anything. We have prev == ci == next
+    // This should happen only for the first av->top
     return true;
   }
-  if(next->prev_size != chunksize(ci)) {
-    fprintf(stderr, "metadata_chunk_ok: top = %p ci = %p next = %p\n", top, ci, next);
-    fprintf(stderr, "metadata_chunk_ok: next->prev_size = %zu ci->size = %zu\n", next->prev_size, ci->size);
-    return false;
-  }
-  if(ci != top){
-    previous = prev_chunkinfo(ci);
-    if (chunksize(previous) != ci->prev_size){
-      fprintf(stderr, "metadata_chunk_ok: top = %p previous = %p ci = %p\n next = %p\n", top, previous, ci, next);
-      fprintf(stderr, "metadata_chunk_ok: previous->size = %zu ci->prev_size = %zu\n", previous->size, ci->prev_size);
+
+  // check whether ci and its predecessor have consistent metadata
+  previous = prev_chunkinfo(ci);
+  if (previous != NULL) {
+    inuse_prev = (inuse(previous) != 0);  // inuse bit of previous
+    prev_inuse = (prev_inuse(ci) != 0);   // prev_inuse bit of ci
+    if (inuse_prev != prev_inuse) {
+      // should be the same
+      fprintf(stderr, "metadata_chunk_ok: invalid inuse bits: previous = %p, ci = %p, inuse(previous) = %d, prev_inuse(ci) = %d\n",
+	      previous, ci, inuse_prev, prev_inuse);
       return false;
     }
-  } 
+    if (chunksize(previous) != ci->prev_size){
+      fprintf(stderr, "metadata_chunk_ok: top = %p, previous = %p, ci = %p\n", top, previous, ci);
+      fprintf(stderr, "metadata_chunk_ok: previous->size = %zu ci->prev_size = %zu\n", chunksize(previous), ci->prev_size);
+      return false;
+    }
+  }
+
+  // check whether ci and its successor have consistent metadata
+  next = next_chunkinfo(ci);
+  if (next != NULL) {
+    inuse = (inuse(ci) != 0); // inuse bit of ci
+    next_prev_inuse = (prev_inuse(next) != 0); // prev_inuse bit of next
+    if (inuse != next_prev_inuse) {
+      // should be the same
+      fprintf(stderr, "metadata_chunk_ok: invalid inuse bits: ci = %p, next = %p, inuse(ci) = %d, prev_inuse(next) = %d\n",
+	      ci, next, inuse, next_prev_inuse);
+      return false;
+    }
+    if (chunksize(ci) != next->prev_size) {
+      fprintf(stderr, "metadata_chunk_ok: top = %p, ci = %p, next = %p\n", top, ci, next);
+      fprintf(stderr, "metadata_chunk_ok: ci->size = %zu next->prev_size = %zu\n", chunksize(ci), next->prev_size);
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1535,14 +1571,14 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	p = new_chunkinfoptr();
         
         if (front_misalign > 0) {
-	  assert(0); // BD: just to make sure.
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
-          //iam: don't touch these: p->hash_next = (chunkinfoptr) correction;
+	  p->prev_size = correction;
           set_head(p, (size - correction) |INUSE|IS_MMAPPED);
         }
         else {
           p->chunk = (mchunkptr)mm;
+	  p->prev_size = 0;
           //iam: don't touch these: p->hash_next = 0;
           set_head(p, size|INUSE|IS_MMAPPED);
         }
@@ -1573,14 +1609,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   /* Record incoming configuration of top */
 
   old_top  = av->top;
-  if (old_top == NULL) {
-    assert(0);
-    old_size = 0;
-    old_end = (char*)(MORECORE(0));
-  } else {
-    old_size = chunksize(old_top);
-    old_end  = (char*)(chunk_at_offset(chunk(old_top), old_size));
-  }
+  old_size = chunksize(old_top);
+  old_end  = (char*)(chunk_at_offset(chunk(old_top), old_size));
 
   brk = snd_brk = (char*)(MORECORE_FAILURE); 
 
@@ -2420,11 +2450,12 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
   if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
     remainder = new_chunkinfoptr();
     remainder_size = size - nb;
+    set_head(remainder, remainder_size | PREV_INUSE);
+    remainder->prev_size = nb;  // FIX? from dnmalloc to make sure we always have prev_size(next) = size(current)
     remainder->chunk = chunk_at_offset(chunk(victim), nb);
+    hashtable_add(remainder);
     av->top = remainder;
     set_head(victim, nb | PREV_INUSE | INUSE);
-    set_head(remainder, remainder_size | PREV_INUSE);
-    hashtable_insert(victim, remainder);
     check_malloced_chunk(victim, nb);
     guard_set(av->guard_stored, victim, bytes, nb);
     return chunk(victim);
@@ -2646,17 +2677,15 @@ DL_STATIC void fREe(mem) Void_t* mem;
     */
 
     else {
-      fprintf(stderr, "Puzzle number one\n");
-      /* iam: puzzle number one 
+      //      fprintf(stderr, "Puzzle number one\n");
       int ret;
-      INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) p->hash_next;
+      INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) p->prev_size;
       av->n_mmaps--;
       av->mmapped_mem -= (size + offset);
       ret = munmap((char*) chunk(p) - offset, size + offset);
       hashtable_remove_mmapped(chunk(p));
       // munmap returns non-zero on failure 
       assert(ret == 0);
-      */
     }
   }
 }

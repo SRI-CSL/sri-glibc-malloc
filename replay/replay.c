@@ -240,7 +240,7 @@ static bool replay_free(const uchar* buffer, size_t buffersz){
   if(success){
 
     if(!silent_running){
-      fprintf(stderr, "free(%zu)\n", addresses[0]);
+      fprintf(stderr, "free(%zu) @ %zu\n", addresses[0], addresses[1]);
     }
   
     return true;

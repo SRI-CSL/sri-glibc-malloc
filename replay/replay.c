@@ -18,7 +18,7 @@
  *
  */
 
-
+const bool silent_running = false;
 
 const size_t BUFFERSZ = 1024;
 
@@ -76,7 +76,9 @@ int main(int argc, char* argv[]){
 
   fclose(fp);
 
-  fprintf(stdout, "replayed %zu lines from  %s\n", linecount, argv[1]);
+  if(!silent_running){
+    fprintf(stdout, "replayed %zu lines from  %s\n", linecount, argv[1]);
+  }
 
   return 0;
 }
@@ -154,8 +156,9 @@ static bool replay_malloc(const uchar* buffer, size_t buffersz){
   
   if(success){
     
-    fprintf(stderr, "malloc(%zu) = %zu @ %zu\n", addresses[0], addresses[1], addresses[2]);
-    
+    if(!silent_running){
+      fprintf(stderr, "malloc(%zu) = %zu @ %zu\n", addresses[0], addresses[1], addresses[2]);
+    }
     return true;
     
   }
@@ -180,8 +183,10 @@ static bool replay_calloc(const uchar* buffer, size_t buffersz){
 
   if(success){
 
-    fprintf(stderr, "calloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
-  
+    if(!silent_running){
+      fprintf(stderr, "calloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
+    }
+    
     return true;
 
   }
@@ -206,12 +211,14 @@ static bool replay_realloc(const uchar* buffer, size_t buffersz){
 
   if(success){
 
-    fprintf(stderr, "realloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
-  
+    if(!silent_running){
+      fprintf(stderr, "realloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
+    }
+    
     return true;
-
+    
   }
-
+  
   return false;
 
 }
@@ -232,7 +239,9 @@ static bool replay_free(const uchar* buffer, size_t buffersz){
 
   if(success){
 
-    fprintf(stderr, "free(%zu)\n", addresses[0]);
+    if(!silent_running){
+      fprintf(stderr, "free(%zu)\n", addresses[0]);
+    }
   
     return true;
 

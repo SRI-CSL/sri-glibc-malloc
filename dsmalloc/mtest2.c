@@ -9,6 +9,9 @@
 
 #include "dsmalloc.h"
 
+/* if compiled with -DUSE_DL_PREFIX these flip the malloc routines over to the "dl" versions. */
+#include "switch.h"
+
 #define BNK_SIZE 37
 
 int main(void) {
@@ -74,7 +77,11 @@ int main(void) {
   
   free(bank);
 
+#ifdef USE_DL_PREFIX
+  dlmalloc_stats();
+#else
   malloc_stats();
+#endif
 
   return 0;
 }

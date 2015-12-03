@@ -1,5 +1,5 @@
 
-CFLAGS = -Wall  -I ../lphash
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
 
 LIBRARYNAME=liblphash
 
@@ -14,7 +14,7 @@ LIB = ${LIBRARYNAME}.so
 endif
 
 all: ${LIB}
-	${CC} ${CFLAGS} replay.c ${LIB} -o replay
+	${CC} ${CFLAGS} replay.c ${LIB} libdsmalloc.so -o replay -lpthread
 
 
 ${LIB}:
@@ -26,7 +26,14 @@ clean:
 	rm -f *~ replay ${LIBRARYNAME}.*
 
 test:  all
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+#  DARWIN
 	./replay ../../analysis/data/yices_main.txt
+else
+# LINUX
+	LD_LIBRARY_PATH=. ./replay ../../analysis/data/yices_main.txt
+endif
 
 
+#LD_PRELOAD=./dsmalloc/libdsmalloc.so LD_LIBRARY_PATH=. ./replay ../../analysis/data/yices_main.txt
 

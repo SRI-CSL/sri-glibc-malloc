@@ -8,7 +8,8 @@ DEFS = -DHAVE_MMAP=1          \
 	-DHAVE_FCNTL_H=1      \
 	-DHAVE_SYS_MMAN_H=1   \
 	-DUSE_MALLOC_LOCK=1   \
-	-DPARANOIA=9          
+	-DPARANOIA=9          \
+        -DUSE_DL_PREFIX	
 
 #        -DDNMALLOC_DEBUG=1
 
@@ -74,6 +75,9 @@ mtest0: mtest0.c $(metaobj) $(mobj)
 
 mtest1: mtest1.c $(metaobj) $(mobj)
 	$(CC) $(TCFLAGS) -o mtest1 mtest1.c $(metaobj) $(mobj)
+
+mtest2: mtest2.c $(metaobj) $(mobj)
+	$(CC) $(TCFLAGS) -o mtest2 mtest2.c $(metaobj) $(mobj)
 
 
 clean:

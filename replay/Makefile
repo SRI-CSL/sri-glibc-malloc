@@ -1,31 +1,39 @@
 
 CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
 
-LIBRARYNAME=liblphash
+LPLIBRARYNAME=liblphash
+DSLIBRARYNAME=libdsmalloc
 
 OS   =  $(shell uname)
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
-LIB = ${LIBRARYNAME}.dylib
-CFLAGS = -Wall  -I ../lphash 
+LPLIB = ${LPLIBRARYNAME}.dylib
+DSLIB = 
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
 else
 # LINUX
-LIB = ${LIBRARYNAME}.so
+LPLIB = ${LPLIBRARYNAME}.so
+DSLIB = ${DSLIBRARYNAME}.so
 CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
 endif
 
-all: ${LIB}
-	${CC} ${CFLAGS} replay.c ${LIB} libdsmalloc.so -o replay -lpthread
+all: ${LPLIB} ${DSLIB}
+	${CC} ${CFLAGS} replay.c ${LPLIB} ${DSLIB} -o replay -lpthread
 
 
-${LIB}:
+${LPLIB}:
 	cd ../lphash; make
-	cp ../lphash/${LIB} .
+	cp ../lphash/${LPLIB} .
 
+${DSLIB}:
+ifneq (Darwin, $(findstring Darwin, ${OS}))
+	cd ../dsmalloc; make
+	cp ../dsmalloc/${DSLIB} .
+endif
 
 clean:
-	rm -f *~ replay ${LIBRARYNAME}.*
+	rm -f *~ replay ${LPLIBRARYNAME}.*
 
 test:  all
 ifeq (Darwin, $(findstring Darwin, ${OS}))

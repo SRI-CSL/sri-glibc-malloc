@@ -10,11 +10,8 @@
 #include "lphash.h"
 
 /* if compiled with -DUSE_DL_PREFIX these flip the malloc routines over to the "dl" versions. */
-#ifdef USE_DL_PREFIX
 #include "switch.h"
-#else 
-#include <assert.h>
-#endif
+
 
 /*
  *  Parses the output from ../../analysis/mhook.c and replays it.

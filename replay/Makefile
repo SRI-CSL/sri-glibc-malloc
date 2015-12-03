@@ -29,11 +29,11 @@ ${LPLIB}:
 ${DSLIB}:
 ifneq (Darwin, $(findstring Darwin, ${OS}))
 	cd ../dsmalloc; make
-	cp ../dsmalloc/${DSLIB} .
+	cp ../dsmalloc/${DSLIB}* .
 endif
 
 clean:
-	rm -f *~ replay ${LPLIBRARYNAME}.*
+	rm -f *~ replay ${LPLIBRARYNAME}.* ${DSLIBRARYNAME}.*
 
 test:  all
 ifeq (Darwin, $(findstring Darwin, ${OS}))

@@ -757,12 +757,21 @@ static void lphash_contract_directory(lphash_t* lhtbl, memcxt_t* memcxt){
   success = mul_size(newlen, sizeof(segment_t*), &newsz);
 
   assert(success);
+  if(! success ){
+    return;
+  }
   
   success = mul_size(oldlen, sizeof(segment_t*), &oldsz);
 
   assert(success);
+  if(! success ){
+    return;
+  }
 
   assert(curlen < newlen);
+  if(curlen >= newlen){
+    return;
+  }
   
   olddir = lhtbl->directory;
   
@@ -852,6 +861,9 @@ static void lphash_contract_table(lphash_t* lhtbl){
     tgtindex = lhtbl->p - 1;
     success = add_size(lhtbl->maxp, lhtbl->p - 1, &srcindex);
     assert(success);
+    if( ! success ){
+      return;
+    }
   }
 
   check_index(srcindex, "src",  lhtbl);

@@ -425,13 +425,7 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz){
       }
     }
 
-    if( ! lphash_insert(htbl, key, val) ){
-      fprintf(stderr, "replay_free: Could not insert %p => %p into the htbl: %s\n", key, val, strerror(errno));
-      return false;
-    }
 
-
-    
     return true;
 
   }

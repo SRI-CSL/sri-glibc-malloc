@@ -1569,7 +1569,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
         front_misalign = (INTERNAL_SIZE_T) mm & MALLOC_ALIGN_MASK;
 	p = new_chunkinfoptr();
-        
+	fprintf(stderr, "new_chunkinfoptr 0: %p\n", p);
         if (front_misalign > 0) {
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
@@ -1870,8 +1870,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	fprintf(stderr, "Adjust top, correction %lu\n", correction);
 #endif
         /* hashtable_remove(chunk(av->top)); *//* rw 19.05.2008 removed */
-	fprintf(stderr, "new_chunkinfoptr 1\n");
 	av->top =  new_chunkinfoptr();
+	fprintf(stderr, "new_chunkinfoptr 1: %p\n", av->top);
         av->top->chunk = (mchunkptr)aligned_brk;
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
 #ifdef DNMALLOC_DEBUG
@@ -1921,8 +1921,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           /* dnmalloc, we need the fencepost to be 16 bytes, however since 
 	     it's marked inuse it will never be coalesced 
 	  */
-	  fprintf(stderr, "new_chunkinfoptr 2\n");
           fencepost = new_chunkinfoptr();
+	  fprintf(stderr, "new_chunkinfoptr 2: %p\n", fencepost);
           fencepost->chunk = (mchunkptr) chunk_at_offset(chunk(old_top), 
 							 old_size);
           fencepost->size = 16|INUSE|PREV_INUSE;
@@ -1979,6 +1979,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
     if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
       remainder_size = size - nb;
       remainder = new_chunkinfoptr();
+      fprintf(stderr, "new_chunkinfoptr 3: %p\n", remainder);
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       av->top = remainder;
       set_head(p, nb | PREV_INUSE | INUSE);
@@ -2224,8 +2225,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       
       /* split and reattach remainder */
       remainder_size = size - nb;
-      fprintf(stderr, "new_chunkinfoptr 3\n");
       remainder = new_chunkinfoptr();
+      fprintf(stderr, "new_chunkinfoptr 4: %p\n", remainder);
       remainder->chunk = chunk_at_offset(chunk(victim), nb);
       unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
       av->last_remainder = remainder; 
@@ -2317,8 +2318,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
         
 	  /* Split */
 	  if (remainder_size >= MINSIZE) {
-	    fprintf(stderr, "new_chunkinfoptr 4\n");
 	    remainder = new_chunkinfoptr();
+	    fprintf(stderr, "new_chunkinfoptr 5: %p\n", remainder);
 	    remainder->chunk = chunk_at_offset(chunk(victim), nb);
 	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
 	    remainder->bk = remainder->fd = unsorted_chunks(av);
@@ -2404,8 +2405,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       
       /* Split */
       if (remainder_size >= MINSIZE) {
-	fprintf(stderr, "new_chunkinfoptr 5\n");
         remainder = new_chunkinfoptr();
+	fprintf(stderr, "new_chunkinfoptr 6: %p\n", remainder);
         remainder->chunk = chunk_at_offset(chunk(victim), nb);
         
         unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
@@ -2456,6 +2457,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
   
   if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
     remainder = new_chunkinfoptr();
+    fprintf(stderr, "new_chunkinfoptr 7: %p\n", remainder);
     remainder_size = size - nb;
     set_head(remainder, remainder_size | PREV_INUSE);
     remainder->prev_size = nb;  // FIX? from dnmalloc to make sure we always have prev_size(next) = size(current)
@@ -3037,8 +3039,8 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
     remainder_size = newsize - nb;
 
     if (remainder_size >= MINSIZE) { /* split remainder */
-      fprintf(stderr, "new_chunkinfoptr 6\n");
       remainder = new_chunkinfoptr();
+      fprintf(stderr, "new_chunkinfoptr 8: %p\n", remainder);
       remainder->chunk = chunk_at_offset(chunk(newp), nb);
       set_head_size(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
@@ -3225,8 +3227,8 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
     if ((CHUNK_SIZE_T)(brk - (char*)(chunk(p))) < MINSIZE)
       brk += alignment;
 
-    fprintf(stderr, "new_chunkinfoptr 7\n");
     newp = new_chunkinfoptr();
+    fprintf(stderr, "new_chunkinfoptr 9: %p\n", newp);
     newp->chunk = (mchunkptr)brk;
     leadsize = brk - (char*)(chunk(p));
     newsize = chunksize(p) - leadsize;
@@ -3259,8 +3261,8 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
   if (!chunk_is_mmapped(p)) {
     size = chunksize(p);
     if ((CHUNK_SIZE_T)(size) > (CHUNK_SIZE_T)(nb + MINSIZE)) {
-      fprintf(stderr, "new_chunkinfoptr 8\n");
       remainder = new_chunkinfoptr();
+      fprintf(stderr, "new_chunkinfoptr 10: %p\n", remainder);
       remainder_size = size - nb;
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);

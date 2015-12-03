@@ -4,14 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-//#include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
 
 #include "lphash.h"
 
 /* if compiled with -DUSE_DL_PREFIX these flip the malloc routines over to the "dl" versions. */
-#include "dsmalloc.h"
 #include "switch.h"
 
 /*

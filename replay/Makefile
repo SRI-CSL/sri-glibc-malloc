@@ -8,9 +8,11 @@ OS   =  $(shell uname)
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
 LIB = ${LIBRARYNAME}.dylib
+CFLAGS = -Wall  -I ../lphash 
 else
 # LINUX
 LIB = ${LIBRARYNAME}.so
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
 endif
 
 all: ${LIB}

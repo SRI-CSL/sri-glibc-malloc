@@ -10,16 +10,15 @@
 
 #ifndef _DSMALLOC_H
 #include "dsmalloc.h"
-#else 
-#include <assert.h>
 #endif
-
 
 #define malloc(X)      dlmalloc(X)
 #define calloc(X, Y)   dlcalloc(X, Y)
 #define realloc(X, Y)  dlrealloc(X, Y)
 #define free(X)        dlfree(X)
 #define malloc_stats() dlmalloc_stats()
+#else 
+#include <assert.h>
 #endif
 
 

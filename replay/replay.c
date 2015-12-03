@@ -8,6 +8,8 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+#include "lphash.h"
+
 /*
  *  Parses the output from ../../analysis/mhook.c and replays it.
  *  Hopefully in the exact same fashion. 
@@ -27,26 +29,38 @@ typedef unsigned char uchar;
 
 static bool readline(FILE* fp, uchar* buffer, size_t buffersz);
   
-static bool replayline(const uchar* buffer, size_t buffersz);
+static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz);
 
-static bool replay_malloc(const uchar* buffer, size_t buffersz);
+static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
 
-static bool replay_calloc(const uchar* buffer, size_t buffersz);
+static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
 
-static bool replay_realloc(const uchar* buffer, size_t buffersz);
+static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
 
-static bool replay_free(const uchar* buffer, size_t buffersz);
+static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz);
 
 /* These need to be kept in synch with ../../analysis/mhook.c */
+
 enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
+
 enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
 
 static bool dirtywork(uintptr_t addresses[], size_t len, const uchar* buffer, size_t buffersz);
+
+
+
+
 
 int main(int argc, char* argv[]){
   FILE* fp;
   uchar buffer[BUFFERSZ  + 1];
   size_t linecount;
+  lphash_t htbl;
+  int code;
+
+  code = 0;
+  fp = NULL;
+  
 
   if(argc != 2){
     fprintf(stdout, "Usage: %s <mhook output file>\n", argv[0]);
@@ -55,32 +69,49 @@ int main(int argc, char* argv[]){
 
   buffer[BUFFERSZ] = '\0';   /* this should never be touched again  */
   
+  if(!init_lphash(&htbl)){
+    fprintf(stderr, "Could not initialize the linear pool hashtable: %s\n", strerror(errno));
+    return 1;
+  }
 
   fp = fopen(argv[1], "r");
   if(fp == NULL){
     fprintf(stderr, "Could not open %s: %s\n", argv[1], strerror(errno));
-    return 1;
+    code = 1;
+    goto exit;
   }
-
+  
   linecount = 0;
+
+  
   
   while(readline(fp, buffer, BUFFERSZ)){
     
-    if(!replayline(buffer, BUFFERSZ)){
+    if(!replayline(&htbl, buffer, BUFFERSZ)){
       fprintf(stderr, "Replaying line %zu failed: %s\n", linecount, buffer);
-      return 1;
+      code = 1;
+      goto exit;
     } else {
       linecount++;
     }
   }
 
-  fclose(fp);
 
   if(!silent_running){
     fprintf(stdout, "replayed %zu lines from  %s\n", linecount, argv[1]);
+    dump_lphash(stdout, &htbl, false);
   }
 
-  return 0;
+
+  
+ exit:
+
+  if(fp != NULL){ fclose(fp); }
+
+  delete_lphash(&htbl);
+    
+  
+  return code;
 }
 
 
@@ -116,7 +147,7 @@ static bool readline(FILE* fp, uchar* buffer, size_t buffersz){
   return false;
 }
 
-static bool replayline(const uchar* buffer, size_t buffersz){
+static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz){
   uchar opchar;
   bool retval;
 
@@ -129,10 +160,10 @@ static bool replayline(const uchar* buffer, size_t buffersz){
   opchar = buffer[0];
 
   switch(opchar){
-  case 'm': retval = replay_malloc(buffer, buffersz); break;
-  case 'f': retval = replay_free(buffer, buffersz); break;
-  case 'c': retval = replay_calloc(buffer, buffersz); break;
-  case 'r': retval = replay_realloc(buffer, buffersz); break;
+  case 'm': retval = replay_malloc(htbl, buffer, buffersz); break;
+  case 'f': retval = replay_free(htbl, buffer, buffersz); break;
+  case 'c': retval = replay_calloc(htbl, buffer, buffersz); break;
+  case 'r': retval = replay_realloc(htbl, buffer, buffersz); break;
   default : retval = false;
   }
   
@@ -140,8 +171,11 @@ static bool replayline(const uchar* buffer, size_t buffersz){
   return retval;
 }
 
-static bool replay_malloc(const uchar* buffer, size_t buffersz){
+static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz){
   uintptr_t addresses[MALLOCARGS];
+  size_t sz;
+  void *key;
+  void *val;
   bool success;
     
   if((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')){
@@ -159,6 +193,18 @@ static bool replay_malloc(const uchar* buffer, size_t buffersz){
     if(!silent_running){
       fprintf(stderr, "malloc(%zu) = %zu @ %zu\n", addresses[0], addresses[1], addresses[2]);
     }
+
+    sz = (size_t)addresses[0];
+    key =  (void *)addresses[1];
+    val = malloc(sz);
+
+    /* could assert that key is not in the htbl */
+    if( ! lphash_insert(htbl, key, val) ){
+      fprintf(stderr, "Could not insert %p => %p into the htbl: %s\n", key, val, strerror(errno));
+      return false;
+    }
+    
+    
     return true;
     
   }
@@ -167,8 +213,12 @@ static bool replay_malloc(const uchar* buffer, size_t buffersz){
 
 }
 
-static bool replay_calloc(const uchar* buffer, size_t buffersz){
+static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz){
   uintptr_t addresses[CALLOCARGS];
+  size_t sz;
+  size_t cnt;
+  void *key;
+  void *val;
   bool success;
 
   if((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')){
@@ -186,6 +236,17 @@ static bool replay_calloc(const uchar* buffer, size_t buffersz){
     if(!silent_running){
       fprintf(stderr, "calloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
     }
+
+    cnt = (size_t)addresses[0];
+    sz = (size_t)addresses[1];
+    key =  (void *)addresses[2];
+    val = calloc(cnt, sz);
+
+    /* could assert that key is not in the htbl */
+    if( ! lphash_insert(htbl, key, val) ){
+      fprintf(stderr, "Could not insert %p => %p into the htbl: %s\n", key, val, strerror(errno));
+      return false;
+    }
     
     return true;
 
@@ -195,8 +256,13 @@ static bool replay_calloc(const uchar* buffer, size_t buffersz){
 
 }
 
-static bool replay_realloc(const uchar* buffer, size_t buffersz){
+static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz){
   uintptr_t addresses[REALLOCARGS];
+  void *ptr_in;
+  void *ptr_out;
+  size_t sz;
+  void *val_old;
+  void *val_new;
   bool success;
 
   if((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')){
@@ -214,7 +280,102 @@ static bool replay_realloc(const uchar* buffer, size_t buffersz){
     if(!silent_running){
       fprintf(stderr, "realloc(%zu, %zu) = %zu  @ %zu\n", addresses[0], addresses[1], addresses[2], addresses[3]);
     }
+
+    /* == Danger zone ==
+     *
+     * if sz is 0 then this is a free! And a minimum sized object is returned. HUH?!?
+     *
+     * ALSO: we may not get the same behavior as the run we are trying to mimic.
+     * not much we can do but roll with the punches. Though we can inform the
+     * user that we have deviated.
+     *
+     */
+
     
+    ptr_in = (void *)addresses[0];
+    sz = (size_t)addresses[1];
+    ptr_out =  (void *)addresses[2];
+
+    if(ptr_in == NULL){
+      
+      val_old = NULL;
+      
+    } else {
+    
+      val_old = lphash_lookup(htbl, ptr_in);
+
+      if(val_old == NULL){
+	fprintf(stderr, "replay_realloc: Failed to find %p in the htbl\n", ptr_in);
+	return false;
+      }
+
+    }
+    
+    val_new = realloc(val_old, sz);
+
+    if(sz == 0){
+
+      /* this is a free */
+      
+      lphash_delete(htbl, ptr_in);
+
+      /* could assert that key is not in the htbl */
+      if( ! lphash_insert(htbl, ptr_out, val_new) ){
+	fprintf(stderr, "replay_realloc: Could not insert %p => %p into the htbl: %s\n", ptr_out, val_new, strerror(errno));
+	return false;
+      }
+
+    } else {
+
+      /* ok it was a real attempt to grow ptr_in */
+
+      if(ptr_in == ptr_out){
+
+	/* it was successful; was our attempt successful too? */
+	
+	if(val_old == val_new){
+
+	  // nothing to do.
+
+
+	} else {
+
+	  fprintf(stderr, "replay_realloc: deviating from script %p != %p in our run %p == %p in script\n",
+		  val_old, val_new, ptr_in, ptr_out);
+
+	  lphash_delete(htbl, ptr_in);
+
+	  if( ! lphash_insert(htbl, ptr_out, val_new) ){
+	    fprintf(stderr, "replay_realloc: Could not insert %p => %p into the htbl: %s\n", ptr_out, val_new, strerror(errno));
+	    return false;
+	  }
+	}
+	
+	
+      } else {
+	
+	/* it was unsuccessful; was our attempt unsuccessful too? */
+	
+	if(val_old == val_new){
+	  
+	  fprintf(stderr, "replay_realloc: deviating from script %p == %p in our run %p != %p in script\n",
+		  val_old, val_new, ptr_in, ptr_out);
+	  
+	}
+
+	/* either way still need to update the htbl */
+	
+	lphash_delete(htbl, ptr_in);
+	
+	if( ! lphash_insert(htbl, ptr_out, val_new) ){
+	  fprintf(stderr, "replay_realloc: Could not insert %p => %p into the htbl: %s\n", ptr_out, val_new, strerror(errno));
+	  return false;
+	}
+	
+      }
+            
+    }
+ 
     return true;
     
   }
@@ -223,8 +384,10 @@ static bool replay_realloc(const uchar* buffer, size_t buffersz){
 
 }
 
-static bool replay_free(const uchar* buffer, size_t buffersz){
+static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz){
   uintptr_t addresses[FREEARGS];
+  void *key;
+  void *val;
   bool success;
 
   if((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')){
@@ -242,7 +405,30 @@ static bool replay_free(const uchar* buffer, size_t buffersz){
     if(!silent_running){
       fprintf(stderr, "free(%zu) @ %zu\n", addresses[0], addresses[1]);
     }
-  
+
+    key = (void *)addresses[0];
+    
+    if(key == NULL){
+      val = NULL;
+      free(key);
+    } else {
+      val = lphash_lookup(htbl, key);
+      if(val != NULL){
+	free(val);
+	lphash_delete(htbl, key);
+      } else {
+	fprintf(stderr, "replay_free: Failed to find %p in the htbl\n", key);
+	return false;
+      }
+    }
+
+    if( ! lphash_insert(htbl, key, val) ){
+      fprintf(stderr, "replay_free: Could not insert %p => %p into the htbl: %s\n", key, val, strerror(errno));
+      return false;
+    }
+
+
+    
     return true;
 
   }

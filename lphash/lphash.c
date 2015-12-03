@@ -256,7 +256,7 @@ bool init_lphash(lphash_t* lhtbl){
   return true;
 }
 
-extern void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
+void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
   bucket_t** bp;

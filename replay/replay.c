@@ -23,7 +23,7 @@
  *
  */
 
-const bool silent_running = false;
+const bool silent_running = true;
 
 const size_t BUFFERSZ = 1024;
 
@@ -421,7 +421,7 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz){
 	lphash_delete(htbl, key);
       } else {
 	fprintf(stderr, "replay_free: Failed to find %p in the htbl\n", key);
-	return false;
+	return true;
       }
     }
 

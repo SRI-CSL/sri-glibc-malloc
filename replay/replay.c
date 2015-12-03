@@ -12,7 +12,10 @@
 
 /*
  *  Parses the output from ../../analysis/mhook.c and replays it.
- *  Hopefully in the exact same fashion. 
+ *
+ *  Hopefully in the exact same fashion (but whether our calls to
+ *  realloc match the scripts lies in the lap of the malloc gods). 
+ *
  *  I guess we will be able to check that (modulo callers) when 
  *  it is finished.
  *

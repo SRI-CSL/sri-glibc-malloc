@@ -1326,13 +1326,14 @@ next_chunkinfo (chunkinfoptr ci)
 
 /* Get the chunkinfo of the physically previous chunk */
 /* Since we disposed of prev_size, we need this function to find the previous */
-
+/* Precondition: ci must not be mmapped and ci's prev_inuse bit must not be set. */
 static chunkinfoptr
 prev_chunkinfo (chunkinfoptr ci) { 
   chunkinfoptr prev;
   mchunkptr prevchunk;
 
   assert(!chunk_is_mmapped(ci));
+  assert(!prev_inuse(ci));
 
   if (ci->prev_size == 0) {
     prev = NULL;
@@ -1341,6 +1342,24 @@ prev_chunkinfo (chunkinfoptr ci) {
     prev = hashtable_lookup (prevchunk);
   }
   return prev;
+}
+
+
+/*
+ * Adjust the size of the successor's block of ci
+ * - ci must be a freshly created chunk (after we split a free block victim)
+ * - the next of victim is now the next of ci
+ * - so we must adjust the prev_size of next
+ */
+static void adjust_next_prevsize(chunkinfoptr ci) {
+  chunkinfoptr next;
+
+  assert(!inuse(ci));
+  next = next_chunkinfo(ci);
+  if (next != NULL) {
+    assert(!prev_inuse(next));
+    next->prev_size = chunksize(ci);
+  }
 }
 
 /*
@@ -1368,42 +1387,75 @@ prev_chunkinfo (chunkinfoptr ci) {
  *   chunk is inuse.
  * - In the original dlmalloc, there's no actual inuse bit for ci. To mark that ci is in use,
  *   some macros set the prev_inuse bit of ci's successor chunk.
+ * - To properly coalesce chunks, the following invariant must hold:
+ *    (not prev_inuse(ci) => prev_size(ci) = chunksize(ci's predecessor)
+ *   In other words, ci has a predecessor and if the predecessor is free then ci's metata
+ *   is correct (ci's prev_size field is correct).
+ *
+ * Other invariant: all free blocks are coalesced
+ * - if ci is free (not inuse) then its predecessor, if any, is inuse and its successor, if any,
+ *   is in use too.
  */
 bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
-  chunkinfoptr previous;
-  chunkinfoptr next;
-  bool inuse_prev, prev_inuse;
-  bool inuse, next_prev_inuse;
+  chunkinfoptr previous, next;
+  bool inuse_prev, prev_inuse, inuse;
+  //  bool inuse, next_prev_inuse;
 
   if (chunk_is_mmapped(ci)) {
     // nothing to check (regarding next and prev)
     return true;
   }
 
-  if (ci->size == 0) {
+  if (chunksize(ci) == 0) {
     // Can't do anything. We have prev == ci == next
     // This should happen only for the first av->top
     return true;
   }
 
+  inuse = (inuse(ci) != 0); // inuse bit of ci
+
   // check whether ci and its predecessor have consistent metadata
-  previous = prev_chunkinfo(ci);
-  if (previous != NULL) {
+  prev_inuse = (prev_inuse(ci) != 0);   // prev_inuse bit of ci
+  if (!prev_inuse) {
+    previous = prev_chunkinfo(ci);
+    if (previous == NULL) {
+      fprintf(stderr, "metadata_chunk_ok: invalid prev_inuse bit: ci = %p, prev_inuse(ci) = %d, previous = NULL\n", ci, prev_inuse);
+      return false;
+    }
     inuse_prev = (inuse(previous) != 0);  // inuse bit of previous
-    prev_inuse = (prev_inuse(ci) != 0);   // prev_inuse bit of ci
-    if (inuse_prev != prev_inuse) {
-      // should be the same
-      fprintf(stderr, "metadata_chunk_ok: invalid inuse bits: previous = %p, ci = %p, inuse(previous) = %d, prev_inuse(ci) = %d\n",
-	      previous, ci, inuse_prev, prev_inuse);
+    if (inuse_prev) {
+      // should be the false
+      fprintf(stderr, "metadata_chunk_ok: invalid inuse bits: ci = %p, prev_inuse(ci) = %d, previous = %p, inuse(previous) = %d\n",
+	      ci, prev_inuse, previous, inuse_prev);
       return false;
     }
     if (chunksize(previous) != ci->prev_size){
-      fprintf(stderr, "metadata_chunk_ok: top = %p, previous = %p, ci = %p\n", top, previous, ci);
-      fprintf(stderr, "metadata_chunk_ok: previous->size = %zu ci->prev_size = %zu\n", chunksize(previous), ci->prev_size);
+      // should be equal
+      fprintf(stderr, "metadata_chunk_ok: size mismatch: ci = %p, ci->prev_size = %zu, previous = %p, chunksize(previous) = %zu (top = %p)\n",
+	      ci, ci->prev_size, previous, chunksize(previous), top);
+      return false;
+    }
+    if (!inuse) {
+      // consecutive free blocks so we didn't coalesce properly
+      fprintf(stderr, "metadata_chunk_ok: adjacent free blocks: ci = %p, ci->prev_size = %zu, previous = %p, chunksize(previous) = %zu (top = %p)\n",
+	      ci, ci->prev_size, previous, chunksize(previous), top);
       return false;
     }
   }
 
+  if (!inuse) {
+    // make sure the next block is in use
+    next = next_chunkinfo(ci);
+    if (next != NULL && !inuse(next)) {
+      // consecutive free blocks so we didn't coalesce properly
+      fprintf(stderr, "metadata_chunk_ok: adjacent free blocks: ci = %p, chunksize(ci) = %zu, next = %p, (top = %p)\n",
+	      ci, chunksize(ci), next, top);
+      return false;
+    }
+  }
+
+#if 0
+  // NOT SURE ABOUT THIS
   // check whether ci and its successor have consistent metadata
   next = next_chunkinfo(ci);
   if (next != NULL) {
@@ -1421,6 +1473,7 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
       return false;
     }
   }
+#endif
 
   return true;
 }
@@ -1984,7 +2037,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       av->top = remainder;
       set_head(p, nb | PREV_INUSE | INUSE);
       set_head(remainder, remainder_size | PREV_INUSE);
-      remainder->prev_size = nb; // BD: don't want a special case for top
+      remainder->prev_size = nb; // BD: probably useless
       hashtable_add(remainder);
       check_malloced_chunk(p, nb);
 #ifdef DNMALLOC_DEBUG
@@ -2233,8 +2286,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       remainder->bk = remainder->fd = unsorted_chunks(av);
       
       set_head(victim, nb | PREV_INUSE|INUSE);
-      set_head(remainder, remainder_size | PREV_INUSE); 
-      remainder->prev_size = nb;
+      set_head(remainder, remainder_size | PREV_INUSE);
+      //      remainder->prev_size = nb;
+      adjust_next_prevsize(remainder);  // BD
       hashtable_add(remainder);
 
       check_malloced_chunk(victim, nb);
@@ -2325,7 +2379,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
 	    remainder->bk = remainder->fd = unsorted_chunks(av);
 	    set_head(victim, nb | PREV_INUSE | INUSE);
 	    set_head(remainder, remainder_size | PREV_INUSE);
-	    remainder->prev_size = nb;
+	    //	    remainder->prev_size = nb;
+	    adjust_next_prevsize(remainder); // BD
 	    hashtable_add(remainder);
 	    check_malloced_chunk(victim, nb);
 	    guard_set(av->guard_stored, victim, bytes, nb);
@@ -2406,7 +2461,7 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       /* Split */
       if (remainder_size >= MINSIZE) {
         remainder = new_chunkinfoptr();
-	fprintf(stderr, "new_chunkinfoptr 6: %p\n", remainder);
+	fprintf(stderr, "new_chunkinfoptr 6: %p, next(victim) = %p\n", remainder, next_chunkinfo(victim));
         remainder->chunk = chunk_at_offset(chunk(victim), nb);
         
         unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
@@ -2417,7 +2472,8 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
         
         set_head(victim, nb | PREV_INUSE | INUSE);
         set_head(remainder, remainder_size | PREV_INUSE);
-	remainder->prev_size = nb;
+	//	remainder->prev_size = nb;
+	adjust_next_prevsize(remainder); // BD
         hashtable_add(remainder);
         check_malloced_chunk(victim, nb);
 	guard_set(av->guard_stored, victim, bytes, nb);
@@ -2460,7 +2516,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
     fprintf(stderr, "new_chunkinfoptr 7: %p\n", remainder);
     remainder_size = size - nb;
     set_head(remainder, remainder_size | PREV_INUSE);
-    remainder->prev_size = nb;  // FIX? from dnmalloc to make sure we always have prev_size(next) = size(current)
+    //    remainder->prev_size = nb;  // FIX? from dnmalloc to make sure we always have prev_size(next) = size(current)
+    //    adjust_next_prevsize(remainder); remainder is top so it has no successor
+
     remainder->chunk = chunk_at_offset(chunk(victim), nb);
     hashtable_add(remainder);
     av->top = remainder;
@@ -3044,7 +3102,11 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
       remainder->chunk = chunk_at_offset(chunk(newp), nb);
       set_head_size(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
-      remainder->prev_size = nb;
+      set_head(remainder, remainder_size | PREV_INUSE);
+      // BD: we don't want to call adjust_next_prevsize here
+      //      remainder->prev_size = nb;
+      //      adjust_next_prevsize(remainder);
+
       hashtable_add(remainder);
       /* Mark remainder as inuse so free() won't complain */
       set_all_inuse(remainder);
@@ -3266,8 +3328,10 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
       remainder_size = size - nb;
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
+      //      remainder->prev_size = nb;
+      adjust_next_prevsize(remainder); // BD
+
       set_head_size(p, nb);
-      remainder->prev_size = nb;
       hashtable_add(remainder); /* 20.05.2008 rw */
       guard_set(av->guard_stored, remainder, 0, remainder_size);
       fREe(chunk(remainder));

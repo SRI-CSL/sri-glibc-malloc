@@ -1207,8 +1207,13 @@ static void malloc_init_state(av) mstate av;
 
   av->initialized = true;
 
+
+#ifdef DNMALLOC_DEBUG
   fprintf(stderr, "malloc_init_state OK\n");
   fprintf(stderr, "first av->top: %p\n", av->top);
+#endif
+
+
 }
 
 /* Get a free chunkinfo */
@@ -1622,7 +1627,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
         front_misalign = (INTERNAL_SIZE_T) mm & MALLOC_ALIGN_MASK;
 	p = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "new_chunkinfoptr 0: %p\n", p);
+#endif
         if (front_misalign > 0) {
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
@@ -1924,7 +1931,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 #endif
         /* hashtable_remove(chunk(av->top)); *//* rw 19.05.2008 removed */
 	av->top =  new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "new_chunkinfoptr 1: %p\n", av->top);
+#endif
         av->top->chunk = (mchunkptr)aligned_brk;
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
 #ifdef DNMALLOC_DEBUG
@@ -1975,7 +1984,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	     it's marked inuse it will never be coalesced 
 	  */
           fencepost = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
 	  fprintf(stderr, "new_chunkinfoptr 2: %p\n", fencepost);
+#endif
           fencepost->chunk = (mchunkptr) chunk_at_offset(chunk(old_top), 
 							 old_size);
           fencepost->size = 16|INUSE|PREV_INUSE;
@@ -2032,7 +2043,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
     if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
       remainder_size = size - nb;
       remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
       fprintf(stderr, "new_chunkinfoptr 3: %p\n", remainder);
+#endif
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       av->top = remainder;
       set_head(p, nb | PREV_INUSE | INUSE);
@@ -2279,7 +2292,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       /* split and reattach remainder */
       remainder_size = size - nb;
       remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
       fprintf(stderr, "new_chunkinfoptr 4: %p\n", remainder);
+#endif
       remainder->chunk = chunk_at_offset(chunk(victim), nb);
       unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
       av->last_remainder = remainder; 
@@ -2373,7 +2388,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
 	  /* Split */
 	  if (remainder_size >= MINSIZE) {
 	    remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
 	    fprintf(stderr, "new_chunkinfoptr 5: %p\n", remainder);
+#endif
 	    remainder->chunk = chunk_at_offset(chunk(victim), nb);
 	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
 	    remainder->bk = remainder->fd = unsorted_chunks(av);
@@ -2461,7 +2478,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
       /* Split */
       if (remainder_size >= MINSIZE) {
         remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "new_chunkinfoptr 6: %p, next(victim) = %p\n", remainder, next_chunkinfo(victim));
+#endif
         remainder->chunk = chunk_at_offset(chunk(victim), nb);
         
         unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
@@ -2513,7 +2532,9 @@ DL_STATIC   Void_t* mALLOc(bytes) size_t bytes;
   
   if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
     remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
     fprintf(stderr, "new_chunkinfoptr 7: %p\n", remainder);
+#endif
     remainder_size = size - nb;
     set_head(remainder, remainder_size | PREV_INUSE);
     //    remainder->prev_size = nb;  // FIX? from dnmalloc to make sure we always have prev_size(next) = size(current)
@@ -2643,7 +2664,9 @@ DL_STATIC void fREe(mem) Void_t* mem;
         size += prevsize;
         unlink(prevchunk, bck, fwd);
 	set_head(p, size | PREV_INUSE);
+#ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "coalescing 1\n");
+#endif
         hashtable_skiprm(prevchunk,p);
         p = prevchunk;
       }
@@ -2658,7 +2681,9 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	    unlink(nextchunk, bck, fwd);
 	    size += nextsize;
 	    set_head(p, size | PREV_INUSE);
+#ifdef DNMALLOC_DEBUG
 	    fprintf(stderr, "coalescing 2\n");
+#endif
 	    hashtable_skiprm(p, nextchunk);
 	  }
 	  
@@ -2695,7 +2720,9 @@ DL_STATIC void fREe(mem) Void_t* mem;
 	else {
 	  size += nextsize;
 	  set_head(p, size | PREV_INUSE);
+#ifdef DNMALLOC_DEBUG
 	  fprintf(stderr, "coalescing remove 1\n");
+#endif
 	  hashtable_remove(chunk(av->top));
 	  av->top = p;
 	  check_chunk(p);
@@ -2850,7 +2877,9 @@ static void malloc_consolidate(av) mstate av;
 #endif
              unlink(prevp, bck, fwd);
              set_head(p, size | PREV_INUSE);	     
+#ifdef DNMALLOC_DEBUG
 	     fprintf(stderr, "coalescing 3\n");
+#endif
              hashtable_skiprm(prevp,p);
              p=prevp;
           }
@@ -2864,7 +2893,9 @@ static void malloc_consolidate(av) mstate av;
 		size += nextsize;
 		unlink(nextchunk, bck, fwd);
 		set_head(p, size | PREV_INUSE);
+#ifdef DNMALLOC_DEBUG
 		fprintf(stderr, "coalescing 4\n");
+#endif
 		hashtable_skiprm(p,nextchunk);
 	      }
 	      
@@ -2885,7 +2916,9 @@ static void malloc_consolidate(av) mstate av;
 	    else {
 	      size += nextsize;
 	      set_head(p, size | PREV_INUSE);
+#ifdef DNMALLOC_DEBUG
 	      fprintf(stderr, "coalescing remove 2\n");
+#endif
 	      hashtable_remove(chunk(av->top));
 	      av->top = p;
 	    }
@@ -3000,7 +3033,9 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
           (CHUNK_SIZE_T)(newsize = oldsize + chunksize(next)) >=
           (CHUNK_SIZE_T)(nb + MINSIZE)) {
          set_head_size(oldp, nb);
+#ifdef DNMALLOC_DEBUG
 	 fprintf(stderr, "coalescing remove 3\n");
+#endif
          hashtable_remove(chunk(av->top));
          av->top->chunk = chunk_at_offset(chunk(oldp), nb);
          set_head(av->top, (newsize - nb) | PREV_INUSE);
@@ -3017,7 +3052,9 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
                (CHUNK_SIZE_T)(nb)) {
         newp = oldp;
         unlink(next, bck, fwd);
+#ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "coalescing remove 4\n");
+#endif
         hashtable_remove(chunk(next));
 	next = next_chunkinfo(oldp);
 	if (next)
@@ -3041,7 +3078,9 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 	if (UNLIKELY(is_next_chunk(oldp, newp))) {
 	  newsize += oldsize;
 	  set_head_size(oldp, newsize);
+#ifdef DNMALLOC_DEBUG
 	  fprintf(stderr, "coalescing 5\n");
+#endif
 	  hashtable_skiprm(oldp, newp);
           newp = oldp;
         }
@@ -3098,7 +3137,9 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 
     if (remainder_size >= MINSIZE) { /* split remainder */
       remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
       fprintf(stderr, "new_chunkinfoptr 8: %p\n", remainder);
+#endif
       remainder->chunk = chunk_at_offset(chunk(newp), nb);
       set_head_size(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);
@@ -3129,7 +3170,6 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 
   else {
 //iam: anothe puzzle
-    fprintf(stderr, "Puzzle number two\n");
 #if 0 //HAVE_MREMAP
     INTERNAL_SIZE_T offset = (INTERNAL_SIZE_T) oldp->hash_next;
     size_t pagemask = av->pagesize - 1;
@@ -3290,7 +3330,9 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
       brk += alignment;
 
     newp = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
     fprintf(stderr, "new_chunkinfoptr 9: %p\n", newp);
+#endif
     newp->chunk = (mchunkptr)brk;
     leadsize = brk - (char*)(chunk(p));
     newsize = chunksize(p) - leadsize;
@@ -3324,7 +3366,9 @@ DL_STATIC Void_t* mEMALIGn(alignment, bytes) size_t alignment; size_t bytes;
     size = chunksize(p);
     if ((CHUNK_SIZE_T)(size) > (CHUNK_SIZE_T)(nb + MINSIZE)) {
       remainder = new_chunkinfoptr();
+#ifdef DNMALLOC_DEBUG
       fprintf(stderr, "new_chunkinfoptr 10: %p\n", remainder);
+#endif
       remainder_size = size - nb;
       remainder->chunk = chunk_at_offset(chunk(p), nb);
       set_head(remainder, remainder_size | PREV_INUSE | INUSE);

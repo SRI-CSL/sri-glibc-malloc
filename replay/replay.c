@@ -24,6 +24,10 @@
  *
  *  By design it is very unforgiving on the input.
  *
+ *  Keep in mind that mhook.c misses stuff at startup,, and that the
+ *  main idea behind the replay script is to trigger similar bugs
+ *  in the client malloc library.
+ *
  */
 
 const bool silent_running = true;
@@ -312,6 +316,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
       if(val_old == NULL){
 	fprintf(stderr, "replay_realloc: Failed to find %p in the htbl\n", ptr_in);
+	/* iam: could wing it here  and just do a malloc */
 	return false;
       }
 

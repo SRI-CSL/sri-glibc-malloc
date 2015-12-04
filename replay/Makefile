@@ -33,7 +33,7 @@ ifneq (Darwin, $(findstring Darwin, ${OS}))
 endif
 
 clean:
-	rm -f *~ replay ${LPLIBRARYNAME}.* ${DSLIBRARYNAME}.*
+	rm -rf *~ replay ${LPLIBRARYNAME}.* ${DSLIBRARYNAME}.*
 
 test:  all
 ifeq (Darwin, $(findstring Darwin, ${OS}))

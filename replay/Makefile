@@ -1,31 +1,30 @@
 
-CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
+CFLAGS = -Wall  -I ../dsmalloc
 
-LPLIBRARYNAME=liblphash
 DSLIBRARYNAME=libdsmalloc
 
 OS   =  $(shell uname)
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
-LPLIB = ${LPLIBRARYNAME}.dylib
 DSLIB = 
-CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
+CFLAGS = -Wall  -I ../dsmalloc
 else
 # LINUX
-LPLIB = ${LPLIBRARYNAME}.so
 DSLIB = ${DSLIBRARYNAME}.so
-CFLAGS = -Wall  -I ../lphash -I ../dsmalloc 
+CFLAGS = -Wall  -I ../dsmalloc 
 #-DUSE_DL_PREFIX -DHAVE_MMAP
 endif
 
-all: ${LPLIB} ${DSLIB}
-	${CC} ${CFLAGS} replay.c ${LPLIB} ${DSLIB} -o replay -lpthread
+
+%.o: %.c %.h 
+	${CC} ${CFLAGS} $< -c 
 
 
-${LPLIB}:
-	cd ../lphash; make
-	cp ../lphash/${LPLIB} .
+all: ${DSLIB}
+	${CC} ${CFLAGS} replay.o lphash.o -o replay
+
+#${DSLIB}  -lpthread
 
 ${DSLIB}:
 ifneq (Darwin, $(findstring Darwin, ${OS}))
@@ -34,7 +33,7 @@ ifneq (Darwin, $(findstring Darwin, ${OS}))
 endif
 
 clean:
-	rm -rf *~ replay ${LPLIBRARYNAME}.* ${DSLIBRARYNAME}.*
+	rm -rf *~ replay ${DSLIBRARYNAME}.*
 
 test:  all
 ifeq (Darwin, $(findstring Darwin, ${OS}))
@@ -42,7 +41,7 @@ ifeq (Darwin, $(findstring Darwin, ${OS}))
 	./replay ../../analysis/data/yices_main.txt
 else
 # LINUX
-	LD_LIBRARY_PATH=. ./replay ../../analysis/data/yices_main.txt
+	./replay ../../analysis/data/yices_main.txt
 endif
 
 

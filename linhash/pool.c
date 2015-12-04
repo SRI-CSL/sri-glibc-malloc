@@ -175,10 +175,6 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 
   return true;
 }
-#else
-static inline bool sane_bucket_pool(bucket_pool_t *bpool) {
-  return true;
-}
 #endif
 
 

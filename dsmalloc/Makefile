@@ -7,11 +7,12 @@ DEFS = -DHAVE_MMAP=1          \
 	-DHAVE_SYS_PARAM_H=1  \
 	-DHAVE_FCNTL_H=1      \
 	-DHAVE_SYS_MMAN_H=1   \
+	-DUSE_MALLOC_LOCK=1   \
 	-DPARANOIA=0
 
 # iam: using the lock also triggers the metadata_is_consistent checks.
 #
-#	-DUSE_MALLOC_LOCK=1   
+
 
 #        -DUSE_DL_PREFIX	
 

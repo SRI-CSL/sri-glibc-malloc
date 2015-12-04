@@ -1,0 +1,55 @@
+
+# CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
+
+CFLAGS = -Wall  -I ../lphash
+LPLIBRARYNAME=liblphash
+
+# DSLIBRARYNAME=libdsmalloc
+
+OS   =  $(shell uname)
+
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+#  DARWIN
+LPLIB = ${LPLIBRARYNAME}.dylib
+DSLIB = 
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
+else
+# LINUX
+LPLIB = ${LPLIBRARYNAME}.so
+# DSLIB = ${DSLIBRARYNAME}.so
+# CFLAGS = -g -Wall  -I ../lphash -I ../dsmalloc 
+CFLAGS = -g -Wall  -I ../lphash
+#-DUSE_DL_PREFIX -DHAVE_MMAP
+endif
+
+# all: ${LPLIB} ${DSLIB}
+all: ${LPLIB}
+	${CC} ${CFLAGS} replay.c ${LPLIB} -o replay -lpthread
+
+
+${LPLIB}:
+	$(MAKE) -C ../lphash
+	cp ../lphash/${LPLIB} .
+
+${DSLIB}:
+ifneq (Darwin, $(findstring Darwin, ${OS}))
+	cd ../dsmalloc; make
+	cp ../dsmalloc/${DSLIB}* .
+endif
+
+clean:
+	rm -rf *~ replay ${LPLIBRARYNAME}.*
+	$(MAKE) -C ../lphash clean
+
+test:  all
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+#  DARWIN
+	./replay ../../analysis/data/yices_main.txt
+else
+# LINUX
+	LD_LIBRARY_PATH=. ./replay ../../analysis/data/yices_main.txt
+endif
+
+
+#LD_PRELOAD=./dsmalloc/libdsmalloc.so LD_LIBRARY_PATH=. ./replay ../../analysis/data/yices_main.txt
+

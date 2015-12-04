@@ -1,7 +1,9 @@
 
 
-CFLAGS = -Wall -fPIC -DNDEBUG -O3
 
+
+# CFLAGS = -Wall -fPIC -DNDEBUG -O3
+CFLAGS = -Wall -fPIC -g
 
 LIBRARYNAME=liblphash
 
@@ -27,7 +29,7 @@ all: lib test
 	${CC} ${CFLAGS} $< -c 
 
 lib: lphash.o
-	$(CC) lphash.o ${LIBFLAGS} -o ${LIB} 
+	$(CC) ${CFLAGS} lphash.o ${LIBFLAGS} -o ${LIB} 
 
 
 test: ${LIB} test.o

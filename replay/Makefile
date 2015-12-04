@@ -1,5 +1,5 @@
 
-CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc
 
 LPLIBRARYNAME=liblphash
 DSLIBRARYNAME=libdsmalloc
@@ -15,7 +15,8 @@ else
 # LINUX
 LPLIB = ${LPLIBRARYNAME}.so
 DSLIB = ${DSLIBRARYNAME}.so
-CFLAGS = -Wall  -I ../lphash -I ../dsmalloc -DUSE_DL_PREFIX -DHAVE_MMAP
+CFLAGS = -Wall  -I ../lphash -I ../dsmalloc 
+#-DUSE_DL_PREFIX -DHAVE_MMAP
 endif
 
 all: ${LPLIB} ${DSLIB}

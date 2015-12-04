@@ -1405,7 +1405,6 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
   chunkinfoptr previous, next;
   bool inuse_prev, prev_inuse, inuse;
   //  bool inuse, next_prev_inuse;
-
   if (chunk_is_mmapped(ci)) {
     // nothing to check (regarding next and prev)
     return true;

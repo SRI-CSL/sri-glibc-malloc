@@ -346,8 +346,6 @@ static segment_t* alloc_segment(pool_t* pool){
   
   segp = NULL;
 
-  assert(spool_current != NULL);
-  
   for (spool_current = pool->segments; spool_current != NULL; spool_current = spool_current->next_segment_pool) {
 
     if(spool_current->free_count > 0){

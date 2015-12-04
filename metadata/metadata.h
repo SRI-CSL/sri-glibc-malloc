@@ -148,7 +148,13 @@ extern size_t metadata_delete_all(metadata_t* htbl, const void *chunk);
 extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
 static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
-  return htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
+  chunkinfoptr retval =  htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
+  retval->prev_size = 0; 
+  retval->size = 0; 
+  retval->req = 0; 
+  retval->chunk = NULL; 
+  retval->next_bucket = NULL; 
+  return retval;
 }
 
 static inline void release_chunkinfoptr(metadata_t* htbl, chunkinfoptr bucket){

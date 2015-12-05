@@ -320,8 +320,6 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
     }
     
-    fprintf(stderr, "dlrealloc(%p, %zu)\n", val_old, sz);
-    fprintf(stderr, "<= dlrealloc(%p, %zu)\n", ptr_in, sz);
     val_new = dlrealloc(val_old, sz);
 
     if(sz == 0){

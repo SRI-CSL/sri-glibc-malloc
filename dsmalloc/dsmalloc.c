@@ -25,7 +25,7 @@
 
 #include <stdbool.h>
 
-#ifndef NDEBUG
+#ifdef METADATA_CHECKS
 static bool metadata_is_consistent(void);
 #endif
 
@@ -220,7 +220,9 @@ void dnmalloc_fork_child(void) {
 /* iam: make use of the MALLOC_PREACTION and MALLOC_POSTACTION hooks */
 static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 {
+#ifdef  METADATA_CHECKS
   (void) metadata_is_consistent();
+#endif
 
   if (dnmalloc_use_mutex)
     {
@@ -244,7 +246,9 @@ static int dnmalloc_mutex_lock(pthread_mutex_t *mutex)
 static int dnmalloc_mutex_unlock(pthread_mutex_t *mutex)
 {
 
+#ifdef  METADATA_CHECKS
   (void) metadata_is_consistent();
+#endif
 
   if (dnmalloc_use_mutex)
     {
@@ -1489,8 +1493,7 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
  * hence the metadata_initialized hack.
  */
 
-#ifndef NDEBUG
-
+#ifdef  METADATA_CHECKS
 static bool metadata_is_consistent(void){
   mstate av;
 

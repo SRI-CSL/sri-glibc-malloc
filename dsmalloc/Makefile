@@ -10,12 +10,12 @@ DEFS = -DHAVE_MMAP=1          \
 	-DUSE_MALLOC_LOCK=1   \
 	-DPARANOIA=0
 
-# iam: using the lock also triggers the metadata_is_consistent checks.
+# iam: using the lock also triggers the metadata_is_consistent checks IFF
 #
-
-
-#        -DUSE_DL_PREFIX	
-
+#        -DMETADATA_CHECKS
+#
+#	 -DUSE_MALLOC_LOCK=1 
+#
 #        -DDNMALLOC_DEBUG=1
 
 

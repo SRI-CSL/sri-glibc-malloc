@@ -1,0 +1,13 @@
+#!/bin/sh
+
+
+CMD=/home/iam/Repositories/yices2/build/x86_64-unknown-linux-gnu-release/bin/yices_smt2
+ARG=/home/iam/Repositories/yices2/tests/regress/coverage/random/QF_AUFBV/2668e3c6.smt2
+rm -f /tmp/mhook.out
+OUT=$(basename $CMD)
+MHOOK=/tmp/mhook.out LD_PRELOAD=$PWD/mhook.so ${CMD} ${ARG}
+mv /tmp/mhook.out $PWD/$OUT.txt
+
+
+
+

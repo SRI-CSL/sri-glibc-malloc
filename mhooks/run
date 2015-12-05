@@ -1,0 +1,9 @@
+#!/bin/sh
+
+CMD=${1:-firefox}
+rm -f /tmp/mhook.out
+OUT=$(basename $CMD)
+MHOOK=/tmp/mhook.out LD_PRELOAD=$PWD/mhook.so ${CMD} ${@:2}
+mv /tmp/mhook.out $PWD/$OUT.txt
+
+

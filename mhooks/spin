@@ -1,0 +1,1 @@
+LD_PRELOAD=../src/dsmalloc/libdsmalloc.so /home/iam/Repositories/yices2/build/x86_64-unknown-linux-gnu-release/bin/yices_smt2 /home/iam/Repositories/yices2/tests/regress/coverage/random/QF_AUFBV/2668e3c6.smt2

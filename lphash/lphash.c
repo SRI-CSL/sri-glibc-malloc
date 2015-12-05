@@ -6,7 +6,6 @@
 
 #include "lphash.h"
 
-
 const bool      lphash_multithreaded             = false;
 
 const size_t    lphash_segment_length            = LPSEGMENT_LENGTH;
@@ -172,7 +171,7 @@ static void lphash_cfg_init(lphash_cfg_t* cfg){
 }
 
 
-
+/* API */
 bool init_lphash(lphash_t* lhtbl){
   lphash_cfg_t* lhtbl_cfg;
   size_t index;
@@ -256,6 +255,7 @@ bool init_lphash(lphash_t* lhtbl){
   return true;
 }
 
+/* API */
 void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
@@ -294,6 +294,7 @@ void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
 }
 
 
+/* API */
 void delete_lphash(lphash_t* lhtbl){
   size_t seglen;
   size_t segindex;
@@ -360,7 +361,7 @@ static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p){
   return l;
 }
 
-lpbucket_t** lpbindex2bin(lphash_t* lhtbl, uint32_t bindex){
+static lpbucket_t** lpbindex2bin(lphash_t* lhtbl, uint32_t bindex){
   lpsegment_t* segptr;
   size_t seglen;
   size_t segindex;
@@ -389,7 +390,7 @@ lpbucket_t** lpbindex2bin(lphash_t* lhtbl, uint32_t bindex){
  *  pointer (in the appropriate segment) to the lpbucket_t* 
  *  where the start of the bucket chain should be for p 
  */
-lpbucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
+static lpbucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
   uint32_t bindex;
   
   bindex = lphash_bindex(lhtbl, p);
@@ -401,7 +402,7 @@ lpbucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
  * expanded, or else it expanded successfully. false if it failed.
  *
  */
-bool lphash_expand_check(lphash_t* lhtbl){
+static bool lphash_expand_check(lphash_t* lhtbl){
   if((lhtbl->bincount < lhtbl->cfg.bincount_max) && (lphash_load(lhtbl) > lhtbl->cfg.max_load)){
     return lphash_expand_table(lhtbl);
   }
@@ -572,6 +573,7 @@ static bool lphash_expand_table(lphash_t* lhtbl){
 
 
 
+/* API */
 bool lphash_insert(lphash_t* lhtbl, const void *key, const void *value){
   lpbucket_t* newbucket;
   lpbucket_t** binp;
@@ -601,6 +603,7 @@ bool lphash_insert(lphash_t* lhtbl, const void *key, const void *value){
   return lphash_expand_check(lhtbl);
 }
 
+/* API */
 void *lphash_lookup(lphash_t* lhtbl, const void *key){
   void* value;
   lpbucket_t** binp;
@@ -621,6 +624,7 @@ void *lphash_lookup(lphash_t* lhtbl, const void *key){
   return value;
 }
 
+/* API */
 bool lphash_delete(lphash_t* lhtbl, const void *key){
   bool found = false;
   lpbucket_t** binp;
@@ -665,6 +669,7 @@ bool lphash_delete(lphash_t* lhtbl, const void *key){
   return found;
 }
 
+/* API */
 size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
   size_t count;
   lpbucket_t** binp;
@@ -713,7 +718,7 @@ size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
 }
 
 
-size_t lpbucket_length(lpbucket_t* bucket){
+static size_t lpbucket_length(lpbucket_t* bucket){
   size_t count;
   lpbucket_t* current;
 
@@ -930,7 +935,7 @@ static void lphash_contract_table(lphash_t* lhtbl){
 /*
  * BD's: Hash code for a 64bit integer
  */
-uint32_t lpjenkins_hash_uint64(uint64_t x) {
+static uint32_t lpjenkins_hash_uint64(uint64_t x) {
   uint32_t a, b, c;
 
   a = (uint32_t) x; // low order bits
@@ -945,7 +950,7 @@ uint32_t lpjenkins_hash_uint64(uint64_t x) {
 /*
  * BD's: Hash code for an arbitrary pointer p
  */
-uint32_t lpjenkins_hash_ptr(const void *p) {
+static uint32_t lpjenkins_hash_ptr(const void *p) {
   return lpjenkins_hash_uint64((uint64_t) ((size_t) p));
 }
 
@@ -984,12 +989,13 @@ typedef struct lppool_s {
   lpbucket_pool_t* buckets;
 } lppool_t;
 
+
 #ifndef NDEBUG
-static bool sane_bucket_pool(lpbucket_pool_t* bpool);
+static bool lpsane_bucket_pool(lpbucket_pool_t* bpool);
 #endif
 
 /* for now we do not assume that the underlying memory has been mmapped (i.e zeroed) */
-static void init_bucket_pool(lpbucket_pool_t* bp){
+static void init_lpbucket_pool(lpbucket_pool_t* bp){
   size_t scale;
   size_t bindex;
 
@@ -1002,11 +1008,11 @@ static void init_bucket_pool(lpbucket_pool_t* bp){
     bp->pool[bindex].bucket_pool_ptr = bp;
   }
 
-  assert(sane_bucket_pool(bp));
+  assert(lpsane_bucket_pool(bp));
 }
 
 /* for now we  do not assume assume that the underlying memory has been mmapped (i.e zeroed) */
-static void init_segment_pool(lpsegment_pool_t* sp){
+static void init_lpsegment_pool(lpsegment_pool_t* sp){
   size_t scale;
   size_t sindex;
 
@@ -1022,7 +1028,7 @@ static void init_segment_pool(lpsegment_pool_t* sp){
 
 }
 
-static void* pool_mmap(void* oldaddr, size_t size){
+static void* lppool_mmap(void* oldaddr, size_t size){
   void* memory;
   int flags;
   int protection;
@@ -1047,7 +1053,7 @@ static void* pool_mmap(void* oldaddr, size_t size){
   return memory;
 }
 
-static bool pool_munmap(void* memory, size_t size){
+static bool lppool_munmap(void* memory, size_t size){
   int rcode;
 
   rcode = munmap(memory, size);
@@ -1056,34 +1062,34 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-static void* new_directory(lppool_t* pool, size_t size){
-  pool->directory = pool_mmap(pool->directory, size);
+static void* new_lpdirectory(lppool_t* pool, size_t size){
+  pool->directory = lppool_mmap(pool->directory, size);
   return pool->directory;
 }
 
-static lpsegment_pool_t* new_segments(void){
+static lpsegment_pool_t* new_lpsegments(void){
   lpsegment_pool_t* sptr;
-  sptr = pool_mmap(NULL, sizeof(lpsegment_pool_t));
+  sptr = lppool_mmap(NULL, sizeof(lpsegment_pool_t));
   if(sptr == NULL){
     return NULL;
   }
-  init_segment_pool(sptr);
+  init_lpsegment_pool(sptr);
   return sptr;
 }
 
-static void* new_buckets(void){
+static void* new_lpbuckets(void){
   lpbucket_pool_t* bptr;
-  bptr = pool_mmap(NULL, sizeof(lpbucket_pool_t));
+  bptr = lppool_mmap(NULL, sizeof(lpbucket_pool_t));
   if(bptr == NULL){
     return NULL;
   }
-  init_bucket_pool(bptr);
+  init_lpbucket_pool(bptr);
   return bptr;
 }
 
 #ifndef NDEBUG
 #if 0
-static bool sane_bucket_pool(lpbucket_pool_t* bpool){
+static bool lpsane_bucket_pool(lpbucket_pool_t* bpool){
   size_t free_count;
   size_t bit_free_count;
   size_t scale;
@@ -1104,7 +1110,7 @@ static bool sane_bucket_pool(lpbucket_pool_t* bpool){
   }
 
   if(free_count != bit_free_count){
-    fprintf(stderr, "sane_bucket_pool: free_count = %zu bit_free_count = %zu\n", free_count, bit_free_count);
+    fprintf(stderr, "lpsane_bucket_pool: free_count = %zu bit_free_count = %zu\n", free_count, bit_free_count);
     for(scale = 0; scale < BP_SCALE; scale++){
       fprintf(stderr, "\tbpool_current->bitmasks[%zu] = %"PRIu64"\n", scale, bpool->bitmasks[scale]);
     }
@@ -1113,7 +1119,7 @@ static bool sane_bucket_pool(lpbucket_pool_t* bpool){
 
   for(bindex = 0; bindex < BP_LENGTH; bindex++){
     if(bpool->pool[bindex].bucket_pool_ptr != bpool){
-      fprintf(stderr, "sane_bucket_pool: bucket_pool_ptr = %p not correct:  lpbucket_pool_t* %p\n",
+      fprintf(stderr, "lpsane_bucket_pool: bucket_pool_ptr = %p not correct:  lpbucket_pool_t* %p\n",
 	      bpool->pool[bindex].bucket_pool_ptr, bpool);
     }
   }
@@ -1121,7 +1127,7 @@ static bool sane_bucket_pool(lpbucket_pool_t* bpool){
   return true;
 }
 #else
-static inline bool sane_bucket_pool(lpbucket_pool_t *bpool) {
+static inline bool lpsane_bucket_pool(lpbucket_pool_t *bpool) {
   return true;
 }
 #endif
@@ -1129,23 +1135,23 @@ static inline bool sane_bucket_pool(lpbucket_pool_t *bpool) {
 
 
 static void lpinit_pool(lppool_t* pool){
-  pool->directory = new_directory(pool, LPDIRECTORY_LENGTH * sizeof(void*));
-  pool->segments = new_segments();
-  pool->buckets = new_buckets();
+  pool->directory = new_lpdirectory(pool, LPDIRECTORY_LENGTH * sizeof(void*));
+  pool->segments = new_lpsegments();
+  pool->buckets = new_lpbuckets();
 }
 
 
 // courtesy of BD 
 #ifdef __GNUC__
 
-static inline uint32_t ctz64(uint64_t x) {
+static inline uint32_t lpctz64(uint64_t x) {
   assert(x != 0);
   return __builtin_ctzl(x);
 }
 
 #else
 
-static inline uint32_t ctz64(uint64_t x) {
+static inline uint32_t lpctz64(uint64_t x) {
   uint64_t m;
   uint32_t i;
 
@@ -1162,35 +1168,35 @@ static inline uint32_t ctz64(uint64_t x) {
 #endif
 
 /* returns the index of the lowest order bit that is zero */
-static uint32_t get_free_bit(uint64_t mask){
+static uint32_t get_free_lpbit(uint64_t mask){
   uint32_t index;
   uint64_t flipped;
   assert(mask != UINT64_MAX);
   flipped = ~mask;
-  index = ctz64(flipped);  
+  index = lpctz64(flipped);  
   return index;
 }
 
 #ifndef NDEBUG
-static inline bool get_bit(uint64_t mask, uint32_t index) {
+static inline bool get_lpbit(uint64_t mask, uint32_t index) {
   assert((0 <= index) && (index < 64));
   return (mask & (((uint64_t)1) << index)) ? true : false;
 }
 #endif
 
 /* sets the bit specified by the index in the mask */
-static inline uint64_t set_bit(uint64_t mask, uint32_t index) {
+static inline uint64_t set_lpbit(uint64_t mask, uint32_t index) {
   assert(0 <= index && index < 64);
   return mask | (((uint64_t)1) << index);
 }
 
 /* clear the bit */
-static inline uint64_t clear_bit(uint64_t mask, uint32_t index) {
+static inline uint64_t clear_lpbit(uint64_t mask, uint32_t index) {
   assert(0 <= index && index < 64);
   return mask & ~(((uint64_t)1) << index); 
 }
 
-static lpbucket_t* alloc_bucket(lppool_t* pool){
+static lpbucket_t* alloc_lpbucket(lppool_t* pool){
   lpbucket_t *buckp;
   lpbucket_pool_t* bpool_current;
   size_t scale;
@@ -1200,7 +1206,7 @@ static lpbucket_t* alloc_bucket(lppool_t* pool){
 
   // BD: use a for loop
   for (bpool_current = pool->buckets; bpool_current != NULL; bpool_current = bpool_current->next_bucket_pool) {
-    assert(sane_bucket_pool(bpool_current));
+    assert(lpsane_bucket_pool(bpool_current));
 
     if (bpool_current->free_count > 0) {
 
@@ -1209,14 +1215,14 @@ static lpbucket_t* alloc_bucket(lppool_t* pool){
 	if(bpool_current->bitmasks[scale] < UINT64_MAX){
 
 	  /* ok there should be one here; lets find it */
-	  index = get_free_bit(bpool_current->bitmasks[scale]);
+	  index = get_free_lpbit(bpool_current->bitmasks[scale]);
 
 	  assert((0 <= index) && (index < 64));
 	  buckp = &bpool_current->pool[(scale * 64) + index];
-	  bpool_current->bitmasks[scale] = set_bit(bpool_current->bitmasks[scale], index);
+	  bpool_current->bitmasks[scale] = set_lpbit(bpool_current->bitmasks[scale], index);
 	  bpool_current->free_count --;
 
-	  assert(sane_bucket_pool(bpool_current));
+	  assert(lpsane_bucket_pool(bpool_current));
 	  assert(buckp != NULL);
 
 	  return buckp;
@@ -1229,7 +1235,7 @@ static lpbucket_t* alloc_bucket(lppool_t* pool){
   assert(bpool_current  == NULL);
 
   /* need to allocate another bpool */
-  bpool_current = new_buckets();
+  bpool_current = new_lpbuckets();
   if (bpool_current != NULL) {
     /* put the new bucket up front */
     bpool_current->next_bucket_pool = pool->buckets;
@@ -1240,14 +1246,14 @@ static lpbucket_t* alloc_bucket(lppool_t* pool){
     bpool_current->free_count --;
     bpool_current->bitmasks[0] = 1; // low-order bit is set
   
-    assert(sane_bucket_pool(bpool_current));
+    assert(lpsane_bucket_pool(bpool_current));
     assert(buckp != NULL);
   }
 
   return buckp;
 }
 
-static bool free_bucket(lppool_t* pool, lpbucket_t* buckp){
+static bool free_lpbucket(lppool_t* pool, lpbucket_t* buckp){
   lpbucket_pool_t* bpool;
   size_t index;
   size_t pmask_index;
@@ -1261,26 +1267,26 @@ static bool free_bucket(lppool_t* pool, lpbucket_t* buckp){
 
   /* sanity check */
   assert((bpool->pool <= buckp) && (buckp < bpool->pool + BP_LENGTH));
-  assert(sane_bucket_pool(bpool));
+  assert(lpsane_bucket_pool(bpool));
 
   index = buckp - bpool->pool;
 
   pmask_index = index / 64;
   pmask_bit = index % 64;
 
-  assert(get_bit(bpool->bitmasks[pmask_index], pmask_bit)); 
+  assert(get_lpbit(bpool->bitmasks[pmask_index], pmask_bit)); 
 
-  bpool->bitmasks[pmask_index] = clear_bit(bpool->bitmasks[pmask_index], pmask_bit);
+  bpool->bitmasks[pmask_index] = clear_lpbit(bpool->bitmasks[pmask_index], pmask_bit);
   bpool->free_count ++;
   
   assert((bpool->free_count > 0) && (bpool->free_count <= BP_LENGTH));
-  assert(sane_bucket_pool(bpool));
+  assert(lpsane_bucket_pool(bpool));
   
   return true;
 }
 
 
-static lpsegment_t* alloc_segment(lppool_t* pool){
+static lpsegment_t* alloc_lpsegment(lppool_t* pool){
   lpsegment_t *segp;
   lpsegment_pool_t* spool_current;
   size_t scale;
@@ -1301,13 +1307,13 @@ static lpsegment_t* alloc_segment(lppool_t* pool){
 	if(spool_current->bitmasks[scale] < UINT64_MAX){
 
 	  /* ok there should be one here; lets find it */
-	  index = get_free_bit(spool_current->bitmasks[scale]);
+	  index = get_free_lpbit(spool_current->bitmasks[scale]);
 
 	  assert((0 <= index) && (index < 64));
 
 	  /* ok we can use this one */
 	  segp = &spool_current->pool[(scale * 64) + index];
-	  spool_current->bitmasks[scale] = set_bit(spool_current->bitmasks[scale], index);
+	  spool_current->bitmasks[scale] = set_lpbit(spool_current->bitmasks[scale], index);
 	  spool_current->free_count --;
 
 	  assert(segp != NULL);
@@ -1327,7 +1333,7 @@ static lpsegment_t* alloc_segment(lppool_t* pool){
     /* need to allocate another spool */
     assert(spool_current  == NULL);
     
-    spool_current = new_segments();
+    spool_current = new_lpsegments();
     if(spool_current == NULL){
       return NULL;
     }
@@ -1345,7 +1351,7 @@ static lpsegment_t* alloc_segment(lppool_t* pool){
   return segp;
 }
 
-static bool free_segment(lppool_t* pool, lpsegment_t* segp){
+static bool free_lpsegment(lppool_t* pool, lpsegment_t* segp){
   lpsegment_pool_t* spool;
 
   size_t index;
@@ -1366,8 +1372,8 @@ static bool free_segment(lppool_t* pool, lpsegment_t* segp){
   pmask_index = index / 64;
   pmask_bit = index % 64;
 
-  assert(get_bit(spool->bitmasks[pmask_index], pmask_bit));
-  spool->bitmasks[pmask_index] = clear_bit(spool->bitmasks[pmask_index], pmask_bit); 
+  assert(get_lpbit(spool->bitmasks[pmask_index], pmask_bit));
+  spool->bitmasks[pmask_index] = clear_lpbit(spool->bitmasks[pmask_index], pmask_bit); 
   spool->free_count ++;
 
   assert((spool->free_count > 0) && (spool->free_count <= SP_LENGTH));
@@ -1376,61 +1382,59 @@ static bool free_segment(lppool_t* pool, lpsegment_t* segp){
 }
 
 /* just one for now */
-static bool the_pool_is_ok = false;
+static bool the_lppool_is_ok = false;
 static lppool_t the_pool;
 
-static void check_pool(void){
-  if(!the_pool_is_ok){
+static void check_lppool(void){
+  if(!the_lppool_is_ok){
     lpinit_pool(&the_pool);
-    the_pool_is_ok = true;
+    the_lppool_is_ok = true;
   }
 }
 
-static void *pool_allocate(lppool_t* pool, lpmemtype_t type, size_t size);
+static void *lppool_allocate(lppool_t* pool, lpmemtype_t type, size_t size);
 
-static void pool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size);
+static void lppool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size);
 
+static void *_lppool_allocate(lpmemtype_t type, size_t size);
 
-
-static void *_pool_allocate(lpmemtype_t type, size_t size);
-
-static void _pool_release(lpmemtype_t type, void *ptr, size_t size);
+static void _lppool_release(lpmemtype_t type, void *ptr, size_t size);
 
 
-void lpinit_pool_memcxt(lpmemcxt_t* pmem){
+static void lpinit_pool_memcxt(lpmemcxt_t* pmem){
   if(pmem != NULL){
-    pmem->allocate =  _pool_allocate;
-    pmem->release = _pool_release;
+    pmem->allocate =  _lppool_allocate;
+    pmem->release = _lppool_release;
   }
 }
 
-static void *_pool_allocate(lpmemtype_t type, size_t size){
-  return pool_allocate(&the_pool, type, size);
+static void *_lppool_allocate(lpmemtype_t type, size_t size){
+  return lppool_allocate(&the_pool, type, size);
 }
 
-static void _pool_release(lpmemtype_t type, void *ptr, size_t size){
-  pool_release(&the_pool, type, ptr, size);
+static void _lppool_release(lpmemtype_t type, void *ptr, size_t size){
+  lppool_release(&the_pool, type, ptr, size);
 }
 
 
 
-static void *pool_allocate(lppool_t* pool, lpmemtype_t type, size_t size){
+static void *lppool_allocate(lppool_t* pool, lpmemtype_t type, size_t size){
   void *memory;
-  check_pool();
+  check_lppool();
   switch(type){
   case LPDIRECTORY: {
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
     // how many hash tables use this pool?
-    memory = new_directory(pool, size);
+    memory = new_lpdirectory(pool, size);
     break;
   }
   case LPSEGMENT: {
-    memory = alloc_segment(pool);
+    memory = alloc_lpsegment(pool);
     break;
   }
   case LPBUCKET: {
-    memory = alloc_bucket(pool);
+    memory = alloc_lpbucket(pool);
     break;
   }
   default: assert(false);
@@ -1440,22 +1444,22 @@ static void *pool_allocate(lppool_t* pool, lpmemtype_t type, size_t size){
 }
 
 
-static void pool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size){
-  check_pool();
+static void lppool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size){
+  check_lppool();
   switch(type){
   case LPDIRECTORY: {
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
-    pool_munmap(ptr, size);
+    lppool_munmap(ptr, size);
 
     break;
   }
   case LPSEGMENT: {
-    free_segment(pool, ptr);
+    free_lpsegment(pool, ptr);
     break;
   }
   case LPBUCKET: {
-    free_bucket(pool, ptr);
+    free_lpbucket(pool, ptr);
     break;
   }
   default: assert(false);
@@ -1463,8 +1467,8 @@ static void pool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t siz
   
 }
 
-
-void dump_lppool(FILE* fp){
+#if 0
+static void dump_lppool(FILE* fp){
   float bp = sizeof(lpbucket_pool_t);
   float sp = sizeof(lpsegment_pool_t);
   bp /= 4096;
@@ -1475,4 +1479,4 @@ void dump_lppool(FILE* fp){
   fprintf(fp, "pages: %f\n", sp);
 
 }
-
+#endif

@@ -569,7 +569,6 @@ static void malloc_mmap_state(void);
 static chunkinfoptr new_chunkinfoptr(void);  
 
 static void hashtable_add (chunkinfoptr ci);
-static void hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert);
 static void hashtable_remove (mchunkptr p);              
 static void hashtable_skiprm (chunkinfoptr ci_orig, chunkinfoptr ci_todelete);
 static chunkinfoptr hashtable_lookup (mchunkptr p);
@@ -1241,16 +1240,6 @@ hashtable_add (chunkinfoptr ci)
 }
 
 static void
-hashtable_insert (chunkinfoptr ci_orig, chunkinfoptr ci_insert)
-{
-  mstate av = get_malloc_state();
-  if( ! metadata_add(&av->htbl, ci_insert)){
-    abort();
-  }
-
-}
-
-static void
 hashtable_remove (mchunkptr p) 
 {
   mstate av = get_malloc_state();
@@ -1643,6 +1632,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           correction = MALLOC_ALIGNMENT - front_misalign;
           p->chunk = (mchunkptr)(mm + correction);
 	  p->prev_size = correction;
+	  assert(size > correction);
           set_head(p, (size - correction) |INUSE|IS_MMAPPED);
         }
         else {
@@ -1944,6 +1934,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	fprintf(stderr, "new_chunkinfoptr 1: %p\n", av->top);
 #endif
         av->top->chunk = (mchunkptr)aligned_brk;
+	assert(snd_brk > aligned_brk + correction);
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
 #ifdef DNMALLOC_DEBUG
 	fprintf(stderr, "Adjust top, top %p size %lu\n", 
@@ -2140,6 +2131,7 @@ static int sYSTRIm(pad, av) size_t pad; mstate av;
         if (released != 0) {
           /* Success. Adjust top. */
           av->sbrked_mem -= released;
+	  assert(top_size > released);
           set_head(av->top, (top_size - released) | PREV_INUSE);
           check_malloc_state();
           return 1;
@@ -3049,10 +3041,14 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
 	 fprintf(stderr, "coalescing remove 3\n");
 #endif
          hashtable_remove(chunk(av->top));
+	 // BD: big bug here. We can't keep a pointer to a dead chunkinfo
+	 // We must reallocate a new top.
+	 av->top = new_chunkinfoptr();
          av->top->chunk = chunk_at_offset(chunk(oldp), nb);
+	 assert(newsize > nb);
          set_head(av->top, (newsize - nb) | PREV_INUSE);
          /* av->top->chunk has been moved move in hashtable */
-         hashtable_insert(oldp, av->top);
+         hashtable_add(av->top);
 	 guard_set(av->guard_stored, oldp, bytes, nb);
          return chunk(oldp);
       }
@@ -3206,6 +3202,7 @@ DL_STATIC Void_t* rEALLOc(oldmem, bytes) Void_t* oldmem; size_t bytes;
       hashtable_remove_mmapped(chunk(oldp));
        
       oldp->chunk = (mchunkptr)(cp + offset);
+      assert(newsize > offset);
       set_head(oldp, (newsize - offset)|IS_MMAPPED|INUSE);
       
       hashtable_add(oldp);

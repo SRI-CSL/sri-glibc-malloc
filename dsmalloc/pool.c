@@ -266,6 +266,7 @@ static bucket_t* alloc_bucket(pool_t* pool){
 
 	  assert((0 <= index) && (index < 64));
 	  buckp = &bpool_current->pool[(scale * 64) + index];
+	  assert(! get_bit(bpool_current->bitmasks[scale], index));
 	  bpool_current->bitmasks[scale] = set_bit(bpool_current->bitmasks[scale], index);
 	  bpool_current->free_count --;
 	  assert(sane_bucket_pool(bpool_current));
@@ -279,10 +280,10 @@ static bucket_t* alloc_bucket(pool_t* pool){
   }
 
   assert(buckp == NULL);
-    assert(bpool_current  == NULL);
+  assert(bpool_current  == NULL);
 
   /* need to allocate another bpool */
-    bpool_current = new_buckets();
+  bpool_current = new_buckets();
   if (bpool_current != NULL) {
     /* put the new bucket up front */
     bpool_current->next_bucket_pool = pool->buckets;
@@ -293,7 +294,7 @@ static bucket_t* alloc_bucket(pool_t* pool){
     bpool_current->free_count --;
     bpool_current->bitmasks[0] = 1; // low-order bit is set
   
-  assert(sane_bucket_pool(bpool_current));
+    assert(sane_bucket_pool(bpool_current));
     assert(buckp != NULL);
   }
 
@@ -360,6 +361,7 @@ static segment_t* alloc_segment(pool_t* pool){
 
 	  /* ok we can use this one */
 	  segp = &spool_current->pool[(scale * 64) + index];
+	  assert(! get_bit(spool_current->bitmasks[scale], index));
 	  spool_current->bitmasks[scale] = set_bit(spool_current->bitmasks[scale], index);
 	  spool_current->free_count --;
 
@@ -373,13 +375,11 @@ static segment_t* alloc_segment(pool_t* pool){
   }
 
   assert(segp == NULL);
-    assert(spool_current  == NULL);
-
+  assert(spool_current  == NULL);
     
-    spool_current = new_segments();
+  spool_current = new_segments();
 
-  if(spool_current != NULL){
-  
+  if(spool_current != NULL){  
     /* put the new segment up front */
     spool_current->next_segment_pool = pool->segments;
     pool->segments = spool_current;
@@ -388,7 +388,6 @@ static segment_t* alloc_segment(pool_t* pool){
     segp = &spool_current->pool[0];
     spool_current->free_count --;
     spool_current->bitmasks[0] = 1;
-
   } 
 
   return segp;

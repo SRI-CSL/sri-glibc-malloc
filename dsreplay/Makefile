@@ -6,7 +6,7 @@ DEFS = -DHAVE_MMAP=1          \
 	-DHAVE_FCNTL_H=1      \
 	-DHAVE_SYS_MMAN_H=1   \
         -DUSE_DL_PREFIX	      \
-	-DPARANOIA=0
+	-DPARANOIA=3
 
 #        -DDNMALLOC_DEBUG=1
 #

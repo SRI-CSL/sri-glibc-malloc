@@ -28,7 +28,7 @@
  *
  */
 
-const bool silent_running = true;
+const bool silent_running = false;
 
 const size_t BUFFERSZ = 1024;
 
@@ -319,7 +319,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
       }
 
     }
-    
+
     val_new = dlrealloc(val_old, sz);
 
     if(sz == 0){

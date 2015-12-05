@@ -46,19 +46,19 @@ static bool lphash_expand_table(lphash_t* lhtbl);
 static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p);
 
 /* returns a pointer to the bin i.e. the top bucket at the given bindex  */
-static lpbucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex);
+static lpbucket_t** lpbindex2bin(lphash_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
-static size_t bucket_length(lpbucket_t* bucket);
+static size_t lpbucket_length(lpbucket_t* bucket);
 
 /* for sanity checking */
-static bool is_power_of_two(uint32_t n) {
+static bool lpis_power_of_two(uint32_t n) {
   return (n & (n - 1)) == 0;
 }
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
-static inline size_t mod_power_of_two(size_t x, size_t y){
-  assert(is_power_of_two(y));
+static inline size_t lpmod_power_of_two(size_t x, size_t y){
+  assert(lpis_power_of_two(y));
   return x & (y - 1);
 }
 
@@ -67,11 +67,11 @@ static inline size_t mod_power_of_two(size_t x, size_t y){
  *
  */
 
-static uint32_t jenkins_hash_uint64(uint64_t x);
+static uint32_t lpjenkins_hash_uint64(uint64_t x);
 
-static uint32_t jenkins_hash_ptr(const void *p);
+static uint32_t lpjenkins_hash_ptr(const void *p);
 
-static void init_pool_memcxt(lpmemcxt_t* pmem);
+static void lpinit_pool_memcxt(lpmemcxt_t* pmem);
 
 
 /* 
@@ -81,7 +81,7 @@ static void init_pool_memcxt(lpmemcxt_t* pmem);
  *   http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
  *
  */
-static uint32_t next_power_of_two(uint32_t num){
+static uint32_t lpnext_power_of_two(uint32_t num){
   uint32_t val;
   if(num == 0){
     val = 2;
@@ -103,7 +103,7 @@ static uint32_t next_power_of_two(uint32_t num){
 
 
 /* Add two size_t values, checking for overflow */
-static bool add_size(size_t s1, size_t s2, size_t* sum){
+static bool lpadd_size(size_t s1, size_t s2, size_t* sum){
   size_t result;
   
   assert(sum != NULL);
@@ -120,7 +120,7 @@ static bool add_size(size_t s1, size_t s2, size_t* sum){
 
 
 /* Multiply two size_t values, checking for overflow */
-static bool mul_size(size_t s1, size_t s2, size_t* prod){
+static bool lpmul_size(size_t s1, size_t s2, size_t* prod){
   size_t result;
 
   assert(prod != NULL);
@@ -145,7 +145,7 @@ static inline size_t lphash_load(lphash_t* lhtbl){
 
 static void lphash_cfg_init(lphash_cfg_t* cfg){
 
-  init_pool_memcxt(&(cfg->memcxt));
+  lpinit_pool_memcxt(&(cfg->memcxt));
 
   cfg->multithreaded            = lphash_multithreaded;
   cfg->segment_length           = lphash_segment_length;
@@ -155,17 +155,17 @@ static void lphash_cfg_init(lphash_cfg_t* cfg){
   cfg->bincount_max             = UINT32_MAX;
   cfg->directory_length_max     = cfg->bincount_max / LPSEGMENT_LENGTH;
 
-  assert(is_power_of_two(cfg->segment_length));
-  assert(is_power_of_two(cfg->initial_directory_length));
+  assert(lpis_power_of_two(cfg->segment_length));
+  assert(lpis_power_of_two(cfg->initial_directory_length));
 
   /* in non debug mode we do our best... */
 
-  if(!is_power_of_two(cfg->segment_length)){
-    cfg->segment_length = next_power_of_two(cfg->segment_length);
+  if(!lpis_power_of_two(cfg->segment_length)){
+    cfg->segment_length = lpnext_power_of_two(cfg->segment_length);
   }
   
-  if(!is_power_of_two(cfg->initial_directory_length)){
-    cfg->initial_directory_length = next_power_of_two(cfg->initial_directory_length);
+  if(!lpis_power_of_two(cfg->initial_directory_length)){
+    cfg->initial_directory_length = lpnext_power_of_two(cfg->initial_directory_length);
   }
   
   
@@ -205,7 +205,7 @@ bool init_lphash(lphash_t* lhtbl){
 
   
   /* the size of the directory */
-  success = mul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
+  success = lpmul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -219,7 +219,7 @@ bool init_lphash(lphash_t* lhtbl){
   }
   
   /* mininum number of bins    [{ N }]   */
-  success = mul_size(lhtbl_cfg->segment_length, lhtbl->directory_current, &binsz);
+  success = lpmul_size(lhtbl_cfg->segment_length, lhtbl->directory_current, &binsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -241,7 +241,7 @@ bool init_lphash(lphash_t* lhtbl){
   /* the current number of buckets */
   lhtbl->bincount = lhtbl->N;
 
-  assert(is_power_of_two(lhtbl->maxp));
+  assert(lpis_power_of_two(lhtbl->maxp));
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
@@ -279,9 +279,9 @@ void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
   }
 
   for(index = 0; index < lhtbl->bincount; index++){
-    bp = bindex2bin(lhtbl, index);
+    bp = lpbindex2bin(lhtbl, index);
     assert(bp != NULL);
-    blen = bucket_length(*bp);
+    blen = lpbucket_length(*bp);
     if( blen > maxlength ){  maxlength = blen; }
     if(showloads && blen != 0){
       fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
@@ -327,7 +327,7 @@ void delete_lphash(lphash_t* lhtbl){
       memcxt->release(LPSEGMENT, current_segment,  sizeof(lpsegment_t));
   }
   
-  success = mul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
+  success = lpmul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
   assert(success);
   if(success){
     memcxt->release(LPDIRECTORY, lhtbl->directory, dirsz);
@@ -342,9 +342,9 @@ static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p){
   size_t next_maxp;
 
   
-  jhash  = jenkins_hash_ptr(p);
+  jhash  = lpjenkins_hash_ptr(p);
 
-  l = mod_power_of_two(jhash, lhtbl->maxp);
+  l = lpmod_power_of_two(jhash, lhtbl->maxp);
 
   if(l < lhtbl->p){
 
@@ -352,7 +352,7 @@ static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p){
 
     /* if we can expand to next_maxp we use that */
     if(next_maxp < lhtbl->cfg.bincount_max){
-      l = mod_power_of_two(jhash, next_maxp);
+      l = lpmod_power_of_two(jhash, next_maxp);
     }
     
   }
@@ -360,7 +360,7 @@ static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p){
   return l;
 }
 
-lpbucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex){
+lpbucket_t** lpbindex2bin(lphash_t* lhtbl, uint32_t bindex){
   lpsegment_t* segptr;
   size_t seglen;
   size_t segindex;
@@ -379,7 +379,7 @@ lpbucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex){
 
   segptr = lhtbl->directory[segindex];
 
-  index = mod_power_of_two(bindex, seglen);
+  index = lpmod_power_of_two(bindex, seglen);
 
   return &(segptr->segment[index]);
 }
@@ -394,7 +394,7 @@ lpbucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
   
   bindex = lphash_bindex(lhtbl, p);
 
-  return bindex2bin(lhtbl, bindex);
+  return lpbindex2bin(lhtbl, bindex);
 }
 
 /* check if the table needs to be expanded; true if either it didn't need to be 
@@ -430,7 +430,7 @@ static bool lphash_expand_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  success = mul_size(new_dirlen, sizeof(lpsegment_t*), &new_dirsz);
+  success = lpmul_size(new_dirlen, sizeof(lpsegment_t*), &new_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -452,7 +452,7 @@ static bool lphash_expand_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt){
   
   lhtbl->directory_length = new_dirlen;
 
-  success = mul_size(old_dirlen, sizeof(lpsegment_t*), &old_dirsz);
+  success = lpmul_size(old_dirlen, sizeof(lpsegment_t*), &old_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
@@ -478,7 +478,7 @@ static bool lphash_expand_table(lphash_t* lhtbl){
 
   memcxt = &(lhtbl->cfg.memcxt);
 
-  success = add_size(lhtbl->maxp, lhtbl->p, &new_bindex);
+  success = lpadd_size(lhtbl->maxp, lhtbl->p, &new_bindex);
   if(!success){
     errno = EINVAL;
     return false;
@@ -496,13 +496,13 @@ static bool lphash_expand_table(lphash_t* lhtbl){
 
   if(new_bindex < lhtbl->cfg.bincount_max){
 
-    oldbucketp = bindex2bin(lhtbl, lhtbl->p);
+    oldbucketp = lpbindex2bin(lhtbl, lhtbl->p);
 
     seglen = lhtbl->cfg.segment_length;
 
     new_segindex = new_bindex / seglen;
 
-    newsegindex = mod_power_of_two(new_bindex, seglen);  
+    newsegindex = lpmod_power_of_two(new_bindex, seglen);  
     
     /* expand address space; if necessary create new segment */  
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
@@ -713,7 +713,7 @@ size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
 }
 
 
-size_t bucket_length(lpbucket_t* bucket){
+size_t lpbucket_length(lpbucket_t* bucket){
   size_t count;
   lpbucket_t* current;
 
@@ -754,14 +754,14 @@ static void lphash_contract_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt){
   curlen = lhtbl->directory_current;
   newlen = oldlen  >> 1;
 
-  success = mul_size(newlen, sizeof(lpsegment_t*), &newsz);
+  success = lpmul_size(newlen, sizeof(lpsegment_t*), &newsz);
 
   assert(success);
   if(! success ){
     return;
   }
   
-  success = mul_size(oldlen, sizeof(lpsegment_t*), &oldsz);
+  success = lpmul_size(oldlen, sizeof(lpsegment_t*), &oldsz);
 
   assert(success);
   if(! success ){
@@ -859,7 +859,7 @@ static void lphash_contract_table(lphash_t* lhtbl){
     srcindex = lhtbl->maxp - 1;
   } else {
     tgtindex = lhtbl->p - 1;
-    success = add_size(lhtbl->maxp, lhtbl->p - 1, &srcindex);
+    success = lpadd_size(lhtbl->maxp, lhtbl->p - 1, &srcindex);
     assert(success);
     if( ! success ){
       return;
@@ -872,9 +872,9 @@ static void lphash_contract_table(lphash_t* lhtbl){
 
   /* get the two buckets involved; moving src to tgt */
   
-  srcbin = bindex2bin(lhtbl, srcindex);
+  srcbin = lpbindex2bin(lhtbl, srcindex);
 
-  tgtbin = bindex2bin(lhtbl, tgtindex);
+  tgtbin = lpbindex2bin(lhtbl, tgtindex);
 
   /* move the buckets */
   move_buckets(srcbin, tgtbin);
@@ -885,7 +885,7 @@ static void lphash_contract_table(lphash_t* lhtbl){
 
   segindex = srcindex / seglen;
 
-  if(mod_power_of_two(srcindex, seglen) == 0){
+  if(lpmod_power_of_two(srcindex, seglen) == 0){
     /* ok we can reclaim it */
     memcxt->release(LPSEGMENT, lhtbl->directory[segindex], sizeof(lpsegment_t));
     lhtbl->directory[segindex] = NULL;
@@ -930,7 +930,7 @@ static void lphash_contract_table(lphash_t* lhtbl){
 /*
  * BD's: Hash code for a 64bit integer
  */
-uint32_t jenkins_hash_uint64(uint64_t x) {
+uint32_t lpjenkins_hash_uint64(uint64_t x) {
   uint32_t a, b, c;
 
   a = (uint32_t) x; // low order bits
@@ -945,8 +945,8 @@ uint32_t jenkins_hash_uint64(uint64_t x) {
 /*
  * BD's: Hash code for an arbitrary pointer p
  */
-uint32_t jenkins_hash_ptr(const void *p) {
-  return jenkins_hash_uint64((uint64_t) ((size_t) p));
+uint32_t lpjenkins_hash_ptr(const void *p) {
+  return lpjenkins_hash_uint64((uint64_t) ((size_t) p));
 }
 
 
@@ -1128,7 +1128,7 @@ static inline bool sane_bucket_pool(lpbucket_pool_t *bpool) {
 #endif
 
 
-static void init_pool(lppool_t* pool){
+static void lpinit_pool(lppool_t* pool){
   pool->directory = new_directory(pool, LPDIRECTORY_LENGTH * sizeof(void*));
   pool->segments = new_segments();
   pool->buckets = new_buckets();
@@ -1381,7 +1381,7 @@ static lppool_t the_pool;
 
 static void check_pool(void){
   if(!the_pool_is_ok){
-    init_pool(&the_pool);
+    lpinit_pool(&the_pool);
     the_pool_is_ok = true;
   }
 }
@@ -1397,7 +1397,7 @@ static void *_pool_allocate(lpmemtype_t type, size_t size);
 static void _pool_release(lpmemtype_t type, void *ptr, size_t size);
 
 
-void init_pool_memcxt(lpmemcxt_t* pmem){
+void lpinit_pool_memcxt(lpmemcxt_t* pmem){
   if(pmem != NULL){
     pmem->allocate =  _pool_allocate;
     pmem->release = _pool_release;

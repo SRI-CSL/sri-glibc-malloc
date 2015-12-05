@@ -6,7 +6,7 @@ DEFS = -DHAVE_MMAP=1          \
 	-DHAVE_FCNTL_H=1      \
 	-DHAVE_SYS_MMAN_H=1   \
         -DUSE_DL_PREFIX	      \
-	-DPARANOIA=3
+	-DPARANOIA=0
 
 #        -DDNMALLOC_DEBUG=1
 #
@@ -22,6 +22,15 @@ DEFS = -DHAVE_MMAP=1          \
 CFLAGS = -Wall ${DEFS} -g 
 
 OS   =  $(shell uname)
+
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+
+DEFS += -DDARWIN
+
+else
+
+
+endif
 
 
 metaobj= hashfns.o memcxt.o pool.o metadata.o 

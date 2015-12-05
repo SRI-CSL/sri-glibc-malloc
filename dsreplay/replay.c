@@ -28,7 +28,7 @@
  *
  */
 
-const bool silent_running = false;
+const bool silent_running = true;
 
 const size_t BUFFERSZ = 1024;
 

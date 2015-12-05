@@ -17,16 +17,16 @@
 
 typedef struct lphash_s lphash_t;
 
-typedef struct bucket_pool_s bucket_pool_t;
+typedef struct lpbucket_pool_s lpbucket_pool_t;
 
-typedef struct segment_pool_s segment_pool_t;
+typedef struct lpsegment_pool_s lpsegment_pool_t;
 
-typedef struct memcxt_s memcxt_t;
+typedef struct lpmemcxt_s lpmemcxt_t;
 
 
-#define SEGMENT_LENGTH 256
+#define LPSEGMENT_LENGTH 256
 
-#define DIRECTORY_LENGTH 1024
+#define LPDIRECTORY_LENGTH 1024
 
 
 /*
@@ -51,32 +51,32 @@ typedef struct memcxt_s memcxt_t;
 
 /* the code for contracting a table seems to be missing in Larsen's paper */
 
-typedef struct bucket_s {
+typedef struct lpbucket_s {
   void *key;
   void *value;
   void *next_bucket;
-  bucket_pool_t * bucket_pool_ptr;  //BD's optimization #1.
-} bucket_t;
+  lpbucket_pool_t * bucket_pool_ptr;  //BD's optimization #1.
+} lpbucket_t;
 
 
-typedef struct segment_s {
-  bucket_t* segment[SEGMENT_LENGTH];
-  segment_pool_t *segment_pool_ptr;  
-} segment_t;
+typedef struct lpsegment_s {
+  lpbucket_t* segment[LPSEGMENT_LENGTH];
+  lpsegment_pool_t *segment_pool_ptr;  
+} lpsegment_t;
 
-typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
+typedef enum { LPDIRECTORY, LPSEGMENT, LPBUCKET } lpmemtype_t;
 
 
-struct memcxt_s {
-  void *(*allocate)(memtype_t, size_t);
-  void (*release)(memtype_t, void*, size_t);
+struct lpmemcxt_s {
+  void *(*allocate)(lpmemtype_t, size_t);
+  void (*release)(lpmemtype_t, void*, size_t);
 };
 
 
 
 typedef struct lphash_cfg_s {
 
-  memcxt_t memcxt;                  /* Where we get our memory from                                            */
+  lpmemcxt_t memcxt;                /* Where we get our memory from                                            */
  
   size_t segment_length;            /* segment length; larsen uses 256; we could use  4096 or 2^18 = 262144    */
 
@@ -102,7 +102,7 @@ struct lphash_s {
 
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
 
-  segment_t** directory;         /* the array of segment pointers                                          */
+  lpsegment_t** directory;         /* the array of segment pointers                                          */
 
   size_t directory_length;       /* the size of the directory (must be a power of two)                     */
 

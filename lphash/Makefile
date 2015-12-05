@@ -33,7 +33,7 @@ lib: lphash.o
 
 
 test: ${LIB} test.o
-	${CC} ${CFLAGS} test.o ${LIB} -o test	
+	${CC} ${CFLAGS} test.o lphash.o -o test	
 
 
 clean:

@@ -9,15 +9,15 @@
 
 const bool      lphash_multithreaded             = false;
 
-const size_t    lphash_segment_length            = SEGMENT_LENGTH;
-const size_t    lphash_initial_directory_length  = DIRECTORY_LENGTH;
+const size_t    lphash_segment_length            = LPSEGMENT_LENGTH;
+const size_t    lphash_initial_directory_length  = LPDIRECTORY_LENGTH;
 const size_t    lphash_segments_at_startup       = 1;
 
 const uint16_t  lphash_min_load                 = 2;   
 const uint16_t  lphash_max_load                 = 5;
 
 /* toggle for enabling table contraction */
-#define CONTRACTION_ENABLED  1
+#define LPCONTRACTION_ENABLED  1
 
 
 /* static routines */
@@ -26,14 +26,14 @@ static void lphash_cfg_init(lphash_cfg_t* cfg);
 /* lphash expansion routines */
 static bool lphash_expand_check(lphash_t* lhtbl);
 
-static bool lphash_expand_directory(lphash_t* lhtbl, memcxt_t* memcxt);
+static bool lphash_expand_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt);
 
-#if CONTRACTION_ENABLED
+#if LPCONTRACTION_ENABLED
 /* lphash contraction routines */
 
 static void lphash_contract_check(lphash_t* lhtbl);
 
-static void lphash_contract_directory(lphash_t* lhtbl, memcxt_t* memcxt);
+static void lphash_contract_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt);
 
 static void lphash_contract_table(lphash_t* lhtbl);
 
@@ -46,10 +46,10 @@ static bool lphash_expand_table(lphash_t* lhtbl);
 static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p);
 
 /* returns a pointer to the bin i.e. the top bucket at the given bindex  */
-static bucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex);
+static lpbucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
-static size_t bucket_length(bucket_t* bucket);
+static size_t bucket_length(lpbucket_t* bucket);
 
 /* for sanity checking */
 static bool is_power_of_two(uint32_t n) {
@@ -71,7 +71,7 @@ static uint32_t jenkins_hash_uint64(uint64_t x);
 
 static uint32_t jenkins_hash_ptr(const void *p);
 
-static void init_pool_memcxt(memcxt_t* pmem);
+static void init_pool_memcxt(lpmemcxt_t* pmem);
 
 
 /* 
@@ -153,7 +153,7 @@ static void lphash_cfg_init(lphash_cfg_t* cfg){
   cfg->min_load                 = lphash_min_load;   
   cfg->max_load                 = lphash_max_load;
   cfg->bincount_max             = UINT32_MAX;
-  cfg->directory_length_max     = cfg->bincount_max / SEGMENT_LENGTH;
+  cfg->directory_length_max     = cfg->bincount_max / LPSEGMENT_LENGTH;
 
   assert(is_power_of_two(cfg->segment_length));
   assert(is_power_of_two(cfg->initial_directory_length));
@@ -176,11 +176,11 @@ static void lphash_cfg_init(lphash_cfg_t* cfg){
 bool init_lphash(lphash_t* lhtbl){
   lphash_cfg_t* lhtbl_cfg;
   size_t index;
-  segment_t* seg;
+  lpsegment_t* seg;
   bool success;
   size_t dirsz;
   size_t binsz;
-  memcxt_t* memcxt;
+  lpmemcxt_t* memcxt;
   
   if(lhtbl == NULL){
     errno = EINVAL;
@@ -205,14 +205,14 @@ bool init_lphash(lphash_t* lhtbl){
 
   
   /* the size of the directory */
-  success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
+  success = mul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
   if(!success){
     errno = EINVAL;
     return false;
   }
     
   /* the directory; i.e. the array of segment pointers */
-  lhtbl->directory = memcxt->allocate(DIRECTORY, dirsz);
+  lhtbl->directory = memcxt->allocate(LPDIRECTORY, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
@@ -245,7 +245,7 @@ bool init_lphash(lphash_t* lhtbl){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
-    seg = (segment_t*)memcxt->allocate(SEGMENT, sizeof(segment_t));
+    seg = (lpsegment_t*)memcxt->allocate(LPSEGMENT, sizeof(lpsegment_t));
     lhtbl->directory[index] = seg;
     if(seg == NULL){
       errno = ENOMEM;
@@ -259,7 +259,7 @@ bool init_lphash(lphash_t* lhtbl){
 void dump_lphash(FILE* fp, lphash_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
-  bucket_t** bp;
+  lpbucket_t** bp;
 
   size_t maxlength;
   
@@ -298,10 +298,10 @@ void delete_lphash(lphash_t* lhtbl){
   size_t seglen;
   size_t segindex;
   size_t index;
-  segment_t* current_segment;
-  bucket_t* current_bucket;
-  bucket_t* next_bucket;
-  memcxt_t *memcxt;
+  lpsegment_t* current_segment;
+  lpbucket_t* current_bucket;
+  lpbucket_t* next_bucket;
+  lpmemcxt_t *memcxt;
   size_t dirsz;
   bool success;
 
@@ -319,18 +319,18 @@ void delete_lphash(lphash_t* lhtbl){
 	while(current_bucket != NULL){
 
 	  next_bucket = current_bucket->next_bucket;
-	  memcxt->release(BUCKET, current_bucket, sizeof(bucket_t));
+	  memcxt->release(LPBUCKET, current_bucket, sizeof(lpbucket_t));
 	  current_bucket = next_bucket;
 	}
       }
       /* now release the segment */
-      memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
+      memcxt->release(LPSEGMENT, current_segment,  sizeof(lpsegment_t));
   }
   
-  success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
+  success = mul_size(lhtbl->directory_length, sizeof(lpsegment_t*), &dirsz);
   assert(success);
   if(success){
-    memcxt->release(DIRECTORY, lhtbl->directory, dirsz);
+    memcxt->release(LPDIRECTORY, lhtbl->directory, dirsz);
   }
 }
 
@@ -360,8 +360,8 @@ static uint32_t lphash_bindex(lphash_t* lhtbl, const void *p){
   return l;
 }
 
-bucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex){
-  segment_t* segptr;
+lpbucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex){
+  lpsegment_t* segptr;
   size_t seglen;
   size_t segindex;
   uint32_t index;
@@ -386,10 +386,10 @@ bucket_t** bindex2bin(lphash_t* lhtbl, uint32_t bindex){
 
 
 /* 
- *  pointer (in the appropriate segment) to the bucket_t* 
+ *  pointer (in the appropriate segment) to the lpbucket_t* 
  *  where the start of the bucket chain should be for p 
  */
-bucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
+lpbucket_t** lphash_fetch_bucket(lphash_t* lhtbl, const void *p){
   uint32_t bindex;
   
   bindex = lphash_bindex(lhtbl, p);
@@ -409,15 +409,15 @@ bool lphash_expand_check(lphash_t* lhtbl){
 }
 
 
-static bool lphash_expand_directory(lphash_t* lhtbl, memcxt_t* memcxt){
+static bool lphash_expand_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt){
   size_t index;
   size_t old_dirlen;
   size_t old_dirsz;
   size_t new_dirlen;
   size_t new_dirsz;
   bool success;
-  segment_t** olddir;
-  segment_t** newdir;
+  lpsegment_t** olddir;
+  lpsegment_t** newdir;
 
   old_dirlen = lhtbl->directory_length;
   
@@ -430,12 +430,12 @@ static bool lphash_expand_directory(lphash_t* lhtbl, memcxt_t* memcxt){
 
   olddir = lhtbl->directory;
 
-  success = mul_size(new_dirlen, sizeof(segment_t*), &new_dirsz);
+  success = mul_size(new_dirlen, sizeof(lpsegment_t*), &new_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
   }
-  newdir = memcxt->allocate(DIRECTORY, new_dirsz);
+  newdir = memcxt->allocate(LPDIRECTORY, new_dirsz);
 
   if(newdir == NULL){
     errno = ENOMEM;
@@ -452,12 +452,12 @@ static bool lphash_expand_directory(lphash_t* lhtbl, memcxt_t* memcxt){
   
   lhtbl->directory_length = new_dirlen;
 
-  success = mul_size(old_dirlen, sizeof(segment_t*), &old_dirsz);
+  success = mul_size(old_dirlen, sizeof(lpsegment_t*), &old_dirsz);
   if(!success){
     errno = EINVAL;
     return false;
   }
-  memcxt->release(DIRECTORY, olddir, old_dirsz);
+  memcxt->release(LPDIRECTORY, olddir, old_dirsz);
 
   return true;
 }
@@ -468,13 +468,13 @@ static bool lphash_expand_table(lphash_t* lhtbl){
   size_t new_bindex;
   size_t new_segindex;
   bool success;
-  bucket_t** oldbucketp;
-  bucket_t* current;
-  bucket_t* previous;
-  bucket_t* lastofnew;
-  segment_t* newseg;
+  lpbucket_t** oldbucketp;
+  lpbucket_t* current;
+  lpbucket_t* previous;
+  lpbucket_t* lastofnew;
+  lpsegment_t* newseg;
   size_t newsegindex;
-  memcxt_t *memcxt;
+  lpmemcxt_t *memcxt;
 
   memcxt = &(lhtbl->cfg.memcxt);
 
@@ -506,7 +506,7 @@ static bool lphash_expand_table(lphash_t* lhtbl){
     
     /* expand address space; if necessary create new segment */  
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
-      newseg = memcxt->allocate(SEGMENT, sizeof(segment_t));
+      newseg = memcxt->allocate(LPSEGMENT, sizeof(lpsegment_t));
       if(newseg == NULL){
 	errno = ENOMEM;
 	return false;
@@ -573,15 +573,15 @@ static bool lphash_expand_table(lphash_t* lhtbl){
 
 
 bool lphash_insert(lphash_t* lhtbl, const void *key, const void *value){
-  bucket_t* newbucket;
-  bucket_t** binp;
-  memcxt_t *memcxt;
+  lpbucket_t* newbucket;
+  lpbucket_t** binp;
+  lpmemcxt_t *memcxt;
 
   memcxt = &(lhtbl->cfg.memcxt);
   
   binp = lphash_fetch_bucket(lhtbl, key);
 
-  newbucket = memcxt->allocate(BUCKET, sizeof(bucket_t));
+  newbucket = memcxt->allocate(LPBUCKET, sizeof(lpbucket_t));
   if(newbucket == NULL){
     errno = ENOMEM;
     return false;
@@ -603,8 +603,8 @@ bool lphash_insert(lphash_t* lhtbl, const void *key, const void *value){
 
 void *lphash_lookup(lphash_t* lhtbl, const void *key){
   void* value;
-  bucket_t** binp;
-  bucket_t* bucketp;
+  lpbucket_t** binp;
+  lpbucket_t* bucketp;
 
   value = NULL;
   binp = lphash_fetch_bucket(lhtbl, key);
@@ -623,10 +623,10 @@ void *lphash_lookup(lphash_t* lhtbl, const void *key){
 
 bool lphash_delete(lphash_t* lhtbl, const void *key){
   bool found = false;
-  bucket_t** binp;
-  bucket_t* current_bucketp;
-  bucket_t* previous_bucketp;
-  memcxt_t *memcxt;
+  lpbucket_t** binp;
+  lpbucket_t* current_bucketp;
+  lpbucket_t* previous_bucketp;
+  lpmemcxt_t *memcxt;
 
   memcxt = &(lhtbl->cfg.memcxt);
 
@@ -644,7 +644,7 @@ bool lphash_delete(lphash_t* lhtbl, const void *key){
       } else {
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
-      memcxt->release(BUCKET, current_bucketp, sizeof(bucket_t));
+      memcxt->release(LPBUCKET, current_bucketp, sizeof(lpbucket_t));
 
       /* census adjustments */
       lhtbl->count--;
@@ -655,7 +655,7 @@ bool lphash_delete(lphash_t* lhtbl, const void *key){
     current_bucketp = current_bucketp->next_bucket;
   }
 
-#if CONTRACTION_ENABLED
+#if LPCONTRACTION_ENABLED
   /* should we contract */
   if(found){
     lphash_contract_check(lhtbl);
@@ -667,11 +667,11 @@ bool lphash_delete(lphash_t* lhtbl, const void *key){
 
 size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
   size_t count;
-  bucket_t** binp;
-  bucket_t* current_bucketp;
-  bucket_t* previous_bucketp;
-  bucket_t* temp_bucketp;
-  memcxt_t *memcxt;
+  lpbucket_t** binp;
+  lpbucket_t* current_bucketp;
+  lpbucket_t* previous_bucketp;
+  lpbucket_t* temp_bucketp;
+  lpmemcxt_t *memcxt;
 
   memcxt = &(lhtbl->cfg.memcxt);
 
@@ -692,7 +692,7 @@ size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
       }
       temp_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
-      memcxt->release(BUCKET, temp_bucketp, sizeof(bucket_t));
+      memcxt->release(LPBUCKET, temp_bucketp, sizeof(lpbucket_t));
     } else {
       previous_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
@@ -702,7 +702,7 @@ size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
   /* census adjustments */
   lhtbl->count -= count;
 
-#if CONTRACTION_ENABLED
+#if LPCONTRACTION_ENABLED
   /* should we contract */
   if(count > 0){
     lphash_contract_check(lhtbl);
@@ -713,9 +713,9 @@ size_t lphash_delete_all(lphash_t* lhtbl, const void *key){
 }
 
 
-size_t bucket_length(bucket_t* bucket){
+size_t bucket_length(lpbucket_t* bucket){
   size_t count;
-  bucket_t* current;
+  lpbucket_t* current;
 
   count = 0;
   current = bucket;
@@ -729,7 +729,7 @@ size_t bucket_length(bucket_t* bucket){
 
 
 
-#if CONTRACTION_ENABLED
+#if LPCONTRACTION_ENABLED
 
 static void lphash_contract_check(lphash_t* lhtbl){
     /* iam: better make sure that immediately after an expansion we don't drop below the min_load!! */
@@ -739,29 +739,29 @@ static void lphash_contract_check(lphash_t* lhtbl){
 }
 
 /* assumes the non-null segments for an prefix of the directory */
-static void lphash_contract_directory(lphash_t* lhtbl, memcxt_t* memcxt){
+static void lphash_contract_directory(lphash_t* lhtbl, lpmemcxt_t* memcxt){
   size_t index;
   size_t oldlen;
   size_t newlen;
   size_t oldsz;
   size_t newsz;
   size_t curlen;
-  segment_t** olddir;
-  segment_t** newdir;
+  lpsegment_t** olddir;
+  lpsegment_t** newdir;
   bool success;
 
   oldlen = lhtbl->directory_length;
   curlen = lhtbl->directory_current;
   newlen = oldlen  >> 1;
 
-  success = mul_size(newlen, sizeof(segment_t*), &newsz);
+  success = mul_size(newlen, sizeof(lpsegment_t*), &newsz);
 
   assert(success);
   if(! success ){
     return;
   }
   
-  success = mul_size(oldlen, sizeof(segment_t*), &oldsz);
+  success = mul_size(oldlen, sizeof(lpsegment_t*), &oldsz);
 
   assert(success);
   if(! success ){
@@ -775,7 +775,7 @@ static void lphash_contract_directory(lphash_t* lhtbl, memcxt_t* memcxt){
   
   olddir = lhtbl->directory;
   
-  newdir = memcxt->allocate(DIRECTORY, newsz);
+  newdir = memcxt->allocate(LPDIRECTORY, newsz);
   
   for(index = 0; index < newlen; index++){
     newdir[index] = olddir[index];
@@ -784,7 +784,7 @@ static void lphash_contract_directory(lphash_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_length = newlen;
   
-  memcxt->release(DIRECTORY, olddir, oldsz);
+  memcxt->release(LPDIRECTORY, olddir, oldsz);
 }
 
 static inline void check_index(size_t index, const char* name, lphash_t* lhtbl){
@@ -800,10 +800,10 @@ static inline void check_index(size_t index, const char* name, lphash_t* lhtbl){
 }
 
 /* move all the buckets in the src bin to the tgt bin */
-static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
-  bucket_t* src;
-  bucket_t* tgt;
-  bucket_t* tmp;
+static inline void move_buckets(lpbucket_t** srcbin, lpbucket_t** tgtbin){
+  lpbucket_t* src;
+  lpbucket_t* tgt;
+  lpbucket_t* tmp;
 
   assert(srcbin != NULL);
   assert(tgtbin != NULL);
@@ -833,11 +833,11 @@ static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
 static void lphash_contract_table(lphash_t* lhtbl){
   size_t seglen;
   size_t segindex;
-  memcxt_t *memcxt;
+  lpmemcxt_t *memcxt;
   size_t srcindex;
-  bucket_t** srcbin;
+  lpbucket_t** srcbin;
   size_t tgtindex;
-  bucket_t** tgtbin;
+  lpbucket_t** tgtbin;
   bool success;
 
   memcxt = &(lhtbl->cfg.memcxt);
@@ -887,7 +887,7 @@ static void lphash_contract_table(lphash_t* lhtbl){
 
   if(mod_power_of_two(srcindex, seglen) == 0){
     /* ok we can reclaim it */
-    memcxt->release(SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
+    memcxt->release(LPSEGMENT, lhtbl->directory[segindex], sizeof(lpsegment_t));
     lhtbl->directory[segindex] = NULL;
     lhtbl->directory_current -= 1;
   }
@@ -960,17 +960,17 @@ uint32_t jenkins_hash_ptr(const void *p) {
 /* one thing for every bit in the bitmask */
 #define SP_LENGTH SP_SCALE * 64  
 
-/* bucket_pool_t is defined in types.h */
-struct bucket_pool_s {
-  bucket_t pool[BP_LENGTH];       /* the pool of buckets; one for each bit in the bitmask array */
+/* lpbucket_pool_t is defined in types.h */
+struct lpbucket_pool_s {
+  lpbucket_t pool[BP_LENGTH];       /* the pool of buckets; one for each bit in the bitmask array */
   uint64_t bitmasks[BP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use */
   size_t free_count;              /* the current count of free buckets in this pool             */
   void* next_bucket_pool;         /* the next bucket pool to look if this one is full           */
 };
 
-/* segment_pool_t is defined in types.h */
-struct segment_pool_s {
-  segment_t pool[SP_LENGTH];      /* the pool of segments; one for each bit in the bitmask array */
+/* lpsegment_pool_t is defined in types.h */
+struct lpsegment_pool_s {
+  lpsegment_t pool[SP_LENGTH];      /* the pool of segments; one for each bit in the bitmask array */
   uint64_t bitmasks[SP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use  */
   size_t free_count;              /* the current count of free segments in this pool             */
   void* next_segment_pool;        /* the next segment pool to look if this one is full           */
@@ -978,18 +978,18 @@ struct segment_pool_s {
 
 
 //DD: is there a one-one or a many-to-one relationship b/w linhash tables and pools?
-typedef struct pool_s {
+typedef struct lppool_s {
   void *directory;              /* not sure if this is needed/desired */
-  segment_pool_t* segments;
-  bucket_pool_t* buckets;
-} pool_t;
+  lpsegment_pool_t* segments;
+  lpbucket_pool_t* buckets;
+} lppool_t;
 
 #ifndef NDEBUG
-static bool sane_bucket_pool(bucket_pool_t* bpool);
+static bool sane_bucket_pool(lpbucket_pool_t* bpool);
 #endif
 
 /* for now we do not assume that the underlying memory has been mmapped (i.e zeroed) */
-static void init_bucket_pool(bucket_pool_t* bp){
+static void init_bucket_pool(lpbucket_pool_t* bp){
   size_t scale;
   size_t bindex;
 
@@ -1006,7 +1006,7 @@ static void init_bucket_pool(bucket_pool_t* bp){
 }
 
 /* for now we  do not assume assume that the underlying memory has been mmapped (i.e zeroed) */
-static void init_segment_pool(segment_pool_t* sp){
+static void init_segment_pool(lpsegment_pool_t* sp){
   size_t scale;
   size_t sindex;
 
@@ -1056,14 +1056,14 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-static void* new_directory(pool_t* pool, size_t size){
+static void* new_directory(lppool_t* pool, size_t size){
   pool->directory = pool_mmap(pool->directory, size);
   return pool->directory;
 }
 
-static segment_pool_t* new_segments(void){
-  segment_pool_t* sptr;
-  sptr = pool_mmap(NULL, sizeof(segment_pool_t));
+static lpsegment_pool_t* new_segments(void){
+  lpsegment_pool_t* sptr;
+  sptr = pool_mmap(NULL, sizeof(lpsegment_pool_t));
   if(sptr == NULL){
     return NULL;
   }
@@ -1072,8 +1072,8 @@ static segment_pool_t* new_segments(void){
 }
 
 static void* new_buckets(void){
-  bucket_pool_t* bptr;
-  bptr = pool_mmap(NULL, sizeof(bucket_pool_t));
+  lpbucket_pool_t* bptr;
+  bptr = pool_mmap(NULL, sizeof(lpbucket_pool_t));
   if(bptr == NULL){
     return NULL;
   }
@@ -1083,7 +1083,7 @@ static void* new_buckets(void){
 
 #ifndef NDEBUG
 #if 0
-static bool sane_bucket_pool(bucket_pool_t* bpool){
+static bool sane_bucket_pool(lpbucket_pool_t* bpool){
   size_t free_count;
   size_t bit_free_count;
   size_t scale;
@@ -1113,7 +1113,7 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 
   for(bindex = 0; bindex < BP_LENGTH; bindex++){
     if(bpool->pool[bindex].bucket_pool_ptr != bpool){
-      fprintf(stderr, "sane_bucket_pool: bucket_pool_ptr = %p not correct:  bucket_pool_t* %p\n",
+      fprintf(stderr, "sane_bucket_pool: bucket_pool_ptr = %p not correct:  lpbucket_pool_t* %p\n",
 	      bpool->pool[bindex].bucket_pool_ptr, bpool);
     }
   }
@@ -1121,15 +1121,15 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
   return true;
 }
 #else
-static inline bool sane_bucket_pool(bucket_pool_t *bpool) {
+static inline bool sane_bucket_pool(lpbucket_pool_t *bpool) {
   return true;
 }
 #endif
 #endif
 
 
-static void init_pool(pool_t* pool){
-  pool->directory = new_directory(pool, DIRECTORY_LENGTH * sizeof(void*));
+static void init_pool(lppool_t* pool){
+  pool->directory = new_directory(pool, LPDIRECTORY_LENGTH * sizeof(void*));
   pool->segments = new_segments();
   pool->buckets = new_buckets();
 }
@@ -1190,9 +1190,9 @@ static inline uint64_t clear_bit(uint64_t mask, uint32_t index) {
   return mask & ~(((uint64_t)1) << index); 
 }
 
-static bucket_t* alloc_bucket(pool_t* pool){
-  bucket_t *buckp;
-  bucket_pool_t* bpool_current;
+static lpbucket_t* alloc_bucket(lppool_t* pool){
+  lpbucket_t *buckp;
+  lpbucket_pool_t* bpool_current;
   size_t scale;
   size_t index;
   
@@ -1247,8 +1247,8 @@ static bucket_t* alloc_bucket(pool_t* pool){
   return buckp;
 }
 
-static bool free_bucket(pool_t* pool, bucket_t* buckp){
-  bucket_pool_t* bpool;
+static bool free_bucket(lppool_t* pool, lpbucket_t* buckp){
+  lpbucket_pool_t* bpool;
   size_t index;
   size_t pmask_index;
   uint32_t pmask_bit;
@@ -1280,9 +1280,9 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
 }
 
 
-static segment_t* alloc_segment(pool_t* pool){
-  segment_t *segp;
-  segment_pool_t* spool_current;
+static lpsegment_t* alloc_segment(lppool_t* pool){
+  lpsegment_t *segp;
+  lpsegment_pool_t* spool_current;
   size_t scale;
   size_t index;
   
@@ -1345,8 +1345,8 @@ static segment_t* alloc_segment(pool_t* pool){
   return segp;
 }
 
-static bool free_segment(pool_t* pool, segment_t* segp){
-  segment_pool_t* spool;
+static bool free_segment(lppool_t* pool, lpsegment_t* segp){
+  lpsegment_pool_t* spool;
 
   size_t index;
   size_t pmask_index;
@@ -1377,7 +1377,7 @@ static bool free_segment(pool_t* pool, segment_t* segp){
 
 /* just one for now */
 static bool the_pool_is_ok = false;
-static pool_t the_pool;
+static lppool_t the_pool;
 
 static void check_pool(void){
   if(!the_pool_is_ok){
@@ -1386,52 +1386,50 @@ static void check_pool(void){
   }
 }
 
-static void *pool_allocate(pool_t* pool, memtype_t type, size_t size);
+static void *pool_allocate(lppool_t* pool, lpmemtype_t type, size_t size);
 
-static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size);
-
-
-
-static void *_pool_allocate(memtype_t type, size_t size);
-
-static void _pool_release(memtype_t type, void *ptr, size_t size);
+static void pool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size);
 
 
-void init_pool_memcxt(memcxt_t* pmem){
+
+static void *_pool_allocate(lpmemtype_t type, size_t size);
+
+static void _pool_release(lpmemtype_t type, void *ptr, size_t size);
+
+
+void init_pool_memcxt(lpmemcxt_t* pmem){
   if(pmem != NULL){
     pmem->allocate =  _pool_allocate;
     pmem->release = _pool_release;
   }
 }
 
-static void *_pool_allocate(memtype_t type, size_t size){
+static void *_pool_allocate(lpmemtype_t type, size_t size){
   return pool_allocate(&the_pool, type, size);
 }
 
-static void _pool_release(memtype_t type, void *ptr, size_t size){
+static void _pool_release(lpmemtype_t type, void *ptr, size_t size){
   pool_release(&the_pool, type, ptr, size);
 }
 
 
 
-size_t pcount = 0;
-
-static void *pool_allocate(pool_t* pool, memtype_t type, size_t size){
+static void *pool_allocate(lppool_t* pool, lpmemtype_t type, size_t size){
   void *memory;
   check_pool();
   switch(type){
-  case DIRECTORY: {
+  case LPDIRECTORY: {
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
     // how many hash tables use this pool?
     memory = new_directory(pool, size);
     break;
   }
-  case SEGMENT: {
+  case LPSEGMENT: {
     memory = alloc_segment(pool);
     break;
   }
-  case BUCKET: {
+  case LPBUCKET: {
     memory = alloc_bucket(pool);
     break;
   }
@@ -1442,21 +1440,21 @@ static void *pool_allocate(pool_t* pool, memtype_t type, size_t size){
 }
 
 
-static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size){
+static void pool_release(lppool_t* pool, lpmemtype_t type, void *ptr, size_t size){
   check_pool();
   switch(type){
-  case DIRECTORY: {
+  case LPDIRECTORY: {
     // not sure if maintaining the directory pointer makes much sense.
     // which enforces what: pool/linhash?
     pool_munmap(ptr, size);
 
     break;
   }
-  case SEGMENT: {
+  case LPSEGMENT: {
     free_segment(pool, ptr);
     break;
   }
-  case BUCKET: {
+  case LPBUCKET: {
     free_bucket(pool, ptr);
     break;
   }
@@ -1466,14 +1464,14 @@ static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size){
 }
 
 
-void dump_pool(FILE* fp){
-  float bp = sizeof(bucket_pool_t);
-  float sp = sizeof(segment_pool_t);
+void dump_lppool(FILE* fp){
+  float bp = sizeof(lpbucket_pool_t);
+  float sp = sizeof(lpsegment_pool_t);
   bp /= 4096;
   sp /= 4096;
-  fprintf(fp, "sizeof(bucket_pool_t) =  %zu\n", sizeof(bucket_pool_t));
+  fprintf(fp, "sizeof(lpbucket_pool_t) =  %zu\n", sizeof(lpbucket_pool_t));
   fprintf(fp, "pages: %f\n", bp);
-  fprintf(fp, "sizeof(segment_pool_t) =  %zu\n", sizeof(segment_pool_t));
+  fprintf(fp, "sizeof(lpsegment_pool_t) =  %zu\n", sizeof(lpsegment_pool_t));
   fprintf(fp, "pages: %f\n", sp);
 
 }

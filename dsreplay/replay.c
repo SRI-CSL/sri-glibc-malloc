@@ -9,9 +9,7 @@
 
 #include "lphash.h"
 
-/* if compiled with -DUSE_DL_PREFIX these flip the malloc routines over to the "dl" versions. */
-#include "switch.h"
-
+#include "dsmalloc.h"
 
 /*
  *  Parses the output from ../../analysis/mhook.c and replays it.
@@ -206,7 +204,7 @@ static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz){
 
     sz = (size_t)addresses[0];
     key =  (void *)addresses[1];
-    val = malloc(sz);
+    val = dlmalloc(sz);
 
     /* could assert that key is not in the htbl */
     if( ! lphash_insert(htbl, key, val) ){
@@ -250,7 +248,7 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz){
     cnt = (size_t)addresses[0];
     sz = (size_t)addresses[1];
     key =  (void *)addresses[2];
-    val = calloc(cnt, sz);
+    val = dlcalloc(cnt, sz);
 
     /* could assert that key is not in the htbl */
     if( ! lphash_insert(htbl, key, val) ){
@@ -322,7 +320,9 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
     }
     
-    val_new = realloc(val_old, sz);
+    fprintf(stderr, "dlrealloc(%p, %zu)\n", val_old, sz);
+    fprintf(stderr, "<= dlrealloc(%p, %zu)\n", ptr_in, sz);
+    val_new = dlrealloc(val_old, sz);
 
     if(sz == 0){
 
@@ -421,11 +421,11 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz){
     
     if(key == NULL){
       val = NULL;
-      free(key);
+      dlfree(key);
     } else {
       val = lphash_lookup(htbl, key);
       if(val != NULL){
-	free(val);
+	dlfree(val);
 	lphash_delete(htbl, key);
       } else {
 	/* this is a pretty common occurence */

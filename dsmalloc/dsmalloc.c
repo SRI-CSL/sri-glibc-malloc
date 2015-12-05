@@ -25,8 +25,9 @@
 
 #include <stdbool.h>
 
+#ifndef NDEBUG
 static bool metadata_is_consistent(void);
-
+#endif
 
 /* --------------------- public wrappers ---------------------- */
 
@@ -1488,6 +1489,8 @@ bool metadata_chunk_ok(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top) {
  * hence the metadata_initialized hack.
  */
 
+#ifndef NDEBUG
+
 static bool metadata_is_consistent(void){
   mstate av;
 
@@ -1503,6 +1506,10 @@ static bool metadata_is_consistent(void){
   }
   return forall_metadata(&(av->htbl), metadata_chunk_ok, av->top); 
 }
+
+#endif
+
+
 
 /*
   Debugging support
@@ -2782,6 +2789,9 @@ DL_STATIC void fREe(mem) Void_t* mem;
       hashtable_remove_mmapped(chunk(p));
       // munmap returns non-zero on failure 
       assert(ret == 0);
+      if(ret != 0){
+	fprintf(stderr, "munmap returned %d\n", ret);
+      }
     }
   }
 }

@@ -85,7 +85,7 @@ mtest2: mtest2.c $(metaobj) $(mobj)
 
 
 clean:
-	rm -rf *~ *.o test *.dSYM mtest0 mtest1 mtest2 $(LIB)
+	rm -rf *~ *.o test *.dSYM mtest0 mtest1 mtest2 *.so *.so.*
 
 
 

@@ -2,17 +2,19 @@ Our Code
 ========
 
 
--  dsmalloc
+-  `dsmalloc` our version of dnmalloc using our metatdata implementation
   
--  dsreplay
+-  `linhash`  our version of the linear hash implementation of Per-Ake Larson 1988 CACM paper.
 
--  linhash
+-  `lphash`  a stand alone amalgamation of linhash with a separate namespace. Used in the replay
+implementations.
 
--  lphash
+-  `metadata` our metadata implementation (used in dsmalloc and ...)
 
--  metadata
+-  `mhooks`   for hooking and recording malloc calls in an binary application.
 
--  mhooks
+-  `replay`   for replaying the data obtained by using mhook (using the system malloc)
 
--  replay
+-  `dsreplay` for replaying the data obtained by using mhook (using a statically linked dsmalloc)
+
 

@@ -7,8 +7,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-//#include "types.h"
-
 /*
  *  The API of our pool allocator for the metadata.
  *
@@ -77,13 +75,5 @@ extern void memcxt_release(memcxt_t* memcxt, memtype_t,  void*, size_t);
 extern void delete_memcxt(memcxt_t* memcxt);
 
 extern void dump_memcxt(FILE* fp, memcxt_t* memcxt);
-
-/* routines for size_t multiplication and size_t addition that detect overflow */
-
-extern bool add_size(size_t s1, size_t s2, size_t* sum);
-
-extern bool mul_size(size_t s1, size_t s2, size_t* prod);
-
-
 
 #endif

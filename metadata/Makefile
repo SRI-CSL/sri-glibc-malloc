@@ -9,7 +9,7 @@ all: test
 %.o: %.c %.h 
 	${CC} ${CFLAGS} $< -c 
 
-mobj=hashfns.o memcxt.o metadata.o test.o
+mobj=utils.o memcxt.o metadata.o test.o
 
 test: ${mobj}
 	${CC} ${mobj} -o test

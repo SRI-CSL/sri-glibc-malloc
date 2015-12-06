@@ -1,12 +1,11 @@
-#include "metadata.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "pool.h"
 #include "memcxt.h"
+#include "metadata.h"
 
 metadata_t numerouno;
 

@@ -52,16 +52,10 @@ struct segment_s {
 };
 
 
-//DD: is there a one-one or a many-to-one relationship b/w linhash tables and pools?
-typedef struct pool_s {
-  void *directory;              /* not sure if this is needed/desired */
+struct memcxt_s {
+  void* directory;
   segment_pool_t* segments;
   bucket_pool_t* buckets;
-} pool_t;
-
-
-struct memcxt_s {
-  pool_t pool;
 };
 
 

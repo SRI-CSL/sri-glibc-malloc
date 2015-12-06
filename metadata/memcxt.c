@@ -1,11 +1,11 @@
-#include "memcxt.h"
-
-
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <inttypes.h>
+
+#include "memcxt.h"
+#include "utils.h"
 
 
 
@@ -32,13 +32,23 @@ struct segment_pool_s {
 };
 
 
+static void* new_directory(memcxt_t* memcxt, size_t size);
 
-static bool init_pool(pool_t* pool);
+static segment_pool_t* new_segments(void);
 
-static void *pool_allocate(pool_t* pool, memtype_t type, size_t size);
+static void* new_buckets(void);
 
-static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size);
+static bucket_t* alloc_bucket(memcxt_t* memcxt);
 
+static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp);
+
+static segment_t* alloc_segment(memcxt_t* memcxt);
+
+static bool free_segment(memcxt_t* memcxt, segment_t* segp);
+
+static void* pool_mmap(void* oldaddr, size_t size);
+
+static bool pool_munmap(void* memory, size_t size);
 
 
 bool init_memcxt(memcxt_t* memcxt){
@@ -46,7 +56,9 @@ bool init_memcxt(memcxt_t* memcxt){
   if(memcxt == NULL){
     return false;
   }
-  return init_pool(&memcxt->pool);
+  memcxt->segments = new_segments();
+  memcxt->buckets = new_buckets();
+  return memcxt->segments != NULL && memcxt->buckets != NULL;
 }
 
 
@@ -56,23 +68,54 @@ void delete_memcxt(memcxt_t* memcxt){
 }
 
 void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
+  void *memory;
+  memory = NULL;
   assert(memcxt != NULL);
-  if(memcxt == NULL){
-    return NULL;
+
+  if(memcxt != NULL){
+    
+    switch(type){
+    case DIRECTORY: {
+      memory = new_directory(memcxt, sz);
+      break;
+    }
+    case SEGMENT: {
+      memory = alloc_segment(memcxt);
+      break;
+    }
+    case BUCKET: {
+      memory = alloc_bucket(memcxt);
+      break;
+    }
+    default: assert(false);
+      memory = NULL;
+    }
   }
 
-  return  pool_allocate(&memcxt->pool, type, sz);
-
+  return memory;
+  
 }
 
 void memcxt_release(memcxt_t* memcxt, memtype_t type,  void* ptr, size_t sz){
   assert(memcxt != NULL);
-  if(memcxt == NULL){
-    return;
+
+  if(memcxt != NULL){
+    switch(type){
+    case DIRECTORY: {
+      pool_munmap(ptr, sz);
+      break;
+    }
+    case SEGMENT: {
+      free_segment(memcxt, ptr);
+      break;
+    }
+    case BUCKET: {
+      free_bucket(memcxt, ptr);
+      break;
+    }
+    default: assert(false);
+    }
   }
-
-  pool_release(&memcxt->pool, type, ptr, sz);
-
 }
 
 void dump_memcxt(FILE* fp, memcxt_t* memcxt){
@@ -127,6 +170,7 @@ static void init_segment_pool(segment_pool_t* sp){
 
 }
 
+
 static void* pool_mmap(void* oldaddr, size_t size){
   void* memory;
   int flags;
@@ -161,9 +205,8 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-static void* new_directory(pool_t* pool, size_t size){
-  pool->directory = pool_mmap(pool->directory, size);
-  return pool->directory;
+static void* new_directory(memcxt_t* memcxt, size_t size){
+  return pool_mmap(NULL, size);
 }
 
 static segment_pool_t* new_segments(void){
@@ -227,39 +270,6 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 #endif
 
 
-static bool init_pool(pool_t* pool){
-  pool->directory = new_directory(pool, DIRECTORY_LENGTH * sizeof(void*));
-  pool->segments = new_segments();
-  pool->buckets = new_buckets();
-  return pool->directory != NULL && pool->segments != NULL && pool->buckets != NULL; 
-}
-
-
-// courtesy of BD 
-#ifdef __GNUC__
-
-static inline uint32_t ctz64(uint64_t x) {
-  assert(x != 0);
-  return __builtin_ctzl(x);
-}
-
-#else
-
-static inline uint32_t ctz64(uint64_t x) {
-  uint64_t m;
-  uint32_t i;
-
-  assert(x != 0);
-  m = 1;
-  i = 0;
-  while ((x & m) == 0) {
-    i ++;
-    m += m;
-  }
-  return i;
-}
-
-#endif
 
 /* returns the index of the lowest order bit that is zero */
 static uint32_t get_free_bit(uint64_t mask){
@@ -290,7 +300,7 @@ static inline uint64_t clear_bit(uint64_t mask, uint32_t index) {
   return mask & ~(((uint64_t)1) << index); 
 }
 
-static bucket_t* alloc_bucket(pool_t* pool){
+static bucket_t* alloc_bucket(memcxt_t* memcxt){
   bucket_t *buckp;
   bucket_pool_t* bpool_current;
   size_t scale;
@@ -298,7 +308,7 @@ static bucket_t* alloc_bucket(pool_t* pool){
   
   buckp = NULL;
   
-  for (bpool_current = pool->buckets; bpool_current != NULL; bpool_current = bpool_current->next_bucket_pool) {
+  for (bpool_current = memcxt->buckets; bpool_current != NULL; bpool_current = bpool_current->next_bucket_pool) {
 
     assert(sane_bucket_pool(bpool_current));
 
@@ -327,14 +337,14 @@ static bucket_t* alloc_bucket(pool_t* pool){
   }
 
   assert(buckp == NULL);
-    assert(bpool_current  == NULL);
-
+  assert(bpool_current  == NULL);
+  
   /* need to allocate another bpool */
-    bpool_current = new_buckets();
+  bpool_current = new_buckets();
   if (bpool_current != NULL) {
     /* put the new bucket up front */
-    bpool_current->next_bucket_pool = pool->buckets;
-    pool->buckets = bpool_current;
+    bpool_current->next_bucket_pool = memcxt->buckets;
+    memcxt->buckets = bpool_current;
     
     /* return the first bucket of the new pool */
     buckp = &bpool_current->pool[0];
@@ -348,14 +358,14 @@ static bucket_t* alloc_bucket(pool_t* pool){
   return buckp;
 }
 
-static bool free_bucket(pool_t* pool, bucket_t* buckp){
+static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp){
   bucket_pool_t* bpool;
 
   size_t index;
   size_t pmask_index;
   uint32_t pmask_bit;
   
-  assert(pool != NULL);
+  assert(memcxt != NULL);
   assert(buckp != NULL);
 
   /* get the bucket pool that we belong to */
@@ -384,7 +394,7 @@ static bool free_bucket(pool_t* pool, bucket_t* buckp){
 }
 
 
-static segment_t* alloc_segment(pool_t* pool){
+static segment_t* alloc_segment(memcxt_t* memcxt){
   segment_t *segp;
   segment_pool_t* spool_current;
   size_t scale;
@@ -392,7 +402,7 @@ static segment_t* alloc_segment(pool_t* pool){
   
   segp = NULL;
 
-  for (spool_current = pool->segments; spool_current != NULL; spool_current = spool_current->next_segment_pool) {
+  for (spool_current = memcxt->segments; spool_current != NULL; spool_current = spool_current->next_segment_pool) {
 
     if(spool_current->free_count > 0){
 
@@ -429,8 +439,8 @@ static segment_t* alloc_segment(pool_t* pool){
   if(spool_current != NULL){
   
     /* put the new segment up front */
-    spool_current->next_segment_pool = pool->segments;
-    pool->segments = spool_current;
+    spool_current->next_segment_pool = memcxt->segments;
+    memcxt->segments = spool_current;
 
     /* return the first segment in the new pool */
     segp = &spool_current->pool[0];
@@ -442,7 +452,7 @@ static segment_t* alloc_segment(pool_t* pool){
   return segp;
 }
 
-static bool free_segment(pool_t* pool, segment_t* segp){
+static bool free_segment(memcxt_t* memcxt, segment_t* segp){
   segment_pool_t* spool;
 
   size_t index;
@@ -476,52 +486,8 @@ static bool free_segment(pool_t* pool, segment_t* segp){
 
 
 
-static void *pool_allocate(pool_t* pool, memtype_t type, size_t size){
-  void *memory;
-  switch(type){
-  case DIRECTORY: {
-    // not sure if maintaining the directory pointer makes much sense.
-    // which enforces what: pool/linhash?
-    // how many hash tables use this pool?
-    memory = new_directory(pool, size);
-    break;
-  }
-  case SEGMENT: {
-    memory = alloc_segment(pool);
-    break;
-  }
-  case BUCKET: {
-    memory = alloc_bucket(pool);
-    break;
-  }
-  default: assert(false);
-    memory = NULL;
-  }
-  return memory;
-}
 
 
-static void pool_release(pool_t* pool, memtype_t type, void *ptr, size_t size){
-  switch(type){
-  case DIRECTORY: {
-    // not sure if maintaining the directory pointer makes much sense.
-    // which enforces what: pool/linhash?
-    pool_munmap(ptr, size);
-
-    break;
-  }
-  case SEGMENT: {
-    free_segment(pool, ptr);
-    break;
-  }
-  case BUCKET: {
-    free_bucket(pool, ptr);
-    break;
-  }
-  default: assert(false);
-  }
-  
-}
 
 
 

@@ -7,13 +7,9 @@
 
 #include <stdio.h>
 
-#include "types.h"
+///#include "types.h"
 #include "memcxt.h"
 
-
-#define SEGMENT_LENGTH 256
-
-#define DIRECTORY_LENGTH 1024
 
 
 /*
@@ -38,30 +34,6 @@
  * buckets. 
  *
  */
-
-#ifndef INTERNAL_SIZE_T
-#define INTERNAL_SIZE_T size_t
-#endif
-
-typedef void * mchunkptr;
-
-typedef struct chunkinfo {
-  INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes          */
-  INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
-  INTERNAL_SIZE_T   req;           /* Original request size, for guard.  */
-  struct chunkinfo*  fd;	   /* double links -- used only if free. */
-  struct chunkinfo*  bk;           /* double links -- used only if free. */
-  struct chunkinfo*  next_bucket;  /* next bucket in the bin             */
-  mchunkptr chunk;                  
-  bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
-} bucket_t;
-
-typedef bucket_t* chunkinfoptr;
-
-typedef struct segment_s {
-  bucket_t* segment[SEGMENT_LENGTH];
-  segment_pool_t *segment_pool_ptr;  
-} segment_t;
 
 
 typedef struct metadata_cfg_s {
@@ -148,7 +120,7 @@ extern size_t metadata_delete_all(metadata_t* htbl, const void *chunk);
 extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
 static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
-  chunkinfoptr retval =  htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
+  chunkinfoptr retval =  memcxt_allocate(htbl->cfg.memcxt, BUCKET, sizeof(bucket_t));
   retval->prev_size = 0; 
   retval->size = 0; 
   retval->req = 0; 
@@ -158,7 +130,7 @@ static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
 }
 
 static inline void release_chunkinfoptr(metadata_t* htbl, chunkinfoptr bucket){
-  htbl->cfg.memcxt->release(BUCKET, bucket, sizeof(bucket_t));
+  memcxt_release(htbl->cfg.memcxt, BUCKET, bucket, sizeof(bucket_t));
 }
 
 static inline bool metadata_insert (metadata_t* htbl, chunkinfoptr ci_orig, chunkinfoptr ci_insert){

@@ -122,7 +122,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   }
     
   /* the directory; i.e. the array of segment pointers */
-  lhtbl->directory = memcxt->allocate(DIRECTORY, dirsz);
+  lhtbl->directory = memcxt_allocate(memcxt, DIRECTORY, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
@@ -155,7 +155,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
-    seg = (segment_t*)memcxt->allocate(SEGMENT, sizeof(segment_t));
+    seg = (segment_t*)memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
     lhtbl->directory[index] = seg;
     if(seg == NULL){
       errno = ENOMEM;
@@ -226,18 +226,18 @@ void delete_metadata(metadata_t* lhtbl){
 	while(current_bucket != NULL){
 
 	  next_bucket = current_bucket->next_bucket;
-	  memcxt->release(BUCKET, current_bucket, sizeof(bucket_t));
+	  memcxt_release(memcxt, BUCKET, current_bucket, sizeof(bucket_t));
 	  current_bucket = next_bucket;
 	}
       }
       /* now release the segment */
-      memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
+      memcxt_release(memcxt, SEGMENT, current_segment,  sizeof(segment_t));
   }
   
   success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   assert(success);
   if(success){
-    memcxt->release(DIRECTORY, lhtbl->directory, dirsz);
+    memcxt_release(memcxt, DIRECTORY, lhtbl->directory, dirsz);
   }
 }
 
@@ -339,7 +339,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     errno = EINVAL;
     return false;
   }
-  newdir = memcxt->allocate(DIRECTORY, new_dirsz);
+  newdir = memcxt_allocate(memcxt, DIRECTORY, new_dirsz);
 
   if(newdir == NULL){
     errno = ENOMEM;
@@ -361,7 +361,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     errno = EINVAL;
     return false;
   }
-  memcxt->release(DIRECTORY, olddir, old_dirsz);
+  memcxt_release(memcxt, DIRECTORY, olddir, old_dirsz);
 
   return true;
 }
@@ -410,7 +410,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
     
     /* expand address space; if necessary create new segment */  
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
-      newseg = memcxt->allocate(SEGMENT, sizeof(segment_t));
+      newseg = memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
       if(newseg == NULL){
 	errno = ENOMEM;
 	return false;
@@ -535,7 +535,7 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
       } else {
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
-      lhtbl->cfg.memcxt->release(BUCKET, current_bucketp, sizeof(bucket_t));
+      memcxt_release(lhtbl->cfg.memcxt, BUCKET, current_bucketp, sizeof(bucket_t));
 
       /* census adjustments */
       lhtbl->count--;
@@ -580,7 +580,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
       }
       temp_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
-      lhtbl->cfg.memcxt->release(BUCKET, temp_bucketp, sizeof(bucket_t));
+      memcxt_release(lhtbl->cfg.memcxt, BUCKET, temp_bucketp, sizeof(bucket_t));
     } else {
       previous_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
@@ -653,7 +653,7 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   
   olddir = lhtbl->directory;
   
-  newdir = memcxt->allocate(DIRECTORY, newsz);
+  newdir = memcxt_allocate(memcxt, DIRECTORY, newsz);
   
   for(index = 0; index < newlen; index++){
     newdir[index] = olddir[index];
@@ -662,7 +662,7 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_length = newlen;
   
-  memcxt->release(DIRECTORY, olddir, oldsz);
+  memcxt_release(memcxt, DIRECTORY, olddir, oldsz);
 }
 
 static inline void check_index(size_t index, const char* name, metadata_t* lhtbl){
@@ -762,7 +762,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
 
   if(mod_power_of_two(srcindex, seglen) == 0){
     /* ok we can reclaim it */
-    memcxt->release(SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
+    memcxt_release(memcxt, SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
     lhtbl->directory[segindex] = NULL;
     lhtbl->directory_current -= 1;
   }

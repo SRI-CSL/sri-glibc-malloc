@@ -26,11 +26,7 @@ int main(int argc, char** argv){
   memcxt_t memcxt;
   int tests[] = { 0, 0, 1, 0};
 
-  if(argc > 1){
-    init_sys_memcxt(&memcxt);
-  } else {
-    init_pool_memcxt(&memcxt);
-  }
+  init_memcxt(&memcxt);
 
   fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
 
@@ -41,6 +37,9 @@ int main(int argc, char** argv){
   if(tests[2]){ test_2(&memcxt); }
 
   if(tests[3]){ test_3(&memcxt); }
+
+
+  delete_memcxt(&memcxt);
   
   return 0;
 }
@@ -77,7 +76,7 @@ void test_0(memcxt_t* memcxt){
 
   delete_metadata(&numerouno);
 
-  dump_pool(stderr);
+  dump_memcxt(stderr, memcxt);
  
 }
 
@@ -186,7 +185,9 @@ void test_2(memcxt_t* memcxt){
   delete_metadata(&numerouno);
 
   free(menagery);
-  
+
+  dump_memcxt(stderr, memcxt);
+
 }
 
 void test_3(memcxt_t* memcxt){

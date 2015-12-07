@@ -7,8 +7,13 @@
 
 #include <stdio.h>
 
+#include "types.h"
 #include "memcxt.h"
 
+
+#define SEGMENT_LENGTH 256
+
+#define DIRECTORY_LENGTH 1024
 
 
 /*
@@ -33,6 +38,28 @@
  * buckets. 
  *
  */
+
+#include "dsmalloc.h"
+
+typedef void * mchunkptr;
+
+typedef struct chunkinfo {
+  INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
+  INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes          */
+  INTERNAL_SIZE_T   req;           /* Original request size, for guard.  */
+  struct chunkinfo*  fd;	   /* double links -- used only if free. */
+  struct chunkinfo*  bk;           /* double links -- used only if free. */
+  struct chunkinfo*  next_bucket;  /* next bucket in the bin             */
+  mchunkptr chunk;                  
+  bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
+} bucket_t;
+
+typedef bucket_t* chunkinfoptr;
+
+typedef struct segment_s {
+  bucket_t* segment[SEGMENT_LENGTH];
+  segment_pool_t *segment_pool_ptr;  
+} segment_t;
 
 
 typedef struct metadata_cfg_s {
@@ -65,7 +92,7 @@ typedef struct metadata_cfg_s {
 
 
 typedef struct metadata_s {
-  metadata_cfg_t cfg;            /* configuration constants                                                */
+  metadata_cfg_t cfg;             /* configuration constants                                                */
   pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
   segment_t** directory;         /* the array of segment pointers                                          */
   size_t directory_length;       /* the size of the directory (must be a power of two)                     */
@@ -119,7 +146,7 @@ extern size_t metadata_delete_all(metadata_t* htbl, const void *chunk);
 extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
 static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
-  chunkinfoptr retval =  memcxt_allocate(htbl->cfg.memcxt, BUCKET, sizeof(bucket_t));
+  chunkinfoptr retval =  htbl->cfg.memcxt->allocate(BUCKET, sizeof(bucket_t));
   retval->prev_size = 0; 
   retval->size = 0; 
   retval->req = 0; 
@@ -129,7 +156,7 @@ static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
 }
 
 static inline void release_chunkinfoptr(metadata_t* htbl, chunkinfoptr bucket){
-  memcxt_release(htbl->cfg.memcxt, BUCKET, bucket, sizeof(bucket_t));
+  htbl->cfg.memcxt->release(BUCKET, bucket, sizeof(bucket_t));
 }
 
 static inline bool metadata_insert (metadata_t* htbl, chunkinfoptr ci_orig, chunkinfoptr ci_insert){
@@ -140,7 +167,7 @@ static inline bool metadata_skiprm (metadata_t* htbl, chunkinfoptr ci_orig, chun
   return metadata_delete(htbl, ci_todelete->chunk);
 }
 
-static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
+static inline bool metadata_insert_chunk(metadata_t* htbl, void *chunk){
   chunkinfoptr newb = allocate_chunkinfoptr(htbl);
   if(newb != NULL){
     newb->chunk = chunk;
@@ -148,6 +175,10 @@ static inline bool metadata_insert_chunk(metadata_t* htbl, void * chunk){
   }
   return false;
 }
+
+typedef bool (*chunck_check_t)(metadata_t* lhtbl, chunkinfoptr ci, chunkinfoptr top);
+
+extern bool forall_metadata(metadata_t* lhash, chunck_check_t checkfn, chunkinfoptr top);
 
 #endif
 

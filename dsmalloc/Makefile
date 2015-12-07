@@ -50,7 +50,7 @@ endif
 
 TCFLAGS=  $(CFLAGS) -g -pthread
 
-metaobj= hashfns.o memcxt.o pool.o metadata.o 
+metaobj= utils.o memcxt.o metadata.o 
 
 mobj= dsassert.o dsmalloc.o
 
@@ -72,7 +72,7 @@ endif
 tests: test mtest0 mtest1 mtest2
 
 test: $(metaobj) test.o dsassert.o
-	${CC} hashfns.o memcxt.o pool.o metadata.o test.o  dsassert.o -o test
+	${CC}   $(metaobj) test.o  dsassert.o -o test
 
 mtest0: mtest0.c $(metaobj) $(mobj)
 	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(metaobj) $(mobj)

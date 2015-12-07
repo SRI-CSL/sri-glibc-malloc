@@ -1,14 +1,11 @@
-#include <assert.h>
+//#include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
 
-
 #include "metadata.h"
-#include "utils.h"
-
-
-
-
+#include "hashfns.h"
+#include "memcxt.h"
+#include "dsassert.h"
 
 
 const bool      metadata_multithreaded             = false;
@@ -21,7 +18,7 @@ const uint16_t  metadata_min_load                 = 2;
 const uint16_t  metadata_max_load                 = 5;
 
 /* toggle for enabling table contraction */
-#define CONTRACTION_ENABLED  1
+#define CONTRACTION_ENABLED  0
 
 /* static routines */
 static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt);
@@ -126,7 +123,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   }
     
   /* the directory; i.e. the array of segment pointers */
-  lhtbl->directory = memcxt_allocate(memcxt, DIRECTORY, dirsz);
+  lhtbl->directory = memcxt->allocate(DIRECTORY, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
@@ -159,7 +156,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
-    seg = (segment_t*)memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
+    seg = (segment_t*)memcxt->allocate(SEGMENT, sizeof(segment_t));
     lhtbl->directory[index] = seg;
     if(seg == NULL){
       errno = ENOMEM;
@@ -230,18 +227,18 @@ void delete_metadata(metadata_t* lhtbl){
 	while(current_bucket != NULL){
 
 	  next_bucket = current_bucket->next_bucket;
-	  memcxt_release(memcxt, BUCKET, current_bucket, sizeof(bucket_t));
+	  memcxt->release(BUCKET, current_bucket, sizeof(bucket_t));
 	  current_bucket = next_bucket;
 	}
       }
       /* now release the segment */
-      memcxt_release(memcxt, SEGMENT, current_segment,  sizeof(segment_t));
+      memcxt->release(SEGMENT, current_segment,  sizeof(segment_t));
   }
   
   success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   assert(success);
   if(success){
-    memcxt_release(memcxt, DIRECTORY, lhtbl->directory, dirsz);
+    memcxt->release(DIRECTORY, lhtbl->directory, dirsz);
   }
 }
 
@@ -343,7 +340,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     errno = EINVAL;
     return false;
   }
-  newdir = memcxt_allocate(memcxt, DIRECTORY, new_dirsz);
+  newdir = memcxt->allocate(DIRECTORY, new_dirsz);
 
   if(newdir == NULL){
     errno = ENOMEM;
@@ -365,7 +362,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     errno = EINVAL;
     return false;
   }
-  memcxt_release(memcxt, DIRECTORY, olddir, old_dirsz);
+  memcxt->release(DIRECTORY, olddir, old_dirsz);
 
   return true;
 }
@@ -414,7 +411,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
     
     /* expand address space; if necessary create new segment */  
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
-      newseg = memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
+      newseg = memcxt->allocate(SEGMENT, sizeof(segment_t));
       if(newseg == NULL){
 	errno = ENOMEM;
 	return false;
@@ -539,7 +536,7 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
       } else {
 	previous_bucketp->next_bucket = current_bucketp->next_bucket;
       }
-      memcxt_release(lhtbl->cfg.memcxt, BUCKET, current_bucketp, sizeof(bucket_t));
+      lhtbl->cfg.memcxt->release(BUCKET, current_bucketp, sizeof(bucket_t));
 
       /* census adjustments */
       lhtbl->count--;
@@ -584,7 +581,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
       }
       temp_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
-      memcxt_release(lhtbl->cfg.memcxt, BUCKET, temp_bucketp, sizeof(bucket_t));
+      lhtbl->cfg.memcxt->release(BUCKET, temp_bucketp, sizeof(bucket_t));
     } else {
       previous_bucketp = current_bucketp;
       current_bucketp = current_bucketp->next_bucket;
@@ -620,6 +617,30 @@ size_t bucket_length(bucket_t* bucket){
 }
 
 
+
+
+
+
+bool forall_metadata(metadata_t* lhtbl, chunck_check_t checkfn, chunkinfoptr top){
+  size_t index;
+  bucket_t** bin;
+  bucket_t* bucket;
+  
+  for(index = 0; index < lhtbl->bincount; index++){
+    bin = bindex2bin(lhtbl, index);
+    bucket = *bin;
+    while(bucket != NULL){
+      if( ! checkfn(lhtbl, bucket, top) ){ return false; }
+      bucket = bucket->next_bucket;
+    }
+  }
+  return true;
+}
+
+
+
+
+
 #if CONTRACTION_ENABLED
 
 static void metadata_contract_check(metadata_t* lhtbl){
@@ -648,25 +669,16 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   success = mul_size(newlen, sizeof(segment_t*), &newsz);
 
   assert(success);
-  if( ! success ){
-    return;
-  }
   
   success = mul_size(oldlen, sizeof(segment_t*), &oldsz);
 
   assert(success);
-  if( ! success ){
-    return;
-  }
 
   assert(curlen < newlen);
-  if( ! (curlen < newlen) ){
-    return;
-  }
   
   olddir = lhtbl->directory;
   
-  newdir = memcxt_allocate(memcxt, DIRECTORY, newsz);
+  newdir = memcxt->allocate(DIRECTORY, newsz);
   
   for(index = 0; index < newlen; index++){
     newdir[index] = olddir[index];
@@ -675,7 +687,7 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   lhtbl->directory = newdir;
   lhtbl->directory_length = newlen;
   
-  memcxt_release(memcxt, DIRECTORY, olddir, oldsz);
+  memcxt->release(DIRECTORY, olddir, oldsz);
 }
 
 static inline void check_index(size_t index, const char* name, metadata_t* lhtbl){
@@ -752,9 +764,6 @@ static void metadata_contract_table(metadata_t* lhtbl){
     tgtindex = lhtbl->p - 1;
     success = add_size(lhtbl->maxp, lhtbl->p - 1, &srcindex);
     assert(success);
-    if(! success ){
-      return;
-    }
   }
 
   check_index(srcindex, "src",  lhtbl);
@@ -778,7 +787,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
 
   if(mod_power_of_two(srcindex, seglen) == 0){
     /* ok we can reclaim it */
-    memcxt_release(memcxt, SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
+    memcxt->release(SEGMENT, lhtbl->directory[segindex], sizeof(segment_t));
     lhtbl->directory[segindex] = NULL;
     lhtbl->directory_current -= 1;
   }
@@ -795,7 +804,6 @@ static void metadata_contract_table(metadata_t* lhtbl){
   lhtbl->bincount -= 1;
   
 }
-
 
 #endif
 

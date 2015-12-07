@@ -2,36 +2,35 @@
 #define _MEMCXT_H
 
 
-#include <stdbool.h>
-#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
-#include "types.h"
+#include "chunkinfo.h"
 
 /*
- *  The API of our metadata pool allocator.
+ *  The API of our pool allocator for the metadata.
  *
  *
  */
 
 
+
+typedef struct memcxt_s {
+  segment_pool_t* segments;
+  bucket_pool_t* buckets;
+} memcxt_t;
+
+
 typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
 
+extern bool init_memcxt(memcxt_t* memcxt);
 
-// BD make sure it is well understood that allocate can fail.
-// and make use of this in linhash.c etc.
+extern void* memcxt_allocate(memcxt_t* memcxt, memtype_t, size_t);
 
-struct memcxt_s {
-  void *(*allocate)(memtype_t, size_t);
-  void (*release)(memtype_t, void*, size_t);
-};
+extern void memcxt_release(memcxt_t* memcxt, memtype_t,  void*, size_t);
 
+extern void delete_memcxt(memcxt_t* memcxt);
 
-extern void init_sys_memcxt(memcxt_t* smem);
-
-extern bool add_size(size_t s1, size_t s2, size_t* sum);
-
-extern bool mul_size(size_t s1, size_t s2, size_t* prod);
-
-
+extern void dump_memcxt(FILE* fp, memcxt_t* memcxt);
 
 #endif

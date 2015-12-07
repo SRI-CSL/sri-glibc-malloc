@@ -21,7 +21,7 @@
 
 #include "dsmalloc.h" 
 #include "dsassert.h" 
-#include "pool.h" 
+#include "metadata.h" 
 
 #include <stdbool.h>
 
@@ -1186,7 +1186,7 @@ static void malloc_init_state(av) mstate av;
 
   set_max_fast(av, DEFAULT_MXFAST);
 
-  init_pool_memcxt(&av->memcxt);
+  init_memcxt(&av->memcxt);
 
   if( ! init_metadata(&av->htbl, &av->memcxt)){
     abort();

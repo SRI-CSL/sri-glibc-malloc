@@ -476,7 +476,7 @@ static bool free_segment(memcxt_t* memcxt, segment_t* segp){
   size_t pmask_index;
   uint32_t pmask_bit;
   
-  assert(pool != NULL);
+  assert(memcxt != NULL);
   assert(segp != NULL);
   
   /* get the segments pool that we belong to */

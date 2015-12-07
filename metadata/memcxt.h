@@ -16,7 +16,6 @@
 
 
 typedef struct memcxt_s {
-  void* directory;
   segment_pool_t* segments;
   bucket_pool_t* buckets;
 } memcxt_t;

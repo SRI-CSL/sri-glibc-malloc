@@ -32,7 +32,7 @@ struct segment_pool_s {
 };
 
 
-static void* new_directory(memcxt_t* memcxt, size_t size);
+static void* new_directory(memcxt_t* memcxt, void* olddir, size_t size);
 
 static segment_pool_t* new_segments(void);
 
@@ -57,7 +57,6 @@ bool init_memcxt(memcxt_t* memcxt){
   if(memcxt == NULL){
     return false;
   }
-
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
 
@@ -66,11 +65,34 @@ bool init_memcxt(memcxt_t* memcxt){
 
 
 void delete_memcxt(memcxt_t* memcxt){
-  //TBD
+  segment_pool_t* segments;
+  segment_pool_t* currseg;
+  bucket_pool_t* buckets;
+  bucket_pool_t* currbuck;
+
+  segments = memcxt->segments;
+  memcxt->segments = NULL;
+  if(segments != NULL){
+    while(segments != NULL){
+      currseg = segments;
+      segments = segments->next_segment_pool;
+      pool_munmap(currseg, sizeof(segment_pool_t));
+    }
+  }
+
+  buckets = memcxt->buckets;
+  memcxt->buckets = NULL;
+  if(buckets != NULL){
+    while(buckets != NULL){
+      currbuck = buckets;
+      buckets = buckets->next_bucket_pool;
+      pool_munmap(currbuck, sizeof(bucket_pool_t));
+    }
+  }
 
 }
 
-void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
+void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, void* oldptr, size_t sz){
   void *memory;
 
   memory = NULL;
@@ -80,14 +102,16 @@ void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
     
     switch(type){
     case DIRECTORY: {
-      memory = new_directory(memcxt, sz);
+      memory = new_directory(memcxt, oldptr, sz);
       break;
     }
     case SEGMENT: {
+      assert(oldptr == NULL);
       memory = alloc_segment(memcxt);
       break;
     }
     case BUCKET: {
+      assert(oldptr == NULL);
       memory = alloc_bucket(memcxt);
       break;
     }
@@ -212,8 +236,8 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-static void* new_directory(memcxt_t* memcxt, size_t size){
-  return pool_mmap(NULL, size);
+static void* new_directory(memcxt_t* memcxt, void* oldptr, size_t size){
+  return pool_mmap(oldptr, size);
 }
 
 static segment_pool_t* new_segments(void){
@@ -447,13 +471,13 @@ static segment_t* alloc_segment(memcxt_t* memcxt){
   }
 
   assert(segp == NULL);
-    assert(spool_current  == NULL);
+  assert(spool_current  == NULL);
 
     
-    spool_current = new_segments();
-
-  if(spool_current != NULL){
+  spool_current = new_segments();
   
+  if(spool_current != NULL){
+    
     /* put the new segment up front */
     spool_current->next_segment_pool = memcxt->segments;
     memcxt->segments = spool_current;

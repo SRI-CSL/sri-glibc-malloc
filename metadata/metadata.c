@@ -1,13 +1,8 @@
 #include <errno.h>
 #include <inttypes.h>
 
-
 #include "metadata.h"
 #include "utils.h"
-
-
-
-
 
 
 const bool      metadata_multithreaded             = false;
@@ -125,7 +120,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   }
     
   /* the directory; i.e. the array of segment pointers */
-  lhtbl->directory = memcxt_allocate(memcxt, DIRECTORY, dirsz);
+  lhtbl->directory = memcxt_allocate(memcxt, DIRECTORY, NULL, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
@@ -158,7 +153,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
 
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
-    seg = (segment_t*)memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
+    seg = (segment_t*)memcxt_allocate(memcxt, SEGMENT, NULL, sizeof(segment_t));
     lhtbl->directory[index] = seg;
     if(seg == NULL){
       errno = ENOMEM;
@@ -342,7 +337,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     errno = EINVAL;
     return false;
   }
-  newdir = memcxt_allocate(memcxt, DIRECTORY, new_dirsz);
+  newdir = memcxt_allocate(memcxt, DIRECTORY, olddir, new_dirsz);
 
   if(newdir == NULL){
     errno = ENOMEM;
@@ -413,7 +408,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
     
     /* expand address space; if necessary create new segment */  
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
-      newseg = memcxt_allocate(memcxt, SEGMENT, sizeof(segment_t));
+      newseg = memcxt_allocate(memcxt, SEGMENT, NULL, sizeof(segment_t));
       if(newseg == NULL){
 	errno = ENOMEM;
 	return false;
@@ -665,13 +660,16 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   
   olddir = lhtbl->directory;
   
-  newdir = memcxt_allocate(memcxt, DIRECTORY, newsz);
+  newdir = memcxt_allocate(memcxt, DIRECTORY, olddir, newsz);
   
-  for(index = 0; index < newlen; index++){
-    newdir[index] = olddir[index];
+  if (olddir != newdir){
+    for(index = 0; index < newlen; index++){
+      newdir[index] = olddir[index];
+    }
+    
+    lhtbl->directory = newdir;
   }
 
-  lhtbl->directory = newdir;
   lhtbl->directory_length = newlen;
   
   memcxt_release(memcxt, DIRECTORY, olddir, oldsz);

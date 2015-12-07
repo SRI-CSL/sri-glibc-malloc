@@ -8,14 +8,15 @@
 #include "utils.h"
 
 
+#define BITS_IN_MASK  64
 
 #define BP_SCALE  1024
 /* one thing for every bit in the bitmask */
-#define BP_LENGTH  BP_SCALE * 64  
+#define BP_LENGTH  BP_SCALE * BITS_IN_MASK  
 
 #define SP_SCALE  8
 /* one thing for every bit in the bitmask */
-#define SP_LENGTH SP_SCALE * 64  
+#define SP_LENGTH SP_SCALE * BITS_IN_MASK  
 
 struct bucket_pool_s {
   bucket_t pool[BP_LENGTH];       /* the pool of buckets; one for each bit in the bitmask array */
@@ -52,12 +53,15 @@ static bool pool_munmap(void* memory, size_t size);
 
 
 bool init_memcxt(memcxt_t* memcxt){
+
   assert(memcxt != NULL);
   if(memcxt == NULL){
     return false;
   }
+
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
+
   return memcxt->segments != NULL && memcxt->buckets != NULL;
 }
 
@@ -69,6 +73,7 @@ void delete_memcxt(memcxt_t* memcxt){
 
 void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
   void *memory;
+
   memory = NULL;
   assert(memcxt != NULL);
 
@@ -119,8 +124,11 @@ void memcxt_release(memcxt_t* memcxt, memtype_t type,  void* ptr, size_t sz){
 }
 
 void dump_memcxt(FILE* fp, memcxt_t* memcxt){
-  float bp = sizeof(bucket_pool_t);
-  float sp = sizeof(segment_pool_t);
+  float bp;
+  float sp;
+
+  bp = sizeof(bucket_pool_t);
+  sp = sizeof(segment_pool_t);
   bp /= 4096;
   sp /= 4096;
   fprintf(fp, "sizeof(bucket_pool_t) =  %zu\n", sizeof(bucket_pool_t));
@@ -211,21 +219,27 @@ static void* new_directory(memcxt_t* memcxt, size_t size){
 
 static segment_pool_t* new_segments(void){
   segment_pool_t* sptr;
+  
   sptr = pool_mmap(NULL, sizeof(segment_pool_t));
   if(sptr == NULL){
     return NULL;
   }
+  
   init_segment_pool(sptr);
+  
   return sptr;
 }
 
 static void* new_buckets(void){
   bucket_pool_t* bptr;
+  
   bptr = pool_mmap(NULL, sizeof(bucket_pool_t));
   if(bptr == NULL){
     return NULL;
   }
+  
   init_bucket_pool(bptr);
+  
   return bptr;
 }
 
@@ -243,7 +257,7 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 
   for(scale = 0; scale < BP_SCALE; scale++){
     mask = bpool->bitmasks[scale];
-    for(bit = 0; bit < 64; bit++){
+    for(bit = 0; bit < BITS_IN_MASK; bit++){
       if((mask & (((uint64_t)1) << bit)) == 0){
 	bit_free_count++;
       }
@@ -275,28 +289,31 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 static uint32_t get_free_bit(uint64_t mask){
   uint32_t index;
   uint64_t flipped;
+  
   assert(mask != UINT64_MAX);
   flipped = ~mask;
+
   index = ctz64(flipped);  
+
   return index;
 }
 
 #ifndef NDEBUG
 static inline bool get_bit(uint64_t mask, uint32_t index){
-  assert((0 <= index) && (index < 64));
+  assert((0 <= index) && (index < BITS_IN_MASK));
   return (mask & (((uint64_t)1) << index))  ? true : false;
 }
 #endif
 
 /* sets the bit specified by the index in the mask */
 static inline uint64_t set_bit(uint64_t mask, uint32_t index) {
-  assert(0 <= index && index < 64);
+  assert(0 <= index && index < BITS_IN_MASK);
   return mask | (((uint64_t)1) << index);
 }
 
 /* clear the bit */
 static inline uint64_t clear_bit(uint64_t mask, uint32_t index) {
-  assert(0 <= index && index < 64);
+  assert(0 <= index && index < BITS_IN_MASK);
   return mask & ~(((uint64_t)1) << index); 
 }
 
@@ -322,8 +339,8 @@ static bucket_t* alloc_bucket(memcxt_t* memcxt){
 	  /* ok there should be one here; lets find it */
 	  index = get_free_bit(bpool_current->bitmasks[scale]);
 
-	  assert((0 <= index) && (index < 64));
-	  buckp = &bpool_current->pool[(scale * 64) + index];
+	  assert((0 <= index) && (index < BITS_IN_MASK));
+	  buckp = &bpool_current->pool[(scale * BITS_IN_MASK) + index];
 	  bpool_current->bitmasks[scale] = set_bit(bpool_current->bitmasks[scale], index);
 	  bpool_current->free_count --;
 	  assert(sane_bucket_pool(bpool_current));
@@ -377,8 +394,8 @@ static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp){
 
   index = buckp - bpool->pool;
 
-  pmask_index = index / 64;
-  pmask_bit = index % 64;
+  pmask_index = index / BITS_IN_MASK;
+  pmask_bit = index % BITS_IN_MASK;
 
   assert(get_bit(bpool->bitmasks[pmask_index], pmask_bit)); 
 	 
@@ -414,10 +431,10 @@ static segment_t* alloc_segment(memcxt_t* memcxt){
 	  /* ok there should be one here; lets find it */
 	  index = get_free_bit(spool_current->bitmasks[scale]);
 
-	  assert((0 <= index) && (index < 64));
+	  assert((0 <= index) && (index < BITS_IN_MASK));
 
 	  /* ok we can use this one */
-	  segp = &spool_current->pool[(scale * 64) + index];
+	  segp = &spool_current->pool[(scale * BITS_IN_MASK) + index];
 	  spool_current->bitmasks[scale] = set_bit(spool_current->bitmasks[scale], index);
 	  spool_current->free_count --;
 
@@ -470,8 +487,8 @@ static bool free_segment(memcxt_t* memcxt, segment_t* segp){
 
   index = segp - spool->pool;
 
-  pmask_index = index / 64;
-  pmask_bit = index % 64;
+  pmask_index = index / BITS_IN_MASK;
+  pmask_bit = index % BITS_IN_MASK;
 
   assert(get_bit(spool->bitmasks[pmask_index], pmask_bit)); 
 

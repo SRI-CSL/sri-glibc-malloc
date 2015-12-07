@@ -27,8 +27,6 @@ int main(int argc, char** argv){
 
   init_memcxt(&memcxt);
 
-  fprintf(stderr, "Using %s\n",  (argc > 1) ? "sys_memcxt" : "pool_memcxt");
-
   if(tests[0]){ test_0(&memcxt); }
   
   if(tests[1]){ test_1(&memcxt); }

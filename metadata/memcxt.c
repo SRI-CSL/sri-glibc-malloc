@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -33,7 +32,7 @@ struct segment_pool_s {
 };
 
 
-static void* new_directory(memcxt_t* memcxt, size_t size);
+static void* new_directory(memcxt_t* memcxt, void* olddir, size_t size);
 
 static segment_pool_t* new_segments(void);
 
@@ -71,7 +70,7 @@ void delete_memcxt(memcxt_t* memcxt){
 
 }
 
-void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
+void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, void* oldptr, size_t sz){
   void *memory;
 
   memory = NULL;
@@ -81,14 +80,16 @@ void* memcxt_allocate(memcxt_t* memcxt, memtype_t type, size_t sz){
     
     switch(type){
     case DIRECTORY: {
-      memory = new_directory(memcxt, sz);
+      memory = new_directory(memcxt, oldptr, sz);
       break;
     }
     case SEGMENT: {
+      assert(oldptr == NULL);
       memory = alloc_segment(memcxt);
       break;
     }
     case BUCKET: {
+      assert(oldptr == NULL);
       memory = alloc_bucket(memcxt);
       break;
     }
@@ -213,8 +214,8 @@ static bool pool_munmap(void* memory, size_t size){
 }
 
 
-static void* new_directory(memcxt_t* memcxt, size_t size){
-  return pool_mmap(NULL, size);
+static void* new_directory(memcxt_t* memcxt, void* oldptr, size_t size){
+  return pool_mmap(oldptr, size);
 }
 
 static segment_pool_t* new_segments(void){

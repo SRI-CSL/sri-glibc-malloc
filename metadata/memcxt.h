@@ -25,7 +25,8 @@ typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
 
 extern bool init_memcxt(memcxt_t* memcxt);
 
-extern void* memcxt_allocate(memcxt_t* memcxt, memtype_t, size_t);
+/* allocates from the memcxt; in the case of a directory we try to realloc */
+extern void* memcxt_allocate(memcxt_t* memcxt, memtype_t, void*, size_t);
 
 extern void memcxt_release(memcxt_t* memcxt, memtype_t,  void*, size_t);
 

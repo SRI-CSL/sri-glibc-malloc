@@ -57,7 +57,6 @@ bool init_memcxt(memcxt_t* memcxt){
   if(memcxt == NULL){
     return false;
   }
-
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
 
@@ -66,7 +65,30 @@ bool init_memcxt(memcxt_t* memcxt){
 
 
 void delete_memcxt(memcxt_t* memcxt){
-  //TBD
+  segment_pool_t* segments;
+  segment_pool_t* currseg;
+  bucket_pool_t* buckets;
+  bucket_pool_t* currbuck;
+
+  segments = memcxt->segments;
+  memcxt->segments = NULL;
+  if(segments != NULL){
+    while(segments != NULL){
+      currseg = segments;
+      segments = segments->next_segment_pool;
+      pool_munmap(currseg, sizeof(segment_pool_t));
+    }
+  }
+
+  buckets = memcxt->buckets;
+  memcxt->buckets = NULL;
+  if(buckets != NULL){
+    while(buckets != NULL){
+      currbuck = buckets;
+      buckets = buckets->next_bucket_pool;
+      pool_munmap(currbuck, sizeof(bucket_pool_t));
+    }
+  }
 
 }
 
@@ -449,13 +471,13 @@ static segment_t* alloc_segment(memcxt_t* memcxt){
   }
 
   assert(segp == NULL);
-    assert(spool_current  == NULL);
+  assert(spool_current  == NULL);
 
     
-    spool_current = new_segments();
-
-  if(spool_current != NULL){
+  spool_current = new_segments();
   
+  if(spool_current != NULL){
+    
     /* put the new segment up front */
     spool_current->next_segment_pool = memcxt->segments;
     memcxt->segments = spool_current;

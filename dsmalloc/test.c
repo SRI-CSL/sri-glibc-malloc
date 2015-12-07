@@ -35,6 +35,8 @@ int main(int argc, char** argv){
 
   if(tests[3]){ test_3(&memcxt); }
   
+  delete_memcxt(&memcxt);
+
   return 0;
 }
 

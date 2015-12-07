@@ -1,14 +1,11 @@
+#include "metadata.h"
+#include "utils.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "metadata.h"
-#include "utils.h"
-
 metadata_t numerouno;
-
 
 static void test_0(memcxt_t* memcxt);
 static void test_1(memcxt_t* memcxt);
@@ -34,7 +31,7 @@ int main(int argc, char** argv){
   if(tests[2]){ test_2(&memcxt); }
 
   if(tests[3]){ test_3(&memcxt); }
-
+  
 
   delete_memcxt(&memcxt);
   

@@ -5,8 +5,6 @@ typedef struct bucket_pool_s bucket_pool_t;
 
 typedef struct segment_pool_s segment_pool_t;
 
-typedef struct segment_s segment_t;
-
 #define SEGMENT_LENGTH 256
 
 #define DIRECTORY_LENGTH 1024
@@ -31,7 +29,7 @@ typedef struct chunkinfo {
 
 typedef bucket_t* chunkinfoptr;
 
-struct segment_s {
+typedef struct segment_s {
   bucket_t* segment[SEGMENT_LENGTH];
   segment_pool_t *segment_pool_ptr;  
-};
+} segment_t;

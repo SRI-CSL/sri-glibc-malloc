@@ -42,6 +42,6 @@ make
 ```
 
 
-This recipe is untested. For guidance:
+For guidance:
 
 [testing glibc builds](https://sourceware.org/glibc/wiki/Testing/Builds)

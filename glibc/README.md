@@ -29,9 +29,10 @@ for the build product's sake.
 ```
 cd ${HEAPMETADATA}/Variants/glibc
 rm -rf malloc
-ln -s ${HEAPMETADATA}/src/glibc/malloc malloc
-touch malloc/*.[ch]
+cp -r ${HEAPMETADATA}/src/glibc/malloc malloc
 ```
+I was hoping to ue a symbolic link here, but that did not seem to work (due
+to references to ../.. stuff in the malloc dir).
 
 4. Rebuild the new stuff.
 

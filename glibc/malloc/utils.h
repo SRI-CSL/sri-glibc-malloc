@@ -1,11 +1,11 @@
 #ifndef _HASHFNS_H
 #define _HASHFNS_H
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include "gassert.h"
 
 /*
  *  Bruno Dutertre's versions of Jenkin's hash functions.

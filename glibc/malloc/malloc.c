@@ -244,7 +244,10 @@
 /* For ALIGN_UP et. al.  */
 #include <libc-internal.h>
 
-
+/* 
+   iam: we need to use assert as well, so we pull it out into it's own
+   header file
+*/
 #include "gassert.h"
 
 /*

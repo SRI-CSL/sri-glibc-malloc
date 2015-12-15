@@ -1354,16 +1354,30 @@ static inline mchunkptr chunk_at_offset(mchunkptr p, size_t s){
   return ((mchunkptr) (((char *) p) + s));
 }
 
-/* extract p's inuse bit */
-#define inuse(p)							      \
+/* extract p's inuse bit [iam: used anywhere?] */
+#define glibc_inuse(p)							      \
   ((((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size) & PREV_INUSE)
 
-/* set/clear chunk as being inuse without otherwise disturbing */
-#define set_inuse(p)							      \
+static inline bool inuse(mchunkptr p){
+  return ((((mchunkptr) (((char *)p) +
+			 (p->size & ~SIZE_BITS)))->size) 
+	  & PREV_INUSE) == PREV_INUSE;
+}
+
+/* set/clear chunk as being inuse without otherwise disturbing [iam: used anywhere?]  */
+#define glibc_set_inuse(p)							      \
   ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size |= PREV_INUSE
 
-#define clear_inuse(p)							      \
+static inline void set_inuse(mchunkptr p){
+  ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size |= PREV_INUSE;
+}
+
+#define glibc_clear_inuse(p)							      \
   ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE)
+
+static inline void clear_inuse(mchunkptr p){
+  ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE);
+}
 
 
 /* check/set/clear inuse bits in known places */

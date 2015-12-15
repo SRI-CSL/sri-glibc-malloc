@@ -1079,8 +1079,8 @@ static void      free_atfork(void* mem, const void *caller);
  __mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0)
 
 /* iam: i plan to see if we can inline most of the #defines  as part of a code cleanup */
-static inline void *MMAP(void *addr, size_t length, int prot, int flags, int fd, off_t offset){
-  return __mmap(addr, size, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+static inline void *MMAP(void *addr, size_t length, int prot, int flags){
+  return __mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 }
 
 
@@ -1211,7 +1211,7 @@ static inline void *chunk2mem(void* p){
 } 
 
 static inline mchunkptr mem2chunk(void* mem){
-  return ((mchunkptr)((char*)mem - 2*SIZE_SZ))
+  return ((mchunkptr)((char*)mem - 2*SIZE_SZ));
 }
 
 /* The smallest possible chunk */
@@ -1226,7 +1226,7 @@ static inline mchunkptr mem2chunk(void* mem){
 
 #define glibc_aligned_OK(m)  (((unsigned long)(m) & MALLOC_ALIGN_MASK) == 0)
 
-static inline bool aligned_OK(void *m){
+static inline bool aligned_OK(unsigned long m){
   return (((unsigned long)m & MALLOC_ALIGN_MASK) == 0);
 }
 
@@ -1234,7 +1234,7 @@ static inline bool aligned_OK(void *m){
   ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? (p) : chunk2mem (p)) \
    & MALLOC_ALIGN_MASK)
 
-static inline void* misaligned_chunk(void* p){
+static inline int misaligned_chunk(void* p){
   return ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? p : chunk2mem(p)) & MALLOC_ALIGN_MASK);
 }
 
@@ -1248,23 +1248,16 @@ static inline void* misaligned_chunk(void* p){
   ((unsigned long) (req) >=				          \
    (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE))
 
-static inline bool REQUEST_OUT_OF_RANGE(size_t bytes){
+static inline bool REQUEST_OUT_OF_RANGE(size_t req){
   return (unsigned long)req >=	 (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE);
 }
 
 /* pad request bytes into a usable size -- internal version */
 
-#define glibc_request2size(req)                                   \
+#define request2size(req)                                   \
   (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?             \
    MINSIZE :                                                      \
    ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
-
-static size_t request2size(size_t req){
-  return ((req + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ? 
-	  MINSIZE :					       
-	  (req + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK);
-}  
-
 
 /*  Same, except also perform argument check */
 
@@ -1350,7 +1343,7 @@ static inline mchunkptr prev_chunk(mchunkptr p){
 /* Treat space at ptr + offset as a chunk */
 #define glibc_chunk_at_offset(p, s)  ((mchunkptr) (((char *) (p)) + (s)))
 
-static inline mchunkptr chunk_at_offset(mchunkptr p, size_t s){
+static inline mchunkptr chunk_at_offset(void* p, size_t s){
   return ((mchunkptr) (((char *) p) + s));
 }
 
@@ -1381,14 +1374,28 @@ static inline void clear_inuse(mchunkptr p){
 
 
 /* check/set/clear inuse bits in known places */
-#define inuse_bit_at_offset(p, s)					      \
+#define glibc_inuse_bit_at_offset(p, s)					      \
   (((mchunkptr) (((char *) (p)) + (s)))->size & PREV_INUSE)
 
-#define set_inuse_bit_at_offset(p, s)					      \
+static inline int inuse_bit_at_offset(mchunkptr p, size_t s){
+  return (((mchunkptr) (((char *)p) + (s)))->size & PREV_INUSE);
+}
+
+#define glibc_set_inuse_bit_at_offset(p, s)					      \
   (((mchunkptr) (((char *) (p)) + (s)))->size |= PREV_INUSE)
 
-#define clear_inuse_bit_at_offset(p, s)					      \
+static inline void set_inuse_bit_at_offset(mchunkptr p, size_t s){
+  (((mchunkptr) (((char *)p) + s))->size |= PREV_INUSE);
+}
+
+#define glibc_clear_inuse_bit_at_offset(p, s)					      \
   (((mchunkptr) (((char *) (p)) + (s)))->size &= ~(PREV_INUSE))
+
+static inline void clear_inuse_bit_at_offset(mchunkptr p, size_t s){
+  (((mchunkptr) (((char *)p) + s))->size &= ~(PREV_INUSE));
+}
+
+
 
 
 /* Set size at head, without disturbing its use bit */
@@ -2939,7 +2946,7 @@ mremap_chunk (mchunkptr p, size_t new_size)
 
   p = (mchunkptr) (cp + offset);
 
-  assert (aligned_OK (chunk2mem (p)));
+  assert (aligned_OK ((unsigned long)chunk2mem (p)));
 
   assert ((p->prev_size == offset));
   set_head (p, (new_size - offset) | IS_MMAPPED);
@@ -4491,8 +4498,8 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
                 we can move to the next aligned spot -- we've allocated enough
                 total room so that this is always possible.
                  */
-      brk = (char *) mem2chunk (((unsigned long) (m + alignment - 1)) &
-                                - ((signed long) alignment));
+      brk = (char *) mem2chunk ((void *)(((unsigned long) (m + alignment - 1)) &
+					 - ((signed long) alignment)));
       if ((unsigned long) (brk - (char *) (p)) < MINSIZE)
         brk += alignment;
 

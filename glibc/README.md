@@ -27,9 +27,7 @@ for the build product's sake.
 3. Do the mocking bird thing:
 
 ```
-cd ${HEAPMETADATA}/Variants/glibc
-rm -rf malloc
-cp -r ${HEAPMETADATA}/src/glibc/malloc malloc
+make update
 ```
 I was hoping to ue a symbolic link here, but that did not seem to work (due
 to references to ../.. stuff in the malloc dir).
@@ -37,9 +35,15 @@ to references to ../.. stuff in the malloc dir).
 4. Rebuild the new stuff.
 
 ```
-cd ${HEAPMETADATA}/Variants/glibc-build
+make build
+```
+
+5. When developing 3. and 4. can be combine by doing:
+
+```
 make
 ```
+
 
 
 For guidance:

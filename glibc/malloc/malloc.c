@@ -215,6 +215,7 @@
 #include <stddef.h>   /* for size_t */
 #include <stdlib.h>   /* for getenv(), abort() */
 #include <unistd.h>   /* for __libc_enable_secure */
+#include <stdbool.h>  /* for bool, true and false, D'oh */
 
 #include <malloc-machine.h>
 #include <malloc-sysdep.h>
@@ -1073,8 +1074,15 @@ static void      free_atfork(void* mem, const void *caller);
 # define MAP_NORESERVE 0
 #endif
 
-#define MMAP(addr, size, prot, flags) \
+
+#define glibc_MMAP(addr, size, prot, flags) \
  __mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0)
+
+/* iam: i plan to see if we can inline most of the #defines  as part of a code cleanup */
+static inline void *MMAP(void *addr, size_t length, int prot, int flags, int fd, off_t offset){
+  return __mmap(addr, size, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+}
+
 
 
 /*
@@ -1195,8 +1203,16 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* conversion from malloc headers to user pointers, and back */
 
-#define chunk2mem(p)   ((void*)((char*)(p) + 2*SIZE_SZ))
-#define mem2chunk(mem) ((mchunkptr)((char*)(mem) - 2*SIZE_SZ))
+#define glibc_chunk2mem(p)   ((void*)((char*)(p) + 2*SIZE_SZ))
+#define glibc_mem2chunk(mem) ((mchunkptr)((char*)(mem) - 2*SIZE_SZ))
+
+static inline void *chunk2mem(void* p){
+  return ((void*)((char*)p + 2*SIZE_SZ));
+} 
+
+static inline mchunkptr mem2chunk(void* mem){
+  return ((mchunkptr)((char*)mem - 2*SIZE_SZ))
+}
 
 /* The smallest possible chunk */
 #define MIN_CHUNK_SIZE        (offsetof(struct malloc_chunk, fd_nextsize))
@@ -1208,12 +1224,19 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* Check if m has acceptable alignment */
 
-#define aligned_OK(m)  (((unsigned long)(m) & MALLOC_ALIGN_MASK) == 0)
+#define glibc_aligned_OK(m)  (((unsigned long)(m) & MALLOC_ALIGN_MASK) == 0)
 
-#define misaligned_chunk(p) \
+static inline bool aligned_OK(void *m){
+  return (((unsigned long)m & MALLOC_ALIGN_MASK) == 0);
+}
+
+#define glibc_misaligned_chunk(p) \
   ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? (p) : chunk2mem (p)) \
    & MALLOC_ALIGN_MASK)
 
+static inline void* misaligned_chunk(void* p){
+  return ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? p : chunk2mem(p)) & MALLOC_ALIGN_MASK);
+}
 
 /*
    Check if a request is so large that it would wrap around zero when
@@ -1221,25 +1244,37 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    low enough so that adding MINSIZE will also not wrap around zero.
  */
 
-#define REQUEST_OUT_OF_RANGE(req)                                 \
-  ((unsigned long) (req) >=						      \
+#define glibc_REQUEST_OUT_OF_RANGE(req)                           \
+  ((unsigned long) (req) >=				          \
    (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE))
+
+static inline bool REQUEST_OUT_OF_RANGE(size_t bytes){
+  return (unsigned long)req >=	 (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE);
+}
 
 /* pad request bytes into a usable size -- internal version */
 
-#define request2size(req)                                         \
+#define glibc_request2size(req)                                   \
   (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?             \
    MINSIZE :                                                      \
    ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
+static size_t request2size(size_t req){
+  return ((req + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ? 
+	  MINSIZE :					       
+	  (req + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK);
+}  
+
+
 /*  Same, except also perform argument check */
 
-#define checked_request2size(req, sz)                             \
-  if (REQUEST_OUT_OF_RANGE (req)) {					      \
-      __set_errno (ENOMEM);						      \
-      return 0;								      \
-    }									      \
+#define checked_request2size(req, sz)					\
+  if (REQUEST_OUT_OF_RANGE (req)) {					\
+    __set_errno (ENOMEM);						\
+    return 0;								\
+  }									\
   (sz) = request2size (req);
+
 
 /*
    --------------- Physical chunk operations ---------------
@@ -1250,14 +1285,22 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #define PREV_INUSE 0x1
 
 /* extract inuse bit of previous chunk */
-#define prev_inuse(p)       ((p)->size & PREV_INUSE)
+#define glibc_prev_inuse(p)       ((p)->size & PREV_INUSE)
+
+static inline bool prev_inuse(mchunkptr p){
+  return (p->size & PREV_INUSE) == PREV_INUSE;
+}
 
 
 /* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */
 #define IS_MMAPPED 0x2
 
 /* check for mmap()'ed chunk */
-#define chunk_is_mmapped(p) ((p)->size & IS_MMAPPED)
+#define glibc_chunk_is_mmapped(p) ((p)->size & IS_MMAPPED)
+
+static inline bool chunk_is_mmapped(mchunkptr p){
+  return (p->size & IS_MMAPPED) == IS_MMAPPED;
+}
 
 
 /* size field is or'ed with NON_MAIN_ARENA if the chunk was obtained
@@ -1266,7 +1309,11 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #define NON_MAIN_ARENA 0x4
 
 /* check for chunk from non-main arena */
-#define chunk_non_main_arena(p) ((p)->size & NON_MAIN_ARENA)
+#define glibc_chunk_non_main_arena(p) ((p)->size & NON_MAIN_ARENA)
+
+static inline bool chunk_non_main_arena(mchunkptr p){
+  return (p->size & NON_MAIN_ARENA) == NON_MAIN_ARENA;
+}
 
 
 /*
@@ -1280,17 +1327,32 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
-#define chunksize(p)         ((p)->size & ~(SIZE_BITS))
+#define glibc_chunksize(p)         ((p)->size & ~(SIZE_BITS))
 
+static inline INTERNAL_SIZE_T chunksize(mchunkptr p){
+  return p->size & ~(SIZE_BITS);
+}
 
 /* Ptr to next physical malloc_chunk. */
-#define next_chunk(p) ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))
+#define glibc_next_chunk(p) ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))
+
+static inline mchunkptr next_chunk(mchunkptr p){
+  return ((mchunkptr) (((char *) p) + (p->size & ~SIZE_BITS)));
+}
 
 /* Ptr to previous physical malloc_chunk */
-#define prev_chunk(p) ((mchunkptr) (((char *) (p)) - ((p)->prev_size)))
+#define glibc_prev_chunk(p) ((mchunkptr) (((char *) (p)) - ((p)->prev_size)))
+
+static inline mchunkptr prev_chunk(mchunkptr p){
+  return ((mchunkptr) (((char *)p) - (p->prev_size)));
+}
 
 /* Treat space at ptr + offset as a chunk */
-#define chunk_at_offset(p, s)  ((mchunkptr) (((char *) (p)) + (s)))
+#define glibc_chunk_at_offset(p, s)  ((mchunkptr) (((char *) (p)) + (s)))
+
+static inline mchunkptr chunk_at_offset(mchunkptr p, size_t s){
+  return ((mchunkptr) (((char *) p) + s));
+}
 
 /* extract p's inuse bit */
 #define inuse(p)							      \

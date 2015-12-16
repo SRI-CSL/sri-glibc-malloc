@@ -1399,13 +1399,28 @@ static inline void clear_inuse_bit_at_offset(mchunkptr p, size_t s){
 
 
 /* Set size at head, without disturbing its use bit */
-#define set_head_size(p, s)  ((p)->size = (((p)->size & SIZE_BITS) | (s)))
+#define glibc_set_head_size(p, s)  ((p)->size = (((p)->size & SIZE_BITS) | (s)))
+
+static inline void set_head_size(mchunkptr p, size_t s){
+  p->size = (p->size & SIZE_BITS) | s;
+}
 
 /* Set size/use field */
-#define set_head(p, s)       ((p)->size = (s))
+#define glibc_set_head(p, s)       ((p)->size = (s))
+
+static inline void set_head(mchunkptr p, size_t s){
+  p->size = s;
+}
+
 
 /* Set size at footer (only when chunk is not in use) */
-#define set_foot(p, s)       (((mchunkptr) ((char *) (p) + (s)))->prev_size = (s))
+#define glibc_set_foot(p, s)       (((mchunkptr) ((char *) (p) + (s)))->prev_size = (s))
+
+static inline void set_foot(mchunkptr p, size_t s){
+  ((mchunkptr)((char *)p + s))->prev_size = s;
+}
+
+
 
 
 /*

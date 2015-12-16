@@ -69,7 +69,14 @@
 # if defined __cplusplus && (__GNUC__ >= 3 || __GNUC_MINOR__ >= 8)
 #  define __THROW	throw ()
 # else
-#  define __THROW
+/* iam: this causes complaints */
+#ifndef  __THROW
+#define __THROW
+#else
+#undef __THROW
+#define __THROW
+#endif
+
 # endif
 # define __MALLOC_P(args)	args __THROW
 /* This macro will be used for functions which might take C++ callback

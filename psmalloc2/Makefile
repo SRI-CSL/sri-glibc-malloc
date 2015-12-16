@@ -1,10 +1,10 @@
 # Makefile for ptmalloc, version 2
 # by Wolfram Gloger 1996-1999, 2001, 2002, 2003, 2004, 2006
-# iam: trimed and claned up 
+# iam: trimmed and cleaned up 
 
 SYS_FLAGS  =
 OPT_FLAGS  = -g -O # -O2
-WARN_FLAGS = #-Wall -Wstrict-prototypes
+WARN_FLAGS = -Wall -Wstrict-prototypes
 
 SH_FLAGS   = -shared -fpic -lpthread
 
@@ -74,42 +74,7 @@ tst-mstats$(T_SUF): tst-mstats.c $(LIB_MALLOC)
 	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC) \
 	 $(THR_LIBS) -o $@
 
-############################################################################
-# Platform-specific targets. The ones ending in `-libc' are provided
-# to enable comparison with the standard malloc implementation from
-# the system's native C library.  The option USE_TSD_DATA_HACK is now
-# the default for pthreads systems, as most (Irix 6, Solaris 2) seem
-# to need it.  Try with USE_TSD_DATA_HACK undefined only if you're
-# confident that your systems' thread specific data functions do _not_
-# use malloc themselves.
 
-# posix threads with TSD data hack
-posix:
-	$(MAKE) THR_FLAGS='-DUSE_TSD_DATA_HACK -D_REENTRANT' \
- OPT_FLAGS='$(OPT_FLAGS)' SYS_FLAGS='$(SYS_FLAGS)' CC='$(CC)' \
- INC_FLAGS='-Isysdeps/pthread -Isysdeps/generic -I.'
- THR_LIBS=-lpthread
-
-posix-libc:
-	$(MAKE) THR_FLAGS='-D_REENTRANT' THR_LIBS=-lpthread \
-	INC_FLAGS='-Isysdeps/pthread -Isysdeps/generic -I.' \
-	M_FLAGS='$(M_FLAGS)' LIB_MALLOC= T_FLAGS= T_SUF=-libc
-
-linux-pthread:
-	$(MAKE) SYS_FLAGS='-D_GNU_SOURCE=1' \
- WARN_FLAGS='-Wall -Wstrict-prototypes' \
- OPT_FLAGS='$(OPT_FLAGS)' THR_FLAGS='-DUSE_TSD_DATA_HACK' \
- INC_FLAGS='-Isysdeps/pthread -Isysdeps/generic -I.' M_FLAGS='$(M_FLAGS)' \
- TESTS='$(TESTS)'
-
-linux-malloc.so:
-	$(MAKE) SYS_FLAGS='-D_GNU_SOURCE=1' \
- WARN_FLAGS='-Wall -Wstrict-prototypes' \
- OPT_FLAGS='$(OPT_FLAGS)' THR_FLAGS='-DUSE_TSD_DATA_HACK' \
- INC_FLAGS='-Isysdeps/pthread -Isysdeps/generic -I.' M_FLAGS='$(M_FLAGS)' \
- malloc.so
-
-############################################################################
 
 check: $(TESTS)
 	./t-test1

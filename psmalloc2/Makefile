@@ -57,10 +57,6 @@ shared: malloc.so
 malloc.so: malloc.c malloc-stats.c malloc.h
 	$(CC)   $(SH_FLAGS) $(CFLAGS) $(M_FLAGS) ${IAMS} malloc.c malloc-stats.c  -o $@
 
-again:
-	$(RM) $(TESTS)
-	$(MAKE) $(TESTS)
-
 clean:
 	$(RM) $(MALLOC_OBJ) libmalloc.a malloc.so $(TESTS) core core.[0-9]*
 

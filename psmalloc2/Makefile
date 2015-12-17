@@ -1,47 +1,32 @@
 # Makefile for ptmalloc, version 2
 # by Wolfram Gloger 1996-1999, 2001, 2002, 2003, 2004, 2006
-# iam: trimmed and cleaned up 
+# iam: snip snip; trimmed and cleaned up 
 
-SYS_FLAGS  =
-OPT_FLAGS  = -g -O # -O2
-WARN_FLAGS = -Wall -Wstrict-prototypes
+LDFLAGS = -shared -fpic -lpthread
 
-SH_FLAGS   = -shared -fpic -lpthread
-
-INC_FLAGS  = -Isysdeps/generic
+CFLAGS = -D_GNU_SOURCE=1                          \
+	-g -O                                     \
+	-Wall -Wstrict-prototypes                 \
+	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
+	-Isysdeps/pthread -Isysdeps/generic -I. 
 
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1
 
 # Flags for the compilation of malloc.c
-M_FLAGS   = -DTHREAD_STATS=1 #-DMALLOC_DEBUG=1
+M_FLAGS   = -DTHREAD_STATS=1 
+#-DMALLOC_DEBUG=1
 
-# Thread flags.
-# See the platform-specific targets below.
-THR_FLAGS = -DUSE_TSD_DATA_HACK -D_REENTRANT
-THR_LIBS  = -lpthread
-
-SYS_FLAGS = -D_GNU_SOURCE=1
-
-RM        = rm -f
-AR        = ar
-RANLIB    = ranlib
 
 MALLOC_OBJ = malloc.o malloc-stats.o
 LIB_MALLOC = libmalloc.a
 
-T_SUF =
-TESTS = t-test1$(T_SUF) t-test2$(T_SUF) \
-        tst-mallocstate$(T_SUF) tst-mstats$(T_SUF)
-
-CFLAGS = $(SYS_FLAGS) $(OPT_FLAGS) $(WARN_FLAGS) $(THR_FLAGS) $(INC_FLAGS)
-
+TESTS = t-test1 t-test2 tst-mallocstate tst-mstats
 
 .c.o:
 	$(CC) -c $(CFLAGS) $<
 
-all: malloc.so 
-#$(LIB_MALLOC) $(TESTS)
+all: malloc.so $(LIB_MALLOC) $(TESTS)
 
 malloc.o: malloc.c malloc.h
 	$(CC) -c $(CFLAGS) $(M_FLAGS) $<
@@ -50,30 +35,28 @@ malloc-stats.o: malloc-stats.c malloc.h
 	$(CC) -c $(CFLAGS) $(M_FLAGS) $<
 
 libmalloc.a: $(MALLOC_OBJ)
-	$(AR) cr $@ $(MALLOC_OBJ)
-	$(RANLIB) $@
+	ar cr $@ $(MALLOC_OBJ)
+	ranlib $@
 
 shared: malloc.so
 
 malloc.so: malloc.c malloc-stats.c malloc.h
-	$(CC)   $(SH_FLAGS) $(CFLAGS) $(M_FLAGS) ${THR_LIBS} malloc.c malloc-stats.c  -o $@
+	$(CC)  $(CFLAGS) $(M_FLAGS)  malloc.c malloc-stats.c $(LDFLAGS) -o $@
 
 clean:
-	$(RM) $(MALLOC_OBJ) libmalloc.a malloc.so $(TESTS) core core.[0-9]*
+	rm -f $(MALLOC_OBJ) libmalloc.a malloc.so $(TESTS)
 
-t-test1$(T_SUF): t-test1.c t-test.h $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) $(THR_LIBS) -o $@
+t-test1: t-test1.c t-test.h $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -lpthread -o $@
 
-t-test2$(T_SUF): t-test2.c t-test.h $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) t-test2.c $(LIB_MALLOC) $(THR_LIBS) -o $@
+t-test2: t-test2.c t-test.h $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) t-test2.c $(LIB_MALLOC) -lpthread -o $@
 
-tst-mallocstate$(T_SUF): tst-mallocstate.c $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) tst-mallocstate.c $(LIB_MALLOC) \
-	 $(THR_LIBS) -o $@
+tst-mallocstate: tst-mallocstate.c $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) tst-mallocstate.c $(LIB_MALLOC) -lpthread -o $@
 
-tst-mstats$(T_SUF): tst-mstats.c $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC) \
-	 $(THR_LIBS) -o $@
+tst-mstats: tst-mstats.c $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC) -lpthread  -o $@
 
 
 

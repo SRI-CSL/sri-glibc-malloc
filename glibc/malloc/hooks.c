@@ -356,7 +356,9 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
     }
   const INTERNAL_SIZE_T oldsize = chunksize (oldp);
 
-  checked_request2size (bytes + 1, nb);
+  if ( !checked_request2size (bytes + 1, &nb) ){
+    return 0;
+  }
   (void) mutex_lock (&main_arena.mutex);
 
   if (chunk_is_mmapped (oldp))
@@ -389,7 +391,9 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
       if (top_check () >= 0)
         {
           INTERNAL_SIZE_T nb;
-          checked_request2size (bytes + 1, nb);
+	  if ( !checked_request2size (bytes + 1, &nb) ){
+	    return 0;
+	  }
           newmem = _int_realloc (&main_arena, oldp, oldsize, nb);
         }
     }

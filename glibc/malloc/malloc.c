@@ -1261,12 +1261,23 @@ static inline bool REQUEST_OUT_OF_RANGE(size_t req){
 
 /*  Same, except also perform argument check */
 
-#define checked_request2size(req, sz)					\
+#define glibc_checked_request2size(req, sz)					\
   if (REQUEST_OUT_OF_RANGE (req)) {					\
     __set_errno (ENOMEM);						\
     return 0;								\
   }									\
   (sz) = request2size (req);
+
+static inline bool checked_request2size(size_t req, size_t *sz){
+  assert(sz != NULL);
+  if (REQUEST_OUT_OF_RANGE (req)) {
+    __set_errno (ENOMEM);	
+    return false;			
+  }				
+  *sz = request2size (req);
+  return true;
+}
+
 
 
 /*
@@ -3094,7 +3105,9 @@ __libc_realloc (void *oldmem, size_t bytes)
       return NULL;
     }
 
-  checked_request2size (bytes, nb);
+  if ( !checked_request2size (bytes, &nb) ){
+    return 0;
+  }
 
   if (chunk_is_mmapped (oldp))
     {
@@ -3425,7 +3438,9 @@ _int_malloc (mstate av, size_t bytes)
      aligned.
    */
 
-  checked_request2size (bytes, nb);
+  if ( !checked_request2size (bytes, &nb) ){
+    return 0;
+  }
 
   /* There are no usable arenas.  Fall back to sysmalloc to get a chunk from
      mmap.  */
@@ -4487,7 +4502,9 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
 
 
-  checked_request2size (bytes, nb);
+  if ( !checked_request2size (bytes, &nb) ){
+    return 0;
+  }
 
   /*
      Strategy: find a spot within that chunk that meets the alignment

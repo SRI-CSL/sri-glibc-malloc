@@ -1521,7 +1521,7 @@ static int      mALLOPt(int, int);
 
 static Void_t* internal_function mem2mem_check(Void_t *p, size_t sz);
 static int internal_function top_check(void);
-static void internal_function munmap_chunk(mchunkptr p);
+static bool internal_function munmap_chunk(mchunkptr p);
 #if HAVE_MREMAP
 static mchunkptr internal_function mremap_chunk(mchunkptr p, size_t new_size);
 #endif
@@ -1789,7 +1789,7 @@ static inline bool aligned_OK(void * m){
   }                                                               \
   (sz) = request2size(req);
 
-static inline bool checked_request2size(size_t req, size_t *sz){
+static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz){
   assert(sz != NULL);
   if (REQUEST_OUT_OF_RANGE(req)) { 
     MALLOC_FAILURE_ACTION;         
@@ -2009,18 +2009,31 @@ typedef struct malloc_chunk* mbinptr;
 /* analog of ++bin */
 #define next_bin(b)  ((mbinptr)((char*)(b) + (sizeof(mchunkptr)<<1)))
 
-/* Reminders about list directionality within bins */
-#define first(b)     ((b)->fd)
+/* Reminders about list directionality within bins. */
+#define first(b)     ((b)->fd) 
 #define last(b)      ((b)->bk)
 
 /* Take a chunk off a bin list */
-#define unlink(P, BK, FD) {                                            \
+#define ptmalloc_unlink(P, BK, FD) {                                   \
   FD = P->fd;                                                          \
   BK = P->bk;                                                          \
   FD->bk = BK;                                                         \
   BK->fd = FD;                                                         \
 }
+  
 
+static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp){
+  assert(p != NULL);
+  assert(bkp != NULL);
+  assert(fdp != NULL);
+  
+  *fdp = p->fd; 
+  *bkp = p->bk;
+  (*fdp)->bk = *bkp;
+  (*bkp)->fd = *fdp;
+}
+
+			    
 /*
   Indexing
 
@@ -3293,7 +3306,7 @@ static int sYSTRIm(pad, av) size_t pad; mstate av;
 
 #ifdef HAVE_MMAP
 
-static void
+static bool
 internal_function
 #if __STD_C
 munmap_chunk(mchunkptr p)
@@ -3318,6 +3331,7 @@ munmap_chunk(p) mchunkptr p;
 
   /* munmap returns non-zero on failure */
   assert(ret == 0);
+  return ret == 0;
 }
 
 #if HAVE_MREMAP
@@ -4064,7 +4078,7 @@ _int_malloc(mstate av, size_t bytes)
 
 	if ((unsigned long)(size) >= (unsigned long)(nb)) {
 	  remainder_size = size - nb;
-	  unlink(victim, bck, fwd);
+	  ps_unlink(victim, &bck, &fwd);
 
 	  /* Exhaust */
 	  if (remainder_size < MINSIZE)  {
@@ -4291,7 +4305,7 @@ _int_free(mstate av, Void_t* mem)
         prevsize = p->prev_size;
         size += prevsize;
         p = chunk_at_offset(p, -((long) prevsize));
-        unlink(p, bck, fwd);
+        ps_unlink(p, &bck, &fwd);
       }
 
       if (nextchunk != av->top) {
@@ -4300,7 +4314,7 @@ _int_free(mstate av, Void_t* mem)
 
         /* consolidate forward */
         if (!nextinuse) {
-          unlink(nextchunk, bck, fwd);
+          ps_unlink(nextchunk, &bck, &fwd);
           size += nextsize;
         } else
 	  clear_inuse_bit_at_offset(nextchunk, 0);
@@ -4465,7 +4479,7 @@ static void malloc_consolidate(av) mstate av;
             prevsize = p->prev_size;
             size += prevsize;
             p = chunk_at_offset(p, -((long) prevsize));
-            unlink(p, bck, fwd);
+            ps_unlink(p, &bck, &fwd);
           }
 
           if (nextchunk != av->top) {
@@ -4473,7 +4487,7 @@ static void malloc_consolidate(av) mstate av;
 
             if (!nextinuse) {
               size += nextsize;
-              unlink(nextchunk, bck, fwd);
+              ps_unlink(nextchunk, &bck, &fwd);
             } else
 	      clear_inuse_bit_at_offset(nextchunk, 0);
 
@@ -4581,7 +4595,7 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
                (unsigned long)(newsize = oldsize + chunksize(next)) >=
                (unsigned long)(nb)) {
         newp = oldp;
-        unlink(next, bck, fwd);
+        ps_unlink(next, &bck, &fwd);
       }
 
       /* allocate, copy, free */

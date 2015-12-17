@@ -72,6 +72,12 @@ main (void)
     merror ("malloc (10) failed.");
   free (p1);
 
+  if(errors == 0){
+    fprintf(stdout, "No errors\n");
+  } else {
+    fprintf(stderr, "There were %d errors\n", errors);
+  }
+  
   return errors != 0;
 }
 

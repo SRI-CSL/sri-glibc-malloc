@@ -643,7 +643,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     heap = prev_heap;
     if(!prev_inuse(p)) { /* consolidate backward */
       p = prev_chunk(p);
-      unlink(p, bck, fwd);
+      ps_unlink(p, &bck, &fwd);
     }
     assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);
     assert( ((char*)p + new_size) == ((char*)heap + heap->size) );

@@ -41,7 +41,7 @@ main (void)
   unsigned long navail;
 
   errno = 0;
-
+  fprintf(stderr, "uninitialized\n");
   malloc_stats(); /* check that it works even without initialization */
   a = _int_get_arena(0);
   if (!a) {
@@ -49,14 +49,19 @@ main (void)
     return 1;
   }
   free (malloc (10));
+  fprintf(stderr, "initialized\n");
   _int_get_arena_info(a, &mai);
   printf("nfree     = %d\navail     = %lu\nfastavail = %lu\ntop_size  = %lu\n",
 	 mai.nbinblocks + mai.nfastblocks,
 	 (unsigned long)mai.binavail,
 	 (unsigned long)mai.fastavail,
 	 (unsigned long)mai.top_size);
-  if (mai.nfastblocks+mai.nbinblocks < 1)
+  if (mai.nfastblocks+mai.nbinblocks < 1){
     merror ("initial _int_get_arena_info() failed.");
+    fprintf(stderr, "mai.nfastblocks = %d\n", mai.nfastblocks);
+    fprintf(stderr, "mai.nbinblocks = %d\n", mai.nbinblocks);
+  }
+
   nfree = mai.nbinblocks + mai.nfastblocks;
   navail = mai.binavail + mai.fastavail;
 

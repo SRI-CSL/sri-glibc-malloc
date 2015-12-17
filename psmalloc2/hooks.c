@@ -331,7 +331,10 @@ realloc_check(oldmem, bytes, caller)
   }
   oldsize = chunksize(oldp);
 
-  checked_request2size(bytes+1, nb);
+  if ( !checked_request2size(bytes+1, &nb) ){
+    return 0;
+  }
+
   (void)mutex_lock(&main_arena.mutex);
 
 #if HAVE_MMAP
@@ -394,9 +397,12 @@ memalign_check(alignment, bytes, caller)
   if (alignment <= MALLOC_ALIGNMENT) return malloc_check(bytes, NULL);
   if (alignment <  MINSIZE) alignment = MINSIZE;
 
-  checked_request2size(bytes+1, nb);
+  if ( !checked_request2size(bytes+1, &nb) ){
+    return 0;
+  }
+
   (void)mutex_lock(&main_arena.mutex);
-  mem = (top_check() >= 0) ? _int_memalign(&main_arena, alignment, bytes+1) :
+  mem = (top_check() >= 0) ? _int_memalign(&main_arena, alignment, nb) :  //iam: bytes+1 should be nb
     NULL;
   (void)mutex_unlock(&main_arena.mutex);
   return mem2mem_check(mem, bytes);

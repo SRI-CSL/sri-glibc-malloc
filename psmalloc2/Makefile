@@ -21,6 +21,8 @@ M_FLAGS   = -DTHREAD_STATS=1 #-DMALLOC_DEBUG=1
 THR_FLAGS = -DUSE_TSD_DATA_HACK -D_REENTRANT
 THR_LIBS  = -lpthread
 
+SYS_FLAGS = -D_GNU_SOURCE=1
+
 RM        = rm -f
 AR        = ar
 RANLIB    = ranlib
@@ -34,7 +36,6 @@ TESTS = t-test1$(T_SUF) t-test2$(T_SUF) \
 
 CFLAGS = $(SYS_FLAGS) $(OPT_FLAGS) $(WARN_FLAGS) $(THR_FLAGS) $(INC_FLAGS)
 
-IAMS = -D_GNU_SOURCE=1 -lpthread
 
 .c.o:
 	$(CC) -c $(CFLAGS) $<
@@ -55,7 +56,7 @@ libmalloc.a: $(MALLOC_OBJ)
 shared: malloc.so
 
 malloc.so: malloc.c malloc-stats.c malloc.h
-	$(CC)   $(SH_FLAGS) $(CFLAGS) $(M_FLAGS) ${IAMS} malloc.c malloc-stats.c  -o $@
+	$(CC)   $(SH_FLAGS) $(CFLAGS) $(M_FLAGS) ${THR_LIBS} malloc.c malloc-stats.c  -o $@
 
 clean:
 	$(RM) $(MALLOC_OBJ) libmalloc.a malloc.so $(TESTS) core core.[0-9]*

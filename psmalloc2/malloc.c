@@ -2060,18 +2060,38 @@ static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp){
 #define SMALLBIN_WIDTH      8
 #define MIN_LARGE_SIZE    512
 
-#define in_smallbin_range(sz)  \
+#define ptmalloc_in_smallbin_range(sz)			\
   ((unsigned long)(sz) < (unsigned long)MIN_LARGE_SIZE)
 
-#define smallbin_index(sz)     (((unsigned)(sz)) >> 3)
+static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
+{
+  return ((unsigned long)sz < (unsigned long)MIN_LARGE_SIZE);
+}
 
-#define largebin_index(sz)                                                   \
+#define ptmalloc_smallbin_index(sz)     (((unsigned)(sz)) >> 3)
+
+static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
+{
+  return (((unsigned int)sz) >> 3);
+}
+
+#define ptmalloc_largebin_index(sz)                                          \
 (((((unsigned long)(sz)) >>  6) <= 32)?  56 + (((unsigned long)(sz)) >>  6): \
  ((((unsigned long)(sz)) >>  9) <= 20)?  91 + (((unsigned long)(sz)) >>  9): \
  ((((unsigned long)(sz)) >> 12) <= 10)? 110 + (((unsigned long)(sz)) >> 12): \
  ((((unsigned long)(sz)) >> 15) <=  4)? 119 + (((unsigned long)(sz)) >> 15): \
  ((((unsigned long)(sz)) >> 18) <=  2)? 124 + (((unsigned long)(sz)) >> 18): \
                                         126)
+
+static unsigned int largebin_index(INTERNAL_SIZE_T sz)
+{
+  return (((((unsigned long)sz) >>  6) <= 32)?  56 + (((unsigned long)sz) >>  6):
+	  ((((unsigned long)sz) >>  9) <= 20)?  91 + (((unsigned long)sz) >>  9):
+	  ((((unsigned long)sz) >> 12) <= 10)? 110 + (((unsigned long)sz) >> 12):
+	  ((((unsigned long)sz) >> 15) <=  4)? 119 + (((unsigned long)sz) >> 15):
+	  ((((unsigned long)sz) >> 18) <=  2)? 124 + (((unsigned long)sz) >> 18):
+	  126);
+}
 
 #define bin_index(sz) \
  ((in_smallbin_range(sz)) ? smallbin_index(sz) : largebin_index(sz))
@@ -2152,12 +2172,22 @@ static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp){
 #define BITSPERMAP       (1U << BINMAPSHIFT)
 #define BINMAPSIZE       (NBINS / BITSPERMAP)
 
-#define idx2block(i)     ((i) >> BINMAPSHIFT)
-#define idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT)-1))))
+#define ptmalloc_idx2block(i)     ((i) >> BINMAPSHIFT)
 
-#define mark_bin(m,i)    ((m)->binmap[idx2block(i)] |=  idx2bit(i))
-#define unmark_bin(m,i)  ((m)->binmap[idx2block(i)] &= ~(idx2bit(i)))
-#define get_binmap(m,i)  ((m)->binmap[idx2block(i)] &   idx2bit(i))
+static inline unsigned int idx2block(unsigned int i)
+{
+  return (i >> BINMAPSHIFT);
+}
+
+#define ptmalloc_idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT)-1))))
+
+static inline unsigned int idx2bit(unsigned int i)
+{
+  return ((1U << (i & ((1U << BINMAPSHIFT)-1))));
+}
+
+// Have to move mark_bin, unmark_bin, get_binmap below the definition of malloc_state
+// to define them as functions. So moved.
 
 /*
   Fastbins
@@ -2199,55 +2229,8 @@ typedef struct malloc_chunk* mfastbinptr;
 
 #define FASTBIN_CONSOLIDATION_THRESHOLD  (65536UL)
 
-/*
-  Since the lowest 2 bits in max_fast don't matter in size comparisons,
-  they are used as flags.
-*/
-
-/*
-  FASTCHUNKS_BIT held in max_fast indicates that there are probably
-  some fastbin chunks. It is set true on entering a chunk into any
-  fastbin, and cleared only in malloc_consolidate.
-
-  The truth value is inverted so that have_fastchunks will be true
-  upon startup (since statics are zero-filled), simplifying
-  initialization checks.
-*/
-
-#define FASTCHUNKS_BIT        (1U)
-
-#define have_fastchunks(M)     (((M)->max_fast &  FASTCHUNKS_BIT) == 0)
-#define clear_fastchunks(M)    ((M)->max_fast |=  FASTCHUNKS_BIT)
-#define set_fastchunks(M)      ((M)->max_fast &= ~FASTCHUNKS_BIT)
-
-/*
-  NONCONTIGUOUS_BIT indicates that MORECORE does not return contiguous
-  regions.  Otherwise, contiguity is exploited in merging together,
-  when possible, results from consecutive MORECORE calls.
-
-  The initial value comes from MORECORE_CONTIGUOUS, but is
-  changed dynamically if mmap is ever used as an sbrk substitute.
-*/
-
-#define NONCONTIGUOUS_BIT     (2U)
-
-#define contiguous(M)          (((M)->max_fast &  NONCONTIGUOUS_BIT) == 0)
-#define noncontiguous(M)       (((M)->max_fast &  NONCONTIGUOUS_BIT) != 0)
-#define set_noncontiguous(M)   ((M)->max_fast |=  NONCONTIGUOUS_BIT)
-#define set_contiguous(M)      ((M)->max_fast &= ~NONCONTIGUOUS_BIT)
-
-/*
-   Set value of max_fast.
-   Use impossibly small value if 0.
-   Precondition: there are no existing fastbin chunks.
-   Setting the value clears fastchunk bit but preserves noncontiguous bit.
-*/
-
-#define set_max_fast(M, s) \
-  (M)->max_fast = (((s) == 0)? SMALLBIN_WIDTH: request2size(s)) | \
-  FASTCHUNKS_BIT | \
-  ((M)->max_fast &  NONCONTIGUOUS_BIT)
-
+// More macros had to be moved after the definition of malloc_state to become functions
+// Fast chunks, et al.
 
 /*
    ----------- Internal state representation and initialization -----------
@@ -2311,6 +2294,123 @@ struct malloc_par {
   /* First address handed out by MORECORE/sbrk.  */
   char*            sbrk_base;
 };
+
+typedef struct malloc_state *mstateptr;
+
+#define ptmalloc_mark_bin(m,i)    ((m)->binmap[idx2block(i)] |=  idx2bit(i))
+
+static inline void mark_bin(mstateptr m, int i)
+{
+  m->binmap[idx2block(i)] |=  idx2bit(i);
+}
+
+#define ptmalloc_unmark_bin(m,i)  ((m)->binmap[idx2block(i)] &= ~(idx2bit(i)))
+
+static inline void unmark_bin(mstateptr m, int i)
+{
+  m->binmap[idx2block(i)] &= ~(idx2bit(i));
+}
+
+#define ptmalloc_get_binmap(m,i)  ((m)->binmap[idx2block(i)] &   idx2bit(i))
+
+static inline unsigned int get_binmap(mstateptr m, int i)
+{
+  return (m->binmap[idx2block(i)] & idx2bit(i));
+}
+
+/*
+  Since the lowest 2 bits in max_fast don't matter in size comparisons,
+  they are used as flags.
+*/
+
+/*
+  FASTCHUNKS_BIT held in max_fast indicates that there are probably
+  some fastbin chunks. It is set true on entering a chunk into any
+  fastbin, and cleared only in malloc_consolidate.
+
+  The truth value is inverted so that have_fastchunks will be true
+  upon startup (since statics are zero-filled), simplifying
+  initialization checks.
+*/
+
+#define FASTCHUNKS_BIT        (1U)
+
+#define ptmalloc_have_fastchunks(M)     (((M)->max_fast &  FASTCHUNKS_BIT) == 0)
+
+static inline bool have_fastchunks(mstateptr M)
+{
+  return ((M->max_fast & FASTCHUNKS_BIT) == 0);
+}
+
+#define ptmalloc_clear_fastchunks(M)    ((M)->max_fast |=  FASTCHUNKS_BIT)
+static inline void clear_fastchunks(mstateptr M)
+{
+  M->max_fast |=  FASTCHUNKS_BIT;
+}
+
+#define ptmalloc_set_fastchunks(M)      ((M)->max_fast &= ~FASTCHUNKS_BIT)
+static inline void set_fastchunks(mstateptr M)
+{
+  M->max_fast &= ~FASTCHUNKS_BIT;
+}
+
+/*
+  NONCONTIGUOUS_BIT indicates that MORECORE does not return contiguous
+  regions.  Otherwise, contiguity is exploited in merging together,
+  when possible, results from consecutive MORECORE calls.
+
+  The initial value comes from MORECORE_CONTIGUOUS, but is
+  changed dynamically if mmap is ever used as an sbrk substitute.
+*/
+
+#define NONCONTIGUOUS_BIT     (2U)
+
+#define ptmalloc_contiguous(M)          (((M)->max_fast &  NONCONTIGUOUS_BIT) == 0)
+
+static inline bool contiguous(mstateptr M)
+{
+  return ((M->max_fast &  NONCONTIGUOUS_BIT) == 0);
+}
+
+#define ptmalloc_noncontiguous(M)       (((M)->max_fast &  NONCONTIGUOUS_BIT) != 0)
+
+static inline bool noncontiguous(mstateptr M)
+{
+  return ((M->max_fast &  NONCONTIGUOUS_BIT) != 0);
+}
+
+#define ptmalloc_set_noncontiguous(M)   ((M)->max_fast |=  NONCONTIGUOUS_BIT)
+
+static inline void set_noncontiguous(mstateptr M)
+{
+  M->max_fast |=  NONCONTIGUOUS_BIT;
+}
+
+#define ptmalloc_set_contiguous(M)      ((M)->max_fast &= ~NONCONTIGUOUS_BIT)
+
+static inline void set_contiguous(mstateptr M)
+{
+  M->max_fast &= ~NONCONTIGUOUS_BIT;
+}
+
+/*
+   Set value of max_fast.
+   Use impossibly small value if 0.
+   Precondition: there are no existing fastbin chunks.
+   Setting the value clears fastchunk bit but preserves noncontiguous bit.
+*/
+
+#define ptmalloc_set_max_fast(M, s) \
+  (M)->max_fast = (((s) == 0)? SMALLBIN_WIDTH: request2size(s)) |	\
+  FASTCHUNKS_BIT | \
+  ((M)->max_fast &  NONCONTIGUOUS_BIT)
+
+static inline void set_max_fast(mstateptr M, int s)
+{
+  M->max_fast = ((s == 0)? SMALLBIN_WIDTH: request2size(s)) |
+    FASTCHUNKS_BIT |
+    (M->max_fast &  NONCONTIGUOUS_BIT);
+}
 
 /* There are several instances of this struct ("arenas") in this
    malloc.  If you are adapting this malloc in a way that does NOT use

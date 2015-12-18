@@ -2,12 +2,13 @@
 # by Wolfram Gloger 1996-1999, 2001, 2002, 2003, 2004, 2006
 # iam: snip snip; trimmed and cleaned up 
 
-LDFLAGS = -shared -fpic -lpthread
+LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O                                     \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
+	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
 # Flags for the test programs
@@ -17,34 +18,29 @@ T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1
 M_FLAGS   = -DTHREAD_STATS=1 
 #-DMALLOC_DEBUG=1
 
+METAOBJ= utils.o memcxt.o metadata.o 
+MALLOCOBJ = malloc.o malloc-stats.o
 
-MALLOC_OBJ = malloc.o malloc-stats.o
 LIB_MALLOC = libmalloc.a
 
 TESTS = t-test1 t-test2 tst-mallocstate tst-mstats
 
-.c.o:
-	$(CC) -c $(CFLAGS) $<
+%.o: %.c %.h 
+	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: malloc.so $(LIB_MALLOC) $(TESTS)
+all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS)
 
-malloc.o: malloc.c malloc.h
-	$(CC) -c $(CFLAGS) $(M_FLAGS) $<
-
-malloc-stats.o: malloc-stats.c malloc.h
-	$(CC) -c $(CFLAGS) $(M_FLAGS) $<
-
-libmalloc.a: $(MALLOC_OBJ)
-	ar cr $@ $(MALLOC_OBJ)
+libmalloc.a: $(MALLOCOBJ)
+	ar cr $@ $(MALLOCOBJ)
 	ranlib $@
 
-shared: malloc.so
+shared: $(METAOBJ) malloc.so 
 
-malloc.so: malloc.c malloc-stats.c malloc.h
-	$(CC)  $(CFLAGS) $(M_FLAGS)  malloc.c malloc-stats.c $(LDFLAGS) -o $@
+malloc.so: $(MALLOCOBJ) malloc.h
+	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(METAOBJ) $(LDFLAGS) -o $@
 
 clean:
-	rm -f $(MALLOC_OBJ) libmalloc.a malloc.so $(TESTS)
+	rm -f $(METAOBJ) $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
 
 t-test1: t-test1.c t-test.h $(LIB_MALLOC)
 	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -lpthread -o $@

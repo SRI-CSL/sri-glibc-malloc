@@ -2296,13 +2296,6 @@ struct malloc_state {
   INTERNAL_SIZE_T system_mem;
   INTERNAL_SIZE_T max_system_mem;
 
-  /*
-   * SRI: flag: set true once the mstate is initialized
-   * We use it instead of checking whether av->top == 0 to trigger initialization,
-   * because we want to keep av->top to NULL until we really allocate it in sysmalloc.
-   */
-  int initialized;
-
   /* SRI: pool memory for the metadata */
   memcxt_t memcxt;
 
@@ -2498,6 +2491,16 @@ static void malloc_init_state(av) mstate av;
     set_noncontiguous(av);
 
   set_max_fast(av, DEFAULT_MXFAST);
+
+
+  /* init the metadata pool */
+  init_memcxt(&av->memcxt);
+
+  /* init the metadata hash table */
+  if( ! init_metadata(&av->htbl, &av->memcxt)){
+    abort();
+  }
+
 
   av->top            = initial_top(av);
 }

@@ -19,7 +19,7 @@ M_FLAGS   = -DTHREAD_STATS=1
 #-DMALLOC_DEBUG=1
 
 METAOBJ= utils.o memcxt.o metadata.o 
-MALLOCOBJ = malloc.o malloc-stats.o
+MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
@@ -37,10 +37,10 @@ libmalloc.a: $(MALLOCOBJ)
 shared: $(METAOBJ) malloc.so 
 
 malloc.so: $(MALLOCOBJ) malloc.h
-	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(METAOBJ) $(LDFLAGS) -o $@
+	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
 
 clean:
-	rm -f $(METAOBJ) $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
 
 t-test1: t-test1.c t-test.h $(LIB_MALLOC)
 	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -lpthread -o $@
@@ -56,7 +56,7 @@ tst-mstats: tst-mstats.c $(LIB_MALLOC)
 
 
 stest0:
-	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(METAOBJ) $(MALLOCOBJ)  -lpthread -o  $@
+	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@
 
 
 check: $(TESTS)

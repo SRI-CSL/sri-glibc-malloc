@@ -2029,38 +2029,6 @@ static inline void set_foot(mchunkptr p, INTERNAL_SIZE_T s)
 
 typedef struct malloc_chunk* mbinptr;
 
-/* addressing -- note that bin_at(0) does not exist */
-#define bin_at(m, i) ((mbinptr)((char*)&((m)->bins[(i)<<1]) - (SIZE_SZ<<1)))
-
-/* analog of ++bin */
-#define next_bin(b)  ((mbinptr)((char*)(b) + (sizeof(mchunkptr)<<1)))
-
-/* Reminders about list directionality within bins. */
-#define first(b)     ((b)->fd) 
-#define last(b)      ((b)->bk)
-
-/* Take a chunk off a bin list */
-#define ptmalloc_unlink(P, BK, FD) {                                   \
-  FD = P->fd;                                                          \
-  BK = P->bk;                                                          \
-  FD->bk = BK;                                                         \
-  BK->fd = FD;                                                         \
-}
-  
-
-static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp)
-{
-  assert(p != NULL);
-  assert(bkp != NULL);
-  assert(fdp != NULL);
-  
-  *fdp = p->fd; 
-  *bkp = p->bk;
-  (*fdp)->bk = *bkp;
-  (*bkp)->fd = *fdp;
-}
-
-			    
 /*
   Indexing
 
@@ -2087,41 +2055,6 @@ static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp)
 #define SMALLBIN_WIDTH      8
 #define MIN_LARGE_SIZE    512
 
-#define ptmalloc_in_smallbin_range(sz)			\
-  ((unsigned long)(sz) < (unsigned long)MIN_LARGE_SIZE)
-
-static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
-{
-  return ((unsigned long)sz < (unsigned long)MIN_LARGE_SIZE);
-}
-
-#define ptmalloc_smallbin_index(sz)     (((unsigned)(sz)) >> 3)
-
-static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
-{
-  return (((unsigned int)sz) >> 3);
-}
-
-#define ptmalloc_largebin_index(sz)                                          \
-(((((unsigned long)(sz)) >>  6) <= 32)?  56 + (((unsigned long)(sz)) >>  6): \
- ((((unsigned long)(sz)) >>  9) <= 20)?  91 + (((unsigned long)(sz)) >>  9): \
- ((((unsigned long)(sz)) >> 12) <= 10)? 110 + (((unsigned long)(sz)) >> 12): \
- ((((unsigned long)(sz)) >> 15) <=  4)? 119 + (((unsigned long)(sz)) >> 15): \
- ((((unsigned long)(sz)) >> 18) <=  2)? 124 + (((unsigned long)(sz)) >> 18): \
-                                        126)
-
-static unsigned int largebin_index(INTERNAL_SIZE_T sz)
-{
-  return (((((unsigned long)sz) >>  6) <= 32)?  56 + (((unsigned long)sz) >>  6):
-	  ((((unsigned long)sz) >>  9) <= 20)?  91 + (((unsigned long)sz) >>  9):
-	  ((((unsigned long)sz) >> 12) <= 10)? 110 + (((unsigned long)sz) >> 12):
-	  ((((unsigned long)sz) >> 15) <=  4)? 119 + (((unsigned long)sz) >> 15):
-	  ((((unsigned long)sz) >> 18) <=  2)? 124 + (((unsigned long)sz) >> 18):
-	  126);
-}
-
-#define bin_index(sz) \
- ((in_smallbin_range(sz)) ? smallbin_index(sz) : largebin_index(sz))
 
 /*
   FIRST_SORTED_BIN_SIZE is the chunk size corresponding to the
@@ -2213,8 +2146,10 @@ static inline unsigned int idx2bit(unsigned int i)
   return ((1U << (i & ((1U << BINMAPSHIFT)-1))));
 }
 
-// Have to move mark_bin, unmark_bin, get_binmap below the definition of malloc_state
-// to define them as functions. So moved.
+/*
+  iam & dd: we had to move the bin routines below the definition of malloc_state
+  to define them as functions. 
+*/
 
 /*
   Fastbins
@@ -2331,6 +2266,42 @@ struct malloc_par {
 
 typedef struct malloc_state *mstateptr;
 
+/* addressing -- note that bin_at(0) does not exist */
+#define ptmalloc_bin_at(m, i) ((mbinptr)((char*)&((m)->bins[(i)<<1]) - (SIZE_SZ<<1)))
+
+static inline mbinptr bin_at(mstateptr m, int i){
+  return ((mbinptr)((char*)&(m->bins[(i)<<1]) - (SIZE_SZ<<1)));
+}
+
+/* analog of ++bin */
+#define next_bin(b)  ((mbinptr)((char*)(b) + (sizeof(mchunkptr)<<1)))
+
+/* Reminders about list directionality within bins. */
+#define first(b)     ((b)->fd) 
+#define last(b)      ((b)->bk)
+
+/* Take a chunk off a bin list */
+#define ptmalloc_unlink(P, BK, FD) {                                   \
+  FD = P->fd;                                                          \
+  BK = P->bk;                                                          \
+  FD->bk = BK;                                                         \
+  BK->fd = FD;                                                         \
+}
+  
+
+static inline void ps_unlink(mchunkptr p, mchunkptr *bkp, mchunkptr *fdp)
+{
+  assert(p != NULL);
+  assert(bkp != NULL);
+  assert(fdp != NULL);
+  
+  *fdp = p->fd; 
+  *bkp = p->bk;
+  (*fdp)->bk = *bkp;
+  (*bkp)->fd = *fdp;
+}
+
+			    
 #define ptmalloc_mark_bin(m,i)    ((m)->binmap[idx2block(i)] |=  idx2bit(i))
 
 static inline void mark_bin(mstateptr m, int i)
@@ -2352,6 +2323,43 @@ static inline unsigned int get_binmap(mstateptr m, int i)
   return (m->binmap[idx2block(i)] & idx2bit(i));
 }
 
+
+#define ptmalloc_in_smallbin_range(sz)			\
+  ((unsigned long)(sz) < (unsigned long)MIN_LARGE_SIZE)
+
+static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
+{
+  return ((unsigned long)sz < (unsigned long)MIN_LARGE_SIZE);
+}
+
+#define ptmalloc_smallbin_index(sz)     (((unsigned)(sz)) >> 3)
+
+static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
+{
+  return (((unsigned int)sz) >> 3);
+}
+
+#define ptmalloc_largebin_index(sz)                                          \
+(((((unsigned long)(sz)) >>  6) <= 32)?  56 + (((unsigned long)(sz)) >>  6): \
+ ((((unsigned long)(sz)) >>  9) <= 20)?  91 + (((unsigned long)(sz)) >>  9): \
+ ((((unsigned long)(sz)) >> 12) <= 10)? 110 + (((unsigned long)(sz)) >> 12): \
+ ((((unsigned long)(sz)) >> 15) <=  4)? 119 + (((unsigned long)(sz)) >> 15): \
+ ((((unsigned long)(sz)) >> 18) <=  2)? 124 + (((unsigned long)(sz)) >> 18): \
+                                        126)
+
+static unsigned int largebin_index(INTERNAL_SIZE_T sz)
+{
+  return (((((unsigned long)sz) >>  6) <= 32)?  56 + (((unsigned long)sz) >>  6):
+	  ((((unsigned long)sz) >>  9) <= 20)?  91 + (((unsigned long)sz) >>  9):
+	  ((((unsigned long)sz) >> 12) <= 10)? 110 + (((unsigned long)sz) >> 12):
+	  ((((unsigned long)sz) >> 15) <=  4)? 119 + (((unsigned long)sz) >> 15):
+	  ((((unsigned long)sz) >> 18) <=  2)? 124 + (((unsigned long)sz) >> 18):
+	  126);
+}
+
+#define bin_index(sz) \
+ ((in_smallbin_range(sz)) ? smallbin_index(sz) : largebin_index(sz))
+
 /*
   Since the lowest 2 bits in max_fast don't matter in size comparisons,
   they are used as flags.
@@ -2371,9 +2379,9 @@ static inline unsigned int get_binmap(mstateptr m, int i)
 
 #define ptmalloc_have_fastchunks(M)     (((M)->max_fast &  FASTCHUNKS_BIT) == 0)
 
-static inline bool have_fastchunks(mstateptr M)
+static inline bool have_fastchunks(mstateptr m)
 {
-  return ((M->max_fast & FASTCHUNKS_BIT) == 0);
+  return ((m->max_fast & FASTCHUNKS_BIT) == 0);
 }
 
 #define ptmalloc_clear_fastchunks(M)    ((M)->max_fast |=  FASTCHUNKS_BIT)

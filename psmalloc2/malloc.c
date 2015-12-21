@@ -317,6 +317,8 @@ extern "C" {
 #define unused_var(x) ((void)x)
 #endif
 
+/* SRI's  metatdata header */
+#include "metadata.h"
 
 
 /*
@@ -2293,6 +2295,20 @@ struct malloc_state {
   /* Memory allocated from the system in this arena.  */
   INTERNAL_SIZE_T system_mem;
   INTERNAL_SIZE_T max_system_mem;
+
+  /*
+   * SRI: flag: set true once the mstate is initialized
+   * We use it instead of checking whether av->top == 0 to trigger initialization,
+   * because we want to keep av->top to NULL until we really allocate it in sysmalloc.
+   */
+  int initialized;
+
+  /* SRI: pool memory for the metadata */
+  memcxt_t memcxt;
+
+  /* SRI: metadata */
+  metadata_t htbl;      
+
 };
 
 struct malloc_par {

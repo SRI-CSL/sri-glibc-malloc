@@ -13,8 +13,6 @@ typedef struct segment_pool_s segment_pool_t;
 #define INTERNAL_SIZE_T size_t
 #endif
 
-typedef void * mchunkptr;
-
 /* based on the dlmalloc chunk not the glibc chunk */
 typedef struct chunkinfo {
   INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
@@ -23,8 +21,8 @@ typedef struct chunkinfo {
   struct chunkinfo*  fd;	   /* double links -- used only if free. */
   struct chunkinfo*  bk;           /* double links -- used only if free. */
   struct chunkinfo*  next_bucket;  /* next bucket in the bin             */
-  mchunkptr chunk;                  
-  bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
+  void * chunk;                    /* the actual client memory           */
+  bucket_pool_t* bucket_pool_ptr;  /* BD's optimization #1.              */
 } bucket_t;
 
 typedef bucket_t* chunkinfoptr;

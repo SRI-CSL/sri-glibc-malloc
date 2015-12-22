@@ -36,7 +36,13 @@
 typedef int mutex_t;
 
 # define mutex_init(m)              (*(m) = 0)
-# define mutex_lock(m)              ((*(m) = 1), 0)
+# define ptmalloc_mutex_lock(m)     ((*(m) = 1), 0)
+
+static inline int mutex_lock(mutex_t* m){
+  *m = 1;
+  return 0;
+}
+
 # define mutex_trylock(m)           (*(m) ? 1 : ((*(m) = 1), 0))
 # define mutex_unlock(m)            (*(m) = 0)
 

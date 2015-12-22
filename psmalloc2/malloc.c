@@ -3668,6 +3668,7 @@ public_fREe(Void_t* mem)
   p = mem2chunk(mem);
 
 #if HAVE_MMAP
+  /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
   if (chunk_is_mmapped(p))                       /* release mmapped memory. */
   {
     

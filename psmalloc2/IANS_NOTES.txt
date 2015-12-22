@@ -4,5 +4,21 @@ put it's metadata somewhere... that could make the lookup function a
 bit ugly... since given a chunk we do not really know if it is mmapped
 until we see it metadata, and to find it's metadata ....
 
+have a bad feeling that any solution is going to involve locks ...
+
+for example we could put all mmapped memory in the main arena.
+then when we use
+
+arena_for_chunk(ptr)
+
+that is based on
+
+heap_for_ptr(ptr)
+
+we need to find out that this is not an arena in our cyclic list.
+but touching that list requires the lock :-(
+
+one possibility that we mentioned in the designfest meeting was to
+retain some innocuous metadata such as this.
 
 

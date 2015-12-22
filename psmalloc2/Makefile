@@ -55,7 +55,7 @@ tst-mstats: tst-mstats.c $(LIB_MALLOC)
 	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC) -lpthread  -o $@
 
 
-stest0:
+stest0: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@
 
 

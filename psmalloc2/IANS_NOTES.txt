@@ -1,0 +1,8 @@
+
+1. mmapped memory is not associated with an arena, but we will need to
+put it's metadata somewhere... that could make the lookup function a
+bit ugly... since given a chunk we do not really know if it is mmapped
+until we see it metadata, and to find it's metadata ....
+
+
+

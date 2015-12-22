@@ -78,6 +78,8 @@ int __malloc_initialized = -1;
 
 /**************************************************************************/
 
+static mstate arena_get2(mstate a_tsd, size_t size);
+
 #if USE_ARENAS
 
 /* arena_get() acquires an arena and locks the corresponding mutex.
@@ -97,18 +99,44 @@ int __malloc_initialized = -1;
     ptr = arena_get2(ptr, (size)); \
 } while(0)
 
+
+static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
+  Void_t *vptr = NULL;
+  mstate ptr;
+  assert(aptr != NULL);
+
+  ptr = (mstate)tsd_getspecific(arena_key, vptr);
+  if(ptr && !mutex_trylock(&ptr->mutex)) {
+    THREAD_STAT(++(ptr->stat_lock_direct));
+  } else {
+    ptr = arena_get2(ptr, size);
+  }
+
+  *aptr = ptr;
+}
+
 /* find the heap and corresponding arena for a given ptr */
 
 #define heap_for_ptr(ptr) \
- ((heap_info *)((unsigned long)(ptr) & ~(HEAP_MAX_SIZE-1)))
+  ((heap_info *)((unsigned long)(ptr) & ~(HEAP_MAX_SIZE-1)))
+
+static inline heap_info* sri_heap_for_ptr(void *ptr){
+  return (heap_info *)((unsigned long)ptr & ~(HEAP_MAX_SIZE-1));
+}
+
 #define arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)
+
+static inline mstate sri_arena_for_chunk(void* ptr){
+  return chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena;
+}
 
 #else /* !USE_ARENAS */
 
 /* There is only one arena, main_arena. */
 
 #if THREAD_STATS
+
 #define arena_get(ar_ptr, sz) do { \
   ar_ptr = &main_arena; \
   if(!mutex_trylock(&ar_ptr->mutex)) \
@@ -118,13 +146,48 @@ int __malloc_initialized = -1;
     ++(ar_ptr->stat_lock_wait); \
   } \
 } while(0)
+
+static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
+  mstate ptr;
+  assert(aptr != NULL);
+
+  ptr = &main_arena;		     
+  if(!mutex_trylock(&ptr->mutex)) 
+    ++(ptr->stat_lock_direct); 
+  else {			      
+    (void)mutex_lock(&ptr->mutex); 
+    ++(ptr->stat_lock_wait); 
+  } 
+
+  *aptr = ptr;
+
+}
+
+
 #else
+
 #define arena_get(ar_ptr, sz) do { \
   ar_ptr = &main_arena; \
   (void)mutex_lock(&ar_ptr->mutex); \
 } while(0)
+
+static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
+  mstate ptr;
+  assert(aptr != NULL);
+
+  ptr = &main_arena;
+  (void)mutex_lock(&ptr->mutex); 
+  
+  *aptr = ptr;
+}
+
 #endif
+
 #define arena_for_chunk(ptr) (&main_arena)
+
+static inline mstate sri_arena_for_chunk(void* ptr){
+  return &main_arena;
+}
 
 #endif /* USE_ARENAS */
 

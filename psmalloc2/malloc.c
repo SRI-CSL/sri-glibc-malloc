@@ -2214,9 +2214,11 @@ struct malloc_state {
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
   mchunkptr        top;
+  chunkinfoptr     _md_top;  //metadata for top
 
   /* The remainder from the most recent split of a small request */
   mchunkptr        last_remainder;
+  chunkinfoptr     _md_last_remainder; //metadata for last_remainder
 
   /* Normal bins packed as described above */
   mchunkptr        bins[NBINS * 2];
@@ -2469,6 +2471,63 @@ static struct malloc_state main_arena;
 static struct malloc_par mp_;
 
 /*
+   ----------- Metadata playground -----------
+
+ Since there is more than one arena, and hence more than one mstate,
+ we need to make the metadata routines parametric in the mstate.
+
+*/
+
+/* lookup the chunk in the hashtable */
+
+static chunkinfoptr
+hashtable_lookup (mstate av, mchunkptr p)
+{
+  assert(p != NULL);
+  return metadata_lookup(&av->htbl, chunk2mem(p));
+}
+
+/* Get a free chunkinfo */
+static chunkinfoptr
+new_chunkinfoptr(mstate av)
+{
+  return allocate_chunkinfoptr(&(av->htbl));
+}
+
+/* Add the metadata to the hashtable */
+static void
+hashtable_add (mstate av, chunkinfoptr ci)
+{
+  if( ! metadata_add(&av->htbl, ci)){
+    abort();
+  }
+  
+}
+
+/* Remove the metadata from the hashtable */
+static void
+hashtable_remove (mstate av, mchunkptr p) 
+{
+  if( ! metadata_delete(&av->htbl, p)){
+    abort();
+  }
+
+}
+
+/* temporary hack to marry metadata to data */
+static void twin(chunkinfoptr ci, mchunkptr c){
+  assert(ci != NULL);
+  assert(c != NULL);
+  
+  ci->chunk = chunk2mem(c);
+  ci->size = c->size;
+  ci->prev_size =  c->prev_size;
+}
+
+
+
+
+/*
   Initialize a malloc_state struct.
 
   This is called only from within malloc_consolidate, which needs
@@ -2509,9 +2568,13 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
-
   av->top            = initial_top(av);
+  av->_md_top        = new_chunkinfoptr(av);
+
+  twin(av->_md_top, av->top);
+
 }
+
 
 /*
    Other internal utilities operating on mstates
@@ -3607,7 +3670,10 @@ public_fREe(Void_t* mem)
 #if HAVE_MMAP
   if (chunk_is_mmapped(p))                       /* release mmapped memory. */
   {
+    
+
     munmap_chunk(p);
+
     return;
   }
 #endif

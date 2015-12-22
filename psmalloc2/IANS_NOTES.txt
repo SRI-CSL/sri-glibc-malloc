@@ -22,3 +22,10 @@ one possibility that we mentioned in the designfest meeting was to
 retain some innocuous metadata such as this.
 
 
+2.  over the break I have two alternatives. work on the multi arena case
+that is complicated by the above problems. Or work on the single arena case
+which is probably simpler (i.e. dsmallocish) but not as productive. Decisions decisions.
+Not my strong suit.
+
+OK taking the route of least resistance: 
+

@@ -33,6 +33,9 @@ PERFORMANCE OF THIS SOFTWARE.
 #if (defined __i386__ || defined __x86_64__) && defined __GNUC__ && \
     !defined USE_NO_SPINLOCKS
 
+/* iam: just to keep us well informed while developing */
+#warning "!!!!!!!> We are NOT using pthread mutexes <!!!!!!!"
+
 #include <time.h>
 #include <sched.h>
 
@@ -82,6 +85,9 @@ static inline int mutex_unlock(mutex_t *m) {
 }
 
 #else
+
+/* iam: just to keep us well informed while developing */
+#warning "!!!!!!!> We are using pthread mutexes  <!!!!!!!"
 
 /* Normal pthread mutex.  */
 typedef pthread_mutex_t mutex_t;

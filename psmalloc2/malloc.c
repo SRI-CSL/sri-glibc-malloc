@@ -712,6 +712,19 @@ extern Void_t*     sbrk();
 #define USE_ARENAS HAVE_MMAP
 #endif
 
+/* iam: just to keep us well informed while developing */
+#if USE_ARENAS
+#warning "!!!!!!!> We are using arenas <!!!!!!!"
+#else
+#warning "!!!!!!!> We are NOT using arenas <!!!!!!!"
+  #if THREAD_STATS
+#warning "!!!!!!!> We are using THREAD_STATS <!!!!!!!"
+  #else
+#warning "!!!!!!!> We are NOT using THREAD_STATS <!!!!!!!"
+  #endif
+#endif
+
+
 /* USE_STARTER determines if and when the special "starter" hook
    functions are used: not at all (0), during ptmalloc_init (first bit
    set), or from the beginning until an explicit call to ptmalloc_init
@@ -3132,6 +3145,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 
   if (av != &main_arena) {
+    //iam: this should not happen if we are not using arenas...
+#if USE_ARENAS
 
     heap_info *old_heap, *heap;
     size_t old_heap_size;
@@ -3179,6 +3194,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
       }
     }
+#endif
 
   } else { /* av == main_arena */
 
@@ -4595,12 +4611,15 @@ _int_free(mstate av, Void_t* mem)
 	    sYSTRIm(mp_.top_pad, av);
 #endif
 	} else {
+	  /* iam: if we are not using arenas this can't happen */
+#if  USE_ARENAS
 	  /* Always try heap_trim(), even if the top chunk is not
              large, because the corresponding heap might go away.  */
 	  heap_info *heap = heap_for_ptr(top(av));
 
 	  assert(heap->ar_ptr == av);
 	  heap_trim(heap, mp_.top_pad);
+#endif
 	}
       }
 

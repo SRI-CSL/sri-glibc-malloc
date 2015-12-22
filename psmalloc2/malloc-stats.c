@@ -106,6 +106,10 @@ void public_mSTATs()
   int old_flags2 = ((_IO_FILE *) stderr)->_flags2;
   ((_IO_FILE *) stderr)->_flags2 |= _IO_FLAGS2_NOTCANCEL;
 #endif
+
+/* iam: seems like ptmalloc wants to use arenas */
+#if USE_ARENAS
+
   for (i=0; (ar_ptr = _int_get_arena(i)); i++) {
     _int_get_arena_info(ar_ptr, &mai);
     avail_b = mai.fastavail + mai.binavail + mai.top_size;
@@ -126,6 +130,10 @@ void public_mSTATs()
     stat_lock_wait += mai.stat_lock_wait;
 #endif
   }
+
+#endif
+
+
 #if HAVE_MMAP
   fprintf(stderr, "Total (incl. mmap):\n");
 #else

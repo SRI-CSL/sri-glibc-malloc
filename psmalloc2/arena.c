@@ -854,6 +854,17 @@ _int_get_arena (int n)
   return a;
 }
 
+#else 
+
+/* iam: dummy for the !USE_ARENAS case */
+mstate
+_int_get_arena (int n)
+{
+  assert(n == 0);
+  return &main_arena;
+}
+
+
 #endif /* USE_ARENAS */
 
 /*

@@ -9,8 +9,10 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-Wall -Wstrict-prototypes                 \
 	-fPIC                                     \
 	-DUSE_ARENAS=0                            \
-	-DMALLOC_DEBUG				  \
 	-Isysdeps/generic -I. 
+
+#	-DMALLOC_DEBUG				  \
+
 
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1

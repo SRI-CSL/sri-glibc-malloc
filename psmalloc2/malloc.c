@@ -2605,7 +2605,7 @@ static void malloc_init_state(av) mstate av;
   twin(av->_md_top, av->top);
   hashtable_add(av, av->_md_top);
 
-  assert(hashtable_lookup(av, av->top) != NULL);
+  //assert(hashtable_lookup(av, av->top) != NULL);
 
 }
 
@@ -3490,13 +3490,12 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   }
 
   /* check that one of the above allocation paths succeeded */
-  /* iam: here is a good place to start */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
 
     av->_md_top = split_chunk(av, _md_p, p, size, nb);
     av->top  = chunkinfo2chunk(av->_md_top);
 
-    assert(hashtable_lookup(av, av->top) != NULL);
+    //assert(hashtable_lookup(av, av->top) != NULL);
 
     check_malloced_chunk(av, p, nb);
     return chunk2mem(p);
@@ -3746,7 +3745,7 @@ public_fREe(Void_t* mem)
 {
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
-  chunkinfoptr _md_p;
+  //chunkinfoptr _md_p;
 
   void (*hook) __MALLOC_P ((__malloc_ptr_t, __const __malloc_ptr_t)) =
     __free_hook;
@@ -3763,13 +3762,14 @@ public_fREe(Void_t* mem)
   ar_ptr = arena_for_chunk(p);
 
 
-  /* good place to check our twinning */
+  /* good place to check our twinning
   _md_p = hashtable_lookup (ar_ptr, p);
   
   if(false && !check_metadata_chunk(_md_p, p)){
     fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
     return;
   }
+ */
 
 #if HAVE_MMAP
   /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
@@ -4568,7 +4568,7 @@ _int_malloc(mstate av, size_t bytes)
       av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
       av->top = chunkinfo2chunk(av->_md_top);
 
-      assert(hashtable_lookup(av, av->top) != NULL);
+      //assert(hashtable_lookup(av, av->top) != NULL);
 
       check_malloced_chunk(av, victim, nb);
       //fprintf(stderr, "9\n");
@@ -4796,7 +4796,7 @@ static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_siz
   assert(hsuccess);
   unused_var(hsuccess);
   
-  assert(hashtable_lookup(av, p) != NULL);
+  //assert(hashtable_lookup(av, p) != NULL);
 
   return _md_top;
   
@@ -4989,7 +4989,7 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
 
 	/* iam: need to update oldp's metatdata to at some stage */
 	bool hsuccess;
-	chunkinfoptr _md_top = hashtable_lookup(av, av->top);
+	chunkinfoptr _md_top = av->_md_top; //hashtable_lookup(av, av->top);
 	if( _md_top != NULL){
 	  hsuccess = hashtable_remove(av, av->top);
 	  assert(hsuccess);
@@ -5007,7 +5007,7 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
 	twin(_md_top, av->top);
 	hashtable_add(av, _md_top);
 
-	assert(hashtable_lookup(av, av->top) != NULL);
+	//assert(hashtable_lookup(av, av->top) != NULL);
 
 	check_inuse_chunk(av, oldp);
         return chunk2mem(oldp);

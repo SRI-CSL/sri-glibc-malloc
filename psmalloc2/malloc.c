@@ -3454,7 +3454,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
   }
 
-  } /* if (av !=  &main_arena) */
+  } /* if (av ==  &main_arena) */
 
   if ((unsigned long)av->system_mem > (unsigned long)(av->max_system_mem))
     av->max_system_mem = av->system_mem;
@@ -3465,6 +3465,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   size = chunksize(p);
 
   /* check that one of the above allocation paths succeeded */
+  /* iam: here is a good place to start */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
     remainder_size = size - nb;
     remainder = chunk_at_offset(p, nb);
@@ -4172,6 +4173,7 @@ _int_malloc(mstate av, size_t bytes)
     if ( (victim = *fb) != 0) {
       *fb = victim->fd;
       check_remalloced_chunk(av, victim, nb);
+      //fprintf(stderr, "0\n");
       return chunk2mem(victim);
     }
   }
@@ -4200,6 +4202,7 @@ _int_malloc(mstate av, size_t bytes)
         if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
+	//fprintf(stderr, "1\n");
         return chunk2mem(victim);
       }
     }
@@ -4267,6 +4270,7 @@ _int_malloc(mstate av, size_t bytes)
         set_foot(remainder, remainder_size);
 
         check_malloced_chunk(av, victim, nb);
+	//fprintf(stderr, "3\n");
         return chunk2mem(victim);
       }
 
@@ -4281,6 +4285,7 @@ _int_malloc(mstate av, size_t bytes)
 	if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
+	//fprintf(stderr, "4\n");
         return chunk2mem(victim);
       }
 
@@ -4348,6 +4353,7 @@ _int_malloc(mstate av, size_t bytes)
 	    if (av != &main_arena)
 	      victim->size |= NON_MAIN_ARENA;
 	    check_malloced_chunk(av, victim, nb);
+	    //fprintf(stderr, "5\n");
 	    return chunk2mem(victim);
 	  }
 	  /* Split */
@@ -4360,6 +4366,7 @@ _int_malloc(mstate av, size_t bytes)
 	    set_head(remainder, remainder_size | PREV_INUSE);
 	    set_foot(remainder, remainder_size);
 	    check_malloced_chunk(av, victim, nb);
+	    //fprintf(stderr, "6\n");
 	    return chunk2mem(victim);
 	  }
 	}
@@ -4432,6 +4439,7 @@ _int_malloc(mstate av, size_t bytes)
 	  if (av != &main_arena)
 	    victim->size |= NON_MAIN_ARENA;
           check_malloced_chunk(av, victim, nb);
+	  //fprintf(stderr, "7\n");
           return chunk2mem(victim);
         }
 
@@ -4450,6 +4458,7 @@ _int_malloc(mstate av, size_t bytes)
           set_head(remainder, remainder_size | PREV_INUSE);
           set_foot(remainder, remainder_size);
           check_malloced_chunk(av, victim, nb);
+	  //fprintf(stderr, "8\n");
           return chunk2mem(victim);
         }
       }
@@ -4483,6 +4492,7 @@ _int_malloc(mstate av, size_t bytes)
       set_head(remainder, remainder_size | PREV_INUSE);
 
       check_malloced_chunk(av, victim, nb);
+      //fprintf(stderr, "9\n");
       return chunk2mem(victim);
     }
 
@@ -4501,8 +4511,10 @@ _int_malloc(mstate av, size_t bytes)
     /*
        Otherwise, relay to handle system-dependent cases
     */
-    else
+    else {
+      //fprintf(stderr, "10\n");
       return sYSMALLOc(nb, av);
+    }
   }
 }
 

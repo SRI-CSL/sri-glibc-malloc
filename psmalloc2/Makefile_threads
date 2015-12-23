@@ -23,7 +23,7 @@ MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
-TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0
+TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest0 stest1 stest2
 
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
@@ -57,6 +57,12 @@ tst-mstats: tst-mstats.c $(LIB_MALLOC)
 
 stest0: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@
+
+stest1: $(MALLOCOBJ)
+	$(CC) $(CFLAGS) $(T_FLAGS) stest1.c $(MALLOCOBJ)  -o  $@
+
+stest2: $(MALLOCOBJ)
+	$(CC) $(CFLAGS) $(T_FLAGS) stest2.c $(MALLOCOBJ)  -o  $@
 
 
 check: $(TESTS)

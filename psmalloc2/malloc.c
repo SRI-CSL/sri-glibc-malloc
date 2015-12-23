@@ -851,7 +851,7 @@ extern Void_t*     sbrk();
 
 /*
   malloc(size_t n)
-  Returns a pointer to a newly allocated chunk of at least n bytes, or null
+  Returns a pointer to a newly allocated chun<k of at least n bytes, or null
   if no space is available. Additionally, on failure, errno is
   set to ENOMEM on ANSI C systems.
 
@@ -1523,6 +1523,15 @@ typedef struct malloc_chunk* mchunkptr;
 /* Internal routines.  */
 
 #if __STD_C
+
+/* iam: just plonked down here for the time being; should we worry about !__STD_C at some stage? */
+static const bool ian_says = false;
+
+static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
+
+static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize);
+
+static inline mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
 
 Void_t*         _int_malloc(mstate, size_t);
 void            _int_free(mstate, Void_t*);
@@ -2208,7 +2217,7 @@ typedef struct malloc_chunk* mfastbinptr;
 // Fast chunks, et al.
 
 /*
-   ----------- Internal state representation and initialization -----------
+   ----------- Internal state representation and initialization. i.e. mstate -----------
 */
 
 struct malloc_state {
@@ -2227,7 +2236,7 @@ struct malloc_state {
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
   mchunkptr        top;
-  chunkinfoptr     _md_top;  //metadata for top
+  chunkinfoptr     _md_top;  // metadata for top
 
   /* The remainder from the most recent split of a small request */
   mchunkptr        last_remainder;
@@ -2510,27 +2519,22 @@ new_chunkinfoptr(mstate av)
 }
 
 /* Add the metadata to the hashtable */
-static void
+static bool
 hashtable_add (mstate av, chunkinfoptr ci)
 {
   assert(av != NULL);
   assert(ci != NULL);
-  if( ! metadata_add(&av->htbl, ci)){
-    abort();
-  }
-  
+  return metadata_add(&av->htbl, ci);
+
 }
 
 /* Remove the metadata from the hashtable */
-static void
+static bool
 hashtable_remove (mstate av, mchunkptr p) 
 {
   assert(av != NULL);
   assert(p != NULL);
-  if( ! metadata_delete(&av->htbl, p)){
-    abort();
-  }
-
+  return metadata_delete(&av->htbl, chunk2mem(p));
 }
 
 /* temporary hack to marry metadata to data */
@@ -2571,6 +2575,7 @@ static void malloc_init_state(av) mstate av;
 {
   int     i;
   mbinptr bin;
+  bool hsuccess;
 
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i) {
@@ -2597,7 +2602,18 @@ static void malloc_init_state(av) mstate av;
   av->top            = initial_top(av);
   av->_md_top        = new_chunkinfoptr(av);
 
+
+
   twin(av->_md_top, av->top);
+  hsuccess = hashtable_add(av, av->_md_top);
+  assert(hsuccess);
+  unused_var(hsuccess);
+
+  if(ian_says){ 
+    fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+  }
+  
+  assert(hashtable_lookup(av, av->top) != NULL);
 
 }
 
@@ -3053,9 +3069,13 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   INTERNAL_SIZE_T end_misalign;   /* partial page left at end of new space */
   char*           aligned_brk;    /* aligned offset into brk */
 
-  mchunkptr       p;              /* the allocated/returned chunk */
-  mchunkptr       remainder;      /* remainder from allocation */
-  unsigned long   remainder_size; /* its size */
+  mchunkptr       p;                 /* the allocated/returned chunk */
+  chunkinfoptr   _md_p;              /* the allocated/returned chunk's metadata  */
+  //iam: mchunkptr       remainder;      /* remainder from allocation */
+  //iam: unsigned long   remainder_size; /* its size */
+
+  bool hsuccess;                     /* hash table operation return code */
+
 
   unsigned long   sum;            /* for updating stats */
 
@@ -3402,7 +3422,11 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
       /* Adjust top based on results of second sbrk */
       if (snd_brk != (char*)(MORECORE_FAILURE)) {
+	/* handle the metadata below for now */
         av->top = (mchunkptr)aligned_brk;
+	if(ian_says){
+	  fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+	}
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
         av->system_mem += correction;
 
@@ -3464,13 +3488,44 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   p = av->top;
   size = chunksize(p);
 
+  /* iam: some of this should trickle up; but for now .. */
+  if ( old_top == p){
+
+    _md_p = hashtable_lookup(av, p);
+    //assert(_md_p != NULL);
+    if(_md_p == NULL){
+      fprintf(stderr, "top: %p has no metatdata\n",  chunk2mem(p));
+    }
+
+  } else {
+
+    _md_p = new_chunkinfoptr(av);
+    twin(_md_p, p);
+    hsuccess = hashtable_add(av,_md_p);
+    assert(hsuccess);
+    unused_var(hsuccess);
+
+  }
+
   /* check that one of the above allocation paths succeeded */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
+
+    av->_md_top = split_chunk(av, _md_p, p, size, nb);
+    av->top  = chunkinfo2chunk(av->_md_top);
+
+    if(ian_says){ 
+      fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+    }
+    assert(hashtable_lookup(av, av->top) != NULL);
+
+    /*
     remainder_size = size - nb;
     remainder = chunk_at_offset(p, nb);
     av->top = remainder;
     set_head(p, nb | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
     set_head(remainder, remainder_size | PREV_INUSE);
+    */
+
     check_malloced_chunk(av, p, nb);
     return chunk2mem(p);
   }
@@ -3478,6 +3533,46 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   /* catch all failure paths */
   MALLOC_FAILURE_ACTION;
   return 0;
+}
+
+static inline mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim){
+  assert(_md_victim != NULL);
+  return mem2chunk(_md_victim->chunk);
+}
+
+/* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
+static inline chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata){
+  INTERNAL_SIZE_T remainder_size;
+  mchunkptr remainder; 
+  chunkinfoptr _md_remainder;
+  bool hsuccess;
+
+  assert(chunksize(victim) == victim_size);
+  assert((unsigned long)victim_size >= (unsigned long)(desiderata + MINSIZE)); //iam: why the casts?
+
+  /* configure the remainder */
+  remainder_size = victim_size - desiderata;
+  remainder = chunk_at_offset(victim, desiderata);
+  set_head(remainder, remainder_size | PREV_INUSE);
+  
+  /* pair it with new metatdata */
+  _md_remainder = new_chunkinfoptr(av);
+  twin(_md_remainder, remainder);
+  hsuccess = hashtable_add(av, _md_remainder);
+  assert(hsuccess);
+  unused_var(hsuccess);
+
+  if(ian_says){ 
+    fprintf(stderr, "split_chunk: added remainder = %p @ %d\n", remainder,  __LINE__);
+  }
+
+  /* configure the victim */
+  set_head(victim, desiderata | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
+  twin(_md_victim, victim);
+
+  /* we should also fix the victim's metatdata */
+
+  return _md_remainder;
 }
 
 
@@ -3699,15 +3794,14 @@ public_fREe(Void_t* mem)
 
   ar_ptr = arena_for_chunk(p);
 
-  _md_p = hashtable_lookup (ar_ptr, p);
 
   /* good place to check our twinning */
-  if(!check_metadata_chunk(_md_p, p)){
+  _md_p = hashtable_lookup (ar_ptr, p);
+  
+  if(false && !check_metadata_chunk(_md_p, p)){
     fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
     return;
   }
-  
-  
 
 #if HAVE_MMAP
   /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
@@ -4135,6 +4229,7 @@ _int_malloc(mstate av, size_t bytes)
   mfastbinptr*    fb;               /* associated fastbin */
 
   mchunkptr       victim;           /* inspected/selected chunk */
+  chunkinfoptr    _md_victim;       /* inspected/selected chunk */
   INTERNAL_SIZE_T size;             /* its size */
   int             victim_index;     /* its bin index */
 
@@ -4466,7 +4561,7 @@ _int_malloc(mstate av, size_t bytes)
 
       We require that av->top always exists (i.e., has size >=
       MINSIZE) after initialization, so if it would otherwise be
-      exhuasted by current request, it is replenished. (The main
+      exhausted by current request, it is replenished. (The main
       reason for ensuring it exists is that we may need MINSIZE space
       to put in fenceposts in sysmalloc.)
     */
@@ -4474,13 +4569,42 @@ _int_malloc(mstate av, size_t bytes)
     victim = av->top;
     size = chunksize(victim);
 
+
+
     if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
+
+      _md_victim = av->_md_top;
+
+      if(_md_victim != NULL){
+	bool hsuccess = hashtable_remove(av, victim);
+	//fprintf(stderr, "hashtable_remove(%p) @ %d\n", victim, __LINE__);
+	assert(hsuccess);
+	unused_var(hsuccess);
+      } else {
+	fprintf(stderr, "av->top %p  has no metatdata @ %d\n", victim, __LINE__);
+      }
+
+      /* removing invalidates chunkinfoptr; need to get a fresh one */
+      _md_victim = new_chunkinfoptr(av);
+
+      assert(_md_victim != NULL);
+
+      av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
+      av->top = chunkinfo2chunk(av->_md_top);
+
+      if(ian_says){ 
+	fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+      }
+      assert(hashtable_lookup(av, av->top) != NULL);
+
+      /*
       remainder_size = size - nb;
       remainder = chunk_at_offset(victim, nb);
       av->top = remainder;
       set_head(victim, nb | PREV_INUSE |
 	       (av != &main_arena ? NON_MAIN_ARENA : 0));
       set_head(remainder, remainder_size | PREV_INUSE);
+      */
 
       check_malloced_chunk(av, victim, nb);
       return chunk2mem(victim);
@@ -4606,9 +4730,45 @@ _int_free(mstate av, Void_t* mem)
       */
 
       else {
-        size += nextsize;
-        set_head(p, size | PREV_INUSE);
-        av->top = p;
+	/* nextchunk == av->top */
+
+	/* iam: need to update p's metatdata to at some stage */
+	
+
+	  av->_md_top = coallese_chunk(av, p, size, nextchunk, nextsize);
+	  av->top = chunkinfo2chunk(av->_md_top);
+	  
+	  if(0){
+	  bool hsuccess;
+	  chunkinfoptr _md_top = av->_md_top;
+	  if( _md_top != NULL){
+	    hsuccess = hashtable_remove(av, av->top);
+	    //fprintf(stderr, "hashtable_remove(%p) @ %d\n", av->top, __LINE__);
+	    assert(hsuccess);
+	    unused_var(hsuccess);
+	  } else {
+	    fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+	  }
+	  
+	  //removing invalidates the chunkinfoptr; need to get a fresh one 
+	  _md_top = new_chunkinfoptr(av);
+	  
+	  size += nextsize;
+	  set_head(p, size | PREV_INUSE);
+	  twin(_md_top, p);
+	  av->_md_top = _md_top;
+	  av->top = p;
+	  
+	  hsuccess = hashtable_add(av, _md_top);
+	  assert(hsuccess);
+	  unused_var(hsuccess);
+	  
+	  if(ian_says){ 
+	    fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+	  }
+	  assert(hashtable_lookup(av, av->top) != NULL);
+	  }
+  
         check_chunk(av, p);
       }
 
@@ -4671,6 +4831,45 @@ _int_free(mstate av, Void_t* mem)
     }
   }
 }
+
+static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize){
+  bool hsuccess;
+  chunkinfoptr _md_top = av->_md_top;
+
+  /* at some stage we will need to bow away p's md if it has any; or reuse it */
+
+  assert(chunkinfo2chunk(_md_top) == nextchunk);
+
+  if( _md_top != NULL){
+    hsuccess = hashtable_remove(av, av->top);
+    //fprintf(stderr, "hashtable_remove(%p) @ %d\n", av->top, __LINE__);
+    assert(hsuccess);
+    unused_var(hsuccess);
+  } else {
+    fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+  }
+	
+  /* removing invalidates the chunkinfoptr; need to get a fresh one */
+  _md_top = new_chunkinfoptr(av);
+
+  p_size += nextsize;
+  set_head(p, p_size | PREV_INUSE);
+  twin(_md_top, p);
+
+  hsuccess = hashtable_add(av, _md_top);
+  assert(hsuccess);
+  unused_var(hsuccess);
+  
+  if(ian_says){ 
+    fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+  }
+
+  assert(hashtable_lookup(av, p) != NULL);
+
+  return _md_top;
+  
+}
+
 
 /*
   ------------------------- malloc_consolidate -------------------------
@@ -4768,13 +4967,40 @@ static void malloc_consolidate(av) mstate av;
           }
 
           else {
-            size += nextsize;
-            set_head(p, size | PREV_INUSE);
-            av->top = p;
+	    /* nextchunk == av->top */
+
+	    bool hsuccess;
+	    chunkinfoptr _md_top = av->_md_top;
+	    if( _md_top != NULL){
+	      hsuccess = hashtable_remove(av, av->top);
+	      //fprintf(stderr, "hashtable_remove(%p) @ %d\n", av->top, __LINE__);
+	      assert(hsuccess);
+	      unused_var(hsuccess);
+	    } else {
+	      fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+	    }
+	
+	    /* removing invalidates the chunkinfoptr; need to get a fresh one */
+	    _md_top = new_chunkinfoptr(av);
+
+	    size += nextsize;
+	    set_head(p, size | PREV_INUSE);
+	    twin(_md_top, p);
+	    av->_md_top = _md_top;
+	    av->top = p;
+
+	    hsuccess = hashtable_add(av, _md_top);
+	    assert(hsuccess);
+	    unused_var(hsuccess);
+
+	    if(ian_says){
+	      fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+	    }
+	    assert(hashtable_lookup(av, av->top) != NULL);
           }
-
+	  
         } while ( (p = nextp) != 0);
-
+	
       }
     } while (fb++ != maxfb);
   }
@@ -4783,6 +5009,9 @@ static void malloc_consolidate(av) mstate av;
     check_malloc_state(av);
   }
 }
+
+
+
 
 /*
   ------------------------------ realloc ------------------------------
@@ -4848,9 +5077,36 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
       if (next == av->top &&
           (unsigned long)(newsize = oldsize + chunksize(next)) >=
           (unsigned long)(nb + MINSIZE)) {
+
+	/* iam: need to update oldp's metatdata to at some stage */
+	bool hsuccess;
+	chunkinfoptr _md_top = hashtable_lookup(av, av->top);
+	if( _md_top != NULL){
+	  hsuccess = hashtable_remove(av, av->top);
+	  //fprintf(stderr, "hashtable_remove(%p) @ %d\n", av->top, __LINE__);
+	  assert(hsuccess);
+	  unused_var(hsuccess);
+	} else {
+	  fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+	}
+
+	/* removing invalidates; need to get a fresh one */
+	_md_top = new_chunkinfoptr(av);
+	
         set_head_size(oldp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
         av->top = chunk_at_offset(oldp, nb);
         set_head(av->top, (newsize - nb) | PREV_INUSE);
+	twin(_md_top, av->top);
+	hsuccess = hashtable_add(av, _md_top);
+	assert(hsuccess);
+	unused_var(hsuccess);
+
+	if(ian_says){
+	  fprintf(stderr, "futzing with av->top = %p @ %d\n", av->top,  __LINE__);
+	}
+
+	assert(hashtable_lookup(av, av->top) != NULL);
+
 	check_inuse_chunk(av, oldp);
         return chunk2mem(oldp);
       }

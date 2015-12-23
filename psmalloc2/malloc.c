@@ -712,6 +712,19 @@ extern Void_t*     sbrk();
 #define USE_ARENAS HAVE_MMAP
 #endif
 
+/* iam: just to keep us well informed while developing */
+#if USE_ARENAS
+#warning "!!!!!!!> We are using arenas <!!!!!!!"
+#else
+#warning "!!!!!!!> We are NOT using arenas <!!!!!!!"
+  #if THREAD_STATS
+#warning "!!!!!!!> We are using THREAD_STATS <!!!!!!!"
+  #else
+#warning "!!!!!!!> We are NOT using THREAD_STATS <!!!!!!!"
+  #endif
+#endif
+
+
 /* USE_STARTER determines if and when the special "starter" hook
    functions are used: not at all (0), during ptmalloc_init (first bit
    set), or from the beginning until an explicit call to ptmalloc_init
@@ -2483,6 +2496,7 @@ static struct malloc_par mp_;
 static chunkinfoptr
 hashtable_lookup (mstate av, mchunkptr p)
 {
+  assert(av != NULL);
   assert(p != NULL);
   return metadata_lookup(&av->htbl, chunk2mem(p));
 }
@@ -2491,6 +2505,7 @@ hashtable_lookup (mstate av, mchunkptr p)
 static chunkinfoptr
 new_chunkinfoptr(mstate av)
 {
+  assert(av != NULL);
   return allocate_chunkinfoptr(&(av->htbl));
 }
 
@@ -2498,6 +2513,8 @@ new_chunkinfoptr(mstate av)
 static void
 hashtable_add (mstate av, chunkinfoptr ci)
 {
+  assert(av != NULL);
+  assert(ci != NULL);
   if( ! metadata_add(&av->htbl, ci)){
     abort();
   }
@@ -2508,6 +2525,8 @@ hashtable_add (mstate av, chunkinfoptr ci)
 static void
 hashtable_remove (mstate av, mchunkptr p) 
 {
+  assert(av != NULL);
+  assert(p != NULL);
   if( ! metadata_delete(&av->htbl, p)){
     abort();
   }
@@ -2524,7 +2543,14 @@ static void twin(chunkinfoptr ci, mchunkptr c){
   ci->prev_size =  c->prev_size;
 }
 
-
+/* temporary hack for testing sanity */
+static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c){
+  if(ci != NULL){
+    return true;
+  } else {
+    return false;
+  }
+}
 
 
 /*
@@ -3132,6 +3158,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 
   if (av != &main_arena) {
+    //iam: this should not happen if we are not using arenas...
+#if USE_ARENAS
 
     heap_info *old_heap, *heap;
     size_t old_heap_size;
@@ -3179,6 +3207,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
       }
     }
+#endif
 
   } else { /* av == main_arena */
 
@@ -3654,6 +3683,7 @@ public_fREe(Void_t* mem)
 {
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
+  chunkinfoptr _md_p;
 
   void (*hook) __MALLOC_P ((__malloc_ptr_t, __const __malloc_ptr_t)) =
     __free_hook;
@@ -3667,11 +3697,22 @@ public_fREe(Void_t* mem)
 
   p = mem2chunk(mem);
 
+  ar_ptr = arena_for_chunk(p);
+
+  _md_p = hashtable_lookup (ar_ptr, p);
+
+  /* good place to check our twinning */
+  if(!check_metadata_chunk(_md_p, p)){
+    fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
+    return;
+  }
+  
+  
+
 #if HAVE_MMAP
   /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
   if (chunk_is_mmapped(p))                       /* release mmapped memory. */
   {
-    
 
     munmap_chunk(p);
 
@@ -3679,7 +3720,7 @@ public_fREe(Void_t* mem)
   }
 #endif
 
-  ar_ptr = arena_for_chunk(p);
+
 #if THREAD_STATS
   if(!mutex_trylock(&ar_ptr->mutex))
     ++(ar_ptr->stat_lock_direct);
@@ -4595,12 +4636,15 @@ _int_free(mstate av, Void_t* mem)
 	    sYSTRIm(mp_.top_pad, av);
 #endif
 	} else {
+	  /* iam: if we are not using arenas this can't happen */
+#if  USE_ARENAS
 	  /* Always try heap_trim(), even if the top chunk is not
              large, because the corresponding heap might go away.  */
 	  heap_info *heap = heap_for_ptr(top(av));
 
 	  assert(heap->ar_ptr == av);
 	  heap_trim(heap, mp_.top_pad);
+#endif
 	}
       }
 

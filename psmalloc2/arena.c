@@ -78,9 +78,10 @@ int __malloc_initialized = -1;
 
 /**************************************************************************/
 
-static mstate arena_get2(mstate a_tsd, size_t size);
 
 #if USE_ARENAS
+
+static mstate arena_get2(mstate a_tsd, size_t size);
 
 /* arena_get() acquires an arena and locks the corresponding mutex.
    First, try the one last locked successfully by this thread.  (This
@@ -853,6 +854,17 @@ _int_get_arena (int n)
   }
   return a;
 }
+
+#else 
+
+/* iam: dummy for the !USE_ARENAS case */
+mstate
+_int_get_arena (int n)
+{
+  assert(n == 0);
+  return &main_arena;
+}
+
 
 #endif /* USE_ARENAS */
 

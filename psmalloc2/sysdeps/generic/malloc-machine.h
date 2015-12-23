@@ -35,10 +35,39 @@
    be based on atomic test-and-set operations, for example. */
 typedef int mutex_t;
 
-# define mutex_init(m)              (*(m) = 0)
-# define mutex_lock(m)              ((*(m) = 1), 0)
-# define mutex_trylock(m)           (*(m) ? 1 : ((*(m) = 1), 0))
-# define mutex_unlock(m)            (*(m) = 0)
+# define ptmalloc_mutex_init(m)              (*(m) = 0)
+
+static inline int mutex_init(mutex_t* m){
+  *m = 0;
+  return 0;
+}
+
+# define ptmalloc_mutex_lock(m)     ((*(m) = 1), 0)
+
+static inline int mutex_lock(mutex_t* m){
+  *m = 1;
+  return 0;
+}
+
+# define ptmalloc_mutex_trylock(m)           (*(m) ? 1 : ((*(m) = 1), 0))
+
+static inline int mutex_trylock(mutex_t* m){
+  if( *m ){
+    return 1;
+  } else {
+    *m = 1;
+    return 0;
+  }
+}
+
+# define ptmalloc_mutex_unlock(m)            (*(m) = 0)
+
+static inline int mutex_unlock(mutex_t* m){
+  *m = 0;
+  return 0;
+}
+
+
 
 typedef void *tsd_key_t;
 # define tsd_key_create(key, destr) do {} while(0)

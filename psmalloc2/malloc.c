@@ -3744,7 +3744,7 @@ public_fREe(Void_t* mem)
 {
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
-  //chunkinfoptr _md_p;
+  chunkinfoptr _md_p;
 
   void (*hook) __MALLOC_P ((__malloc_ptr_t, __const __malloc_ptr_t)) =
     __free_hook;
@@ -3761,14 +3761,15 @@ public_fREe(Void_t* mem)
   ar_ptr = arena_for_chunk(p);
 
 
-  /* good place to check our twinning
-  _md_p = hashtable_lookup (ar_ptr, p);
+  /* good place to check our twinning */
+  if(false){
+    _md_p = hashtable_lookup (ar_ptr, p);
   
-  if(false && !check_metadata_chunk(_md_p, p)){
-    fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
-    return;
+    if(!check_metadata_chunk(_md_p, p)){
+      fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
+      return;
+    }
   }
- */
 
 #if HAVE_MMAP
   /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
@@ -4550,6 +4551,10 @@ _int_malloc(mstate av, size_t bytes)
 
       _md_victim = av->_md_top;
 
+      /* 
+	 this needs to be rethought. only the remainder of the split chunk needs new metadata.
+	 the metadata for the old top can just be updated 
+      */
       if(_md_victim != NULL){
 	bool hsuccess = hashtable_remove(av, victim);
 	//fprintf(stderr, "hashtable_remove(%p) @ %d\n", victim, __LINE__);

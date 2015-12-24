@@ -9,6 +9,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-Wall -Wstrict-prototypes                 \
 	-fPIC                                     \
 	-DUSE_ARENAS=0                            \
+	-DNDEBUG                                  \
 	-Isysdeps/generic -I. 
 
 #	-DMALLOC_DEBUG				  \

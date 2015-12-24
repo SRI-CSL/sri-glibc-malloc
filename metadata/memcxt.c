@@ -6,6 +6,9 @@
 #include "memcxt.h"
 #include "utils.h"
 
+#ifndef NDEBUG
+#warning "sanity checking in memcxt is on"
+#endif
 
 #define BITS_IN_MASK  64
 

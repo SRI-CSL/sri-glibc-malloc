@@ -70,19 +70,19 @@ typedef struct replay_stats_s {
 
 static replay_stats_t stats;
 
-static inline int stat2int(size_t count, clock_t clock){
-  int retval = 0;
+static inline float stat2float(size_t count, clock_t clock){
+  float retval = 0;
   if(count != 0){
-    retval = (clock/count);
+    retval = (clock/(float)count);
   }
   return retval;
 }
 
 static void dump_stats(FILE* fp,  replay_stats_t* stats){
-  fprintf(fp, "malloc   %d  clocks per call\n",  stat2int(stats->malloc_count, stats->malloc_clock));
-  fprintf(fp, "free   %d  clocks per call\n",  stat2int(stats->free_count, stats->free_clock));
-  fprintf(fp, "calloc   %d  clocks per call\n",  stat2int(stats->calloc_count, stats->calloc_clock));
-  fprintf(fp, "realloc  %d  clocks per call\n",  stat2int(stats->realloc_count, stats->realloc_clock));
+  fprintf(fp, "malloc   %.2f  clocks per call\n",  stat2float(stats->malloc_count, stats->malloc_clock));
+  fprintf(fp, "free   %.2f  clocks per call\n",  stat2float(stats->free_count, stats->free_clock));
+  fprintf(fp, "calloc   %.2f  clocks per call\n",  stat2float(stats->calloc_count, stats->calloc_clock));
+  fprintf(fp, "realloc  %.2f  clocks per call\n",  stat2float(stats->realloc_count, stats->realloc_clock));
 }
 
 

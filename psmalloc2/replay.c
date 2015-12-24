@@ -144,6 +144,8 @@ int main(int argc, char* argv[]){
 
   if (fp != NULL) { fclose(fp); }
 
+  malloc_stats();
+
   delete_lphash(&htbl);
     
   dump_stats(stdout, &stats);

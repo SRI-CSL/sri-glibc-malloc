@@ -26,6 +26,10 @@
 
 #include "malloc.h"
 
+/* SRI's  metatdata header */
+#include "metadata.h"
+
+
 /*
   Define HAVE_MMAP as true to optionally make malloc() use mmap() to
   allocate very large blocks.  These will be returned to the
@@ -88,6 +92,8 @@ void public_mSTATs()
 {
   struct malloc_global_info mgi;
   unsigned long in_use_b, system_b;
+  mstate ar_ptr;
+    
 #if THREAD_STATS
   long stat_lock_direct = 0, stat_lock_loop = 0, stat_lock_wait = 0;
 #endif
@@ -109,7 +115,6 @@ void public_mSTATs()
   {
     int i;
     unsigned long avail_b;
-    mstate ar_ptr;
     struct malloc_arena_info mai;
     
 
@@ -162,6 +167,12 @@ void public_mSTATs()
   fprintf(stderr, "locked total     = %10ld\n",
           stat_lock_direct + stat_lock_loop + stat_lock_wait);
 #endif
+
+  ar_ptr = _int_get_arena(0);
+  fprintf(stderr, "\nhashtable:\n");
+  dump_hashtable(ar_ptr);
+
+
 #ifdef _LIBC
   ((_IO_FILE *) stderr)->_flags2 |= old_flags2;
   _IO_funlockfile (stderr);

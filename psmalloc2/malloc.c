@@ -2500,6 +2500,11 @@ static struct malloc_par mp_;
 
 */
 
+//needed for malloc_stats which "conveniently" is in another file.
+void dump_hashtable(mstate av){
+  dump_metadata(stderr, &(av->htbl), false);
+}
+
 /* lookup the chunk in the hashtable */
 
 static chunkinfoptr

@@ -291,6 +291,8 @@ extern void _int_get_arena_info __MALLOC_P ((mstate __m,
 					     struct malloc_arena_info *__ma));
 extern void _int_get_global_info __MALLOC_P ((struct malloc_global_info *__m));
 
+extern void dump_hashtable(mstate av);
+
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif

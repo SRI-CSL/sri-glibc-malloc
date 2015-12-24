@@ -1531,7 +1531,7 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
 
 static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize);
 
-static inline mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
 
 Void_t*         _int_malloc(mstate, size_t);
 void            _int_free(mstate, Void_t*);
@@ -2600,8 +2600,6 @@ static void malloc_init_state(av) mstate av;
 
   av->top            = initial_top(av);
   av->_md_top        = new_chunkinfoptr(av);
-
-
   twin(av->_md_top, av->top);
   hashtable_add(av, av->_md_top);
 
@@ -3506,13 +3504,13 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   return 0;
 }
 
-static inline mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim){
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim){
   assert(_md_victim != NULL);
   return mem2chunk(_md_victim->chunk);
 }
 
 /* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
-static inline chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata){
+static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata){
   INTERNAL_SIZE_T remainder_size;
   mchunkptr remainder; 
   chunkinfoptr _md_remainder;
@@ -3535,9 +3533,10 @@ static inline chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchun
 
   /* configure the victim */
   set_head(victim, desiderata | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
+  /* we should also fix the victim's metatdata */
   twin(_md_victim, victim);
 
-  /* we should also fix the victim's metatdata */
+
 
   return _md_remainder;
 }

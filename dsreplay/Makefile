@@ -41,12 +41,13 @@ robj = replay.o lphash.o
 
 OBJECTS = ${robj} ${metaobj} ${mobj} 
 
+%.o: %.c %.h 
+	${CC} ${CFLAGS} $< -c 
+
 all: ${LIB} ${OBJECTS}
 	${CC} ${CFLAGS} ${OBJECTS} -o replay
 
 
-%.o: %.c %.h 
-	${CC} ${CFLAGS} $< -c 
 
 clean:
 	rm -rf *~ replay *.o

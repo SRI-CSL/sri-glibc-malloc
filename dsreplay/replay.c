@@ -11,7 +11,7 @@
 
 #include "lphash.h"
 
-#include "malloc.h"
+#include "dsmalloc.h"
 
 /*
  *  Parses the output from ../mhooks/mhook.c and replays it.

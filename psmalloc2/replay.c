@@ -74,16 +74,16 @@ static replay_stats_t stats;
 static inline int stat2int(size_t count, clock_t clock){
   int retval = 0;
   if(count != 0){
-    retval = ((clock * 1000)/count);
+    retval = (clock/count);
   }
   return retval;
 }
 
 static void dump_stats(FILE* fp,  replay_stats_t* stats){
-  fprintf(fp, "malloc   %d\n",  stat2int(stats->malloc_count, stats->malloc_clock));
-  fprintf(fp, "free   %d\n",  stat2int(stats->free_count, stats->free_clock));
-  fprintf(fp, "calloc   %d\n",  stat2int(stats->calloc_count, stats->calloc_clock));
-  fprintf(fp, "realloc  %d\n",  stat2int(stats->realloc_count, stats->realloc_clock));
+  fprintf(fp, "malloc   %d  clocks per call\n",  stat2int(stats->malloc_count, stats->malloc_clock));
+  fprintf(fp, "free   %d  clocks per call\n",  stat2int(stats->free_count, stats->free_clock));
+  fprintf(fp, "calloc   %d  clocks per call\n",  stat2int(stats->calloc_count, stats->calloc_clock));
+  fprintf(fp, "realloc  %d  clocks per call\n",  stat2int(stats->realloc_count, stats->realloc_clock));
 }
 
 

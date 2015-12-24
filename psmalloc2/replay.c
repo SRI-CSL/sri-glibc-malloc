@@ -227,7 +227,6 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   default : retval = false;
   }
   
-  
   return retval;
 }
 

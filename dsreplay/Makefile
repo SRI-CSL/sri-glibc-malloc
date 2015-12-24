@@ -33,7 +33,7 @@ else
 endif
 
 
-metaobj= hashfns.o memcxt.o pool.o metadata.o 
+metaobj= utils.o memcxt.o metadata.o 
 
 mobj= dsassert.o dsmalloc.o
 

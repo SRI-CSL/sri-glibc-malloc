@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,7 +10,7 @@
 
 #include "lphash.h"
 
-#include "dsmalloc.h"
+#include "malloc.h"
 
 /*
  *  Parses the output from ../mhooks/mhook.c and replays it.
@@ -201,7 +202,7 @@ static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
 
     sz = (size_t)addresses[0];
     key =  (void *)addresses[1];
-    val = dlmalloc(sz);
+    val = malloc(sz);
 
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
@@ -245,7 +246,7 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
     cnt = (size_t)addresses[0];
     sz = (size_t)addresses[1];
     key =  (void *)addresses[2];
-    val = dlcalloc(cnt, sz);
+    val = calloc(cnt, sz);
 
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
@@ -317,7 +318,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
     }
 
-    val_new = dlrealloc(val_old, sz);
+    val_new = realloc(val_old, sz);
 
     if (sz == 0) {
 
@@ -416,11 +417,11 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
     
     if (key == NULL) {
       val = NULL;
-      dlfree(key);
+      free(key);
     } else {
       val = lphash_lookup(htbl, key);
       if (val != NULL) {
-	dlfree(val);
+	free(val);
 	lphash_delete(htbl, key);
       } else {
 	/* this is a pretty common occurence */

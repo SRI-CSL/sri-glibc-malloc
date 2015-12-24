@@ -2541,7 +2541,6 @@ hashtable_remove (mstate av, mchunkptr p)
 static void twin(chunkinfoptr ci, mchunkptr c){
   assert(ci != NULL);
   assert(c != NULL);
-  
   ci->chunk = chunk2mem(c);
   ci->size = c->size;
   ci->prev_size =  c->prev_size;
@@ -3524,7 +3523,7 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
   remainder = chunk_at_offset(victim, desiderata);
   set_head(remainder, remainder_size | PREV_INUSE);
   
-  /* pair it with new metatdata */
+  /* pair it with new metatdata and add the metadata into the hashtable */
   _md_remainder = new_chunkinfoptr(av);
   twin(_md_remainder, remainder);
   hsuccess = hashtable_add(av, _md_remainder);
@@ -4551,28 +4550,11 @@ _int_malloc(mstate av, size_t bytes)
 
       _md_victim = av->_md_top;
 
-      /* 
-	 this needs to be rethought. only the remainder of the split chunk needs new metadata.
-	 the metadata for the old top can just be updated 
-      */
-      if(_md_victim != NULL){
-	bool hsuccess = hashtable_remove(av, victim);
-	//fprintf(stderr, "hashtable_remove(%p) @ %d\n", victim, __LINE__);
-	assert(hsuccess);
-	unused_var(hsuccess);
-      } else {
-	fprintf(stderr, "av->top %p  has no metatdata @ %d\n", victim, __LINE__);
-      }
-
-      /* removing invalidates chunkinfoptr; need to get a fresh one */
-      _md_victim = new_chunkinfoptr(av);
-
       assert(_md_victim != NULL);
 
       av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
       av->top = chunkinfo2chunk(av->_md_top);
 
-      //assert(hashtable_lookup(av, av->top) != NULL);
 
       check_malloced_chunk(av, victim, nb);
       //fprintf(stderr, "9\n");

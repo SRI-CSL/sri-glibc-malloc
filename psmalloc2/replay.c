@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <time.h>
+
 
 #include "lphash.h"
 
@@ -33,7 +35,6 @@ const bool silent_running = true;
 
 const size_t BUFFERSZ = 1024;
 
-
 typedef unsigned char uchar;
 
 static bool readline(FILE* fp, uchar* buffer, size_t buffersz);
@@ -55,6 +56,35 @@ enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
 enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
 
 static bool dirtywork(uintptr_t addresses[], size_t len, const uchar* buffer, size_t buffersz);
+
+
+typedef struct replay_stats_s {
+  size_t malloc_count;
+  clock_t malloc_clock;
+  size_t free_count;
+  clock_t free_clock;
+  size_t calloc_count;
+  clock_t calloc_clock;
+  size_t realloc_count;
+  clock_t realloc_clock;
+} replay_stats_t;
+
+static replay_stats_t stats;
+
+static inline int stat2int(size_t count, clock_t clock){
+  int retval = 0;
+  if(count != 0){
+    retval = ((clock * 1000)/count);
+  }
+  return retval;
+}
+
+static void dump_stats(FILE* fp,  replay_stats_t* stats){
+  fprintf(fp, "malloc   %d\n",  stat2int(stats->malloc_count, stats->malloc_clock));
+  fprintf(fp, "free   %d\n",  stat2int(stats->free_count, stats->free_clock));
+  fprintf(fp, "calloc   %d\n",  stat2int(stats->calloc_count, stats->calloc_clock));
+  fprintf(fp, "realloc  %d\n",  stat2int(stats->realloc_count, stats->realloc_clock));
+}
 
 
 int main(int argc, char* argv[]){
@@ -116,7 +146,7 @@ int main(int argc, char* argv[]){
 
   delete_lphash(&htbl);
     
-  
+  dump_stats(stdout, &stats);
   return code;
 }
 
@@ -156,6 +186,7 @@ static bool readline(FILE* fp, uchar* buffer, size_t buffersz) {
 static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   uchar opchar;
   bool retval;
+  clock_t start;
 
   assert((buffersz == BUFFERSZ) && (buffer[buffersz] == '\0'));
 
@@ -164,12 +195,33 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   }
   
   opchar = buffer[0];
-
+  start = clock();
+  
   switch(opchar) {
-  case 'm': retval = replay_malloc(htbl, buffer, buffersz); break;
-  case 'f': retval = replay_free(htbl, buffer, buffersz); break;
-  case 'c': retval = replay_calloc(htbl, buffer, buffersz); break;
-  case 'r': retval = replay_realloc(htbl, buffer, buffersz); break;
+  case 'm': {
+    retval = replay_malloc(htbl, buffer, buffersz); 
+    stats.malloc_clock += clock() - start;
+    stats.malloc_count++;
+    break;
+  }
+  case 'f': {
+    retval = replay_free(htbl, buffer, buffersz); 
+    stats.free_clock += clock() - start;
+    stats.free_count++;
+    break;
+  }
+  case 'c': {
+    retval = replay_calloc(htbl, buffer, buffersz); 
+    stats.calloc_clock += clock() - start;
+    stats.calloc_count++;
+    break;
+  }
+  case 'r': {
+    retval = replay_realloc(htbl, buffer, buffersz); 
+    stats.realloc_clock += clock() - start;
+    stats.realloc_count++;
+    break;
+  }
   default : retval = false;
   }
   

@@ -3548,7 +3548,7 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
   _md_remainder = register_chunk(av, remainder);
 
   /* configure the victim */
-  set_head(victim, desiderata | PREV_INUSE | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+  set_head(victim, desiderata | PREV_INUSE | arena_bit(av)); 
   /* we should also fix the victim's metatdata */
   twin(_md_victim, victim);
 
@@ -4368,7 +4368,7 @@ _int_malloc(mstate av, size_t bytes)
 	  av->last_remainder = remainder;
 	  remainder->bk = remainder->fd = unsorted_chunks(av);
 	  
-	  set_head(victim, nb | PREV_INUSE | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	  set_head(remainder, remainder_size | PREV_INUSE);
 	  set_foot(remainder, remainder_size);
 	} else {
@@ -4392,7 +4392,7 @@ _int_malloc(mstate av, size_t bytes)
 
 
 	  /* update the victim */
-	  set_head(victim, nb | PREV_INUSE | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	  twin(_md_victim, victim);
 
 	}
@@ -4500,7 +4500,7 @@ _int_malloc(mstate av, size_t bytes)
 	      remainder = chunk_at_offset(victim, nb);
 	      unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
 	      remainder->bk = remainder->fd = unsorted_chunks(av);
-	      set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	      set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	      set_head(remainder, remainder_size | PREV_INUSE);
 	      set_foot(remainder, remainder_size);
 
@@ -4620,7 +4620,7 @@ _int_malloc(mstate av, size_t bytes)
 	    if (in_smallbin_range(nb))
 	      av->last_remainder = remainder;
 	    
-	    set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	    set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	    set_head(remainder, remainder_size | PREV_INUSE);
 	    set_foot(remainder, remainder_size);
 
@@ -4642,7 +4642,7 @@ _int_malloc(mstate av, size_t bytes)
 	    }
 
 	    /* update victim */
-	    set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	    set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	    twin(_md_victim, victim);
 	    
 	  }
@@ -5115,7 +5115,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 	}
 
 	/* iam: need to update oldp's metatdata */
-        set_head_size(oldp, nb | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+        set_head_size(oldp, nb | arena_bit(av));
 	twin(_md_oldp, oldp);
 	
         av->top = chunk_at_offset(oldp, nb);
@@ -5201,7 +5201,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     remainder_size = newsize - nb;
 
     if (remainder_size < MINSIZE) { /* not enough extra to split off */
-      set_head_size(newp, newsize | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+      set_head_size(newp, newsize | arena_bit(av));
       set_inuse_bit_at_offset(newp, newsize);
     }
     else { /* split remainder */
@@ -5209,8 +5209,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
       if(0){
 	/* iam: old code  */
 	remainder = chunk_at_offset(newp, nb);
-	set_head_size(newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
-	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	set_head_size(newp, nb | arena_bit(av));
+	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
 	/* Mark remainder as inuse so free() won't complain */
 	set_inuse_bit_at_offset(remainder, remainder_size);
 	_int_free(av, NULL, chunk2mem(remainder));
@@ -5226,13 +5226,13 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 
 	/* configure remainder */
 	remainder = chunk_at_offset(newp, nb);
-	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
 	/* Mark remainder as inuse so free() won't complain */
 	set_inuse_bit_at_offset(remainder, remainder_size);
 	_md_remainder = register_chunk(av, remainder);
 
 	/* update newp */
-	set_head_size(newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
+	set_head_size(newp, nb |  arena_bit(av));
 	twin(_md_newp, newp);
 
 	/* process the remainder as free  */
@@ -5333,11 +5333,14 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
   INTERNAL_SIZE_T nb;             /* padded  request size */
   char*           m;              /* memory returned by malloc call */
   mchunkptr       p;              /* corresponding chunk */
+  chunkinfoptr    _md_p;          /* metadata of chunk */
   char*           brk;            /* alignment point within p */
   mchunkptr       newp;           /* chunk to return */
+  chunkinfoptr    _md_newp;       /* metadata of the chunk to return */
   INTERNAL_SIZE_T newsize;        /* its size */
   INTERNAL_SIZE_T leadsize;       /* leading space before alignment point */
   mchunkptr       remainder;      /* spare room at end to split off */
+  chunkinfoptr    _md_remainder;  /* metadata of the spare room at end */
   unsigned long   remainder_size; /* its size */
   INTERNAL_SIZE_T size;
 
@@ -5374,6 +5377,15 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
 
   p = mem2chunk(m);
 
+  _md_p = hashtable_lookup(av, p);
+
+  if (safetynet && _md_p == NULL){ 
+    _md_p = register_chunk(av, p);
+  }
+
+  /* iam: so we can tell which path we take */
+  newp = NULL;
+
   if ((((unsigned long)(m)) % alignment) != 0) { /* misaligned */
 
     /*
@@ -5394,22 +5406,35 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     newsize = chunksize(p) - leadsize;
 
     /* For mmapped chunks, just adjust offset */
+    /* iam: not quite for us; we hash on the memory pointed too... */
     if (chunk_is_mmapped(p)) {
+
+      hashtable_remove(av, p);
+
       newp->prev_size = p->prev_size + leadsize;
       set_head(newp, newsize|IS_MMAPPED);
+
+      register_chunk(av, newp);
+
       return chunk2mem(newp);
     }
 
     /* Otherwise, give back leader, use the rest */
-    set_head(newp, newsize | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+    set_head(newp, newsize | PREV_INUSE | arena_bit(av)); 
     set_inuse_bit_at_offset(newp, newsize);
-    set_head_size(p, leadsize | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-    _int_free(av, NULL, chunk2mem(p)); //iam: fix me!
+    _md_newp = register_chunk(av, newp);
+	       
+    /* update p */
+    set_head_size(p, leadsize | arena_bit(av));
+    twin(_md_p, p);
+    
+    _int_free(av, _md_p, chunk2mem(p)); 
+
     p = newp;
 
     assert (newsize >= nb &&
             (((unsigned long)(chunk2mem(p))) % alignment) == 0);
-  }
+  } /* misaligned */
 
   /* Also give back spare room at the end */
   if (!chunk_is_mmapped(p)) {
@@ -5417,9 +5442,18 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     if ((unsigned long)(size) > (unsigned long)(nb + MINSIZE)) {
       remainder_size = size - nb;
       remainder = chunk_at_offset(p, nb);
-      set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+      set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); 
+      _md_remainder = register_chunk(av, remainder);
+
+      /* iam: update p  or newp */
       set_head_size(p, nb);
-      _int_free(av, NULL, chunk2mem(remainder));  //iam: fix me!
+      if(newp != NULL){ /* iam:  in this case p == newp */
+	twin(_md_newp, newp);
+      } else {
+	twin(_md_p, p);
+      }
+
+      _int_free(av, _md_remainder, chunk2mem(remainder)); 
     }
   }
 
@@ -5547,7 +5581,7 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
     MALLOC_ZERO(mem, remainder_size - SIZE_SZ - array_size);
   }
 
-  size_flags = PREV_INUSE | arena_bit(av);  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0);
+  size_flags = PREV_INUSE | arena_bit(av);
 
   /* If not provided, allocate the pointer array as final part of chunk */
   if (marray == 0) {

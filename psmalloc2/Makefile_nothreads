@@ -42,9 +42,6 @@ shared: $(METAOBJ) malloc.so
 malloc.so: $(MALLOCOBJ) malloc.h
 	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
 
-clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
-
 t-test1: t-test1.c t-test.h $(LIB_MALLOC)
 	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -o $@
 
@@ -82,6 +79,9 @@ check: $(TESTS)
 	./t-test2
 	./tst-mallocstate || echo "Test mallocstate failed!"
 	./tst-mstats || echo "Test mstats failed!"
+
+clean:
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o replay
 
 
 # dependencies

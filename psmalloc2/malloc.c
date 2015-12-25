@@ -1526,7 +1526,7 @@ typedef struct malloc_chunk* mchunkptr;
 
 /* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 
-static const bool safetynet = true;  /* turning this off is the acid test of our twinning */
+static const bool safetynet = true;  /* iam: turning this off is the acid test of our twinning */
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p);
 

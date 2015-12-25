@@ -1526,6 +1526,8 @@ typedef struct malloc_chunk* mchunkptr;
 
 /* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 
+static const bool safetynet = true;  /* turning this off is the acid test of our twinning */
+
 static chunkinfoptr register_chunk(mstate av, mchunkptr p);
 
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
@@ -4353,7 +4355,7 @@ _int_malloc(mstate av, size_t bytes)
 	_md_victim = hashtable_lookup(av, victim);
 
 	/* iam: this should be removable once we get our global act together */
-	if(_md_victim == NULL){
+	if(safetynet && _md_victim == NULL){
 	  _md_victim = register_chunk(av, victim);
 	}
 	
@@ -4489,7 +4491,7 @@ _int_malloc(mstate av, size_t bytes)
 	    _md_victim = hashtable_lookup(av, victim);
 
 	    /* iam: this should be removable once we get our global act together */
-	    if(_md_victim == NULL){
+	    if(safetynet && _md_victim == NULL){
 	      _md_victim = register_chunk(av, victim);
 	    }
 	
@@ -4605,7 +4607,7 @@ _int_malloc(mstate av, size_t bytes)
 	  _md_victim = hashtable_lookup(av, victim);
 
 	  /* iam: this should be removable once we get our global act together */
-	  if(_md_victim == NULL){
+	  if(safetynet && _md_victim == NULL){
 	    _md_victim = register_chunk(av, victim);
 	  }
 
@@ -5079,7 +5081,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   oldsize = chunksize(oldp);
 
   /* iam: this should be removable once we get our global act together */
-  if(_md_oldp == NULL){
+  if(safetynet && _md_oldp == NULL){
     _md_oldp = register_chunk(av, oldp);
   }
 
@@ -5219,7 +5221,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 	_md_newp = hashtable_lookup(av, newp);
 	
 	/* iam: this should be removable once we get our global act together */
-	if(_md_newp == NULL){
+	if(safetynet && _md_newp == NULL){
 	  _md_newp = register_chunk(av, newp);
 	}
 

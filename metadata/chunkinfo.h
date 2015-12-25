@@ -1,3 +1,8 @@
+#ifndef _CHUNKINFO_H
+#define _CHUNKINFO_H
+
+
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -31,3 +36,5 @@ typedef struct segment_s {
   bucket_t* segment[SEGMENT_LENGTH];
   segment_pool_t *segment_pool_ptr;  
 } segment_t;
+
+#endif

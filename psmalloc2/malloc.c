@@ -2294,7 +2294,8 @@ typedef struct malloc_state *mstateptr;
 /* addressing -- note that bin_at(0) does not exist */
 #define ptmalloc_bin_at(m, i) ((mbinptr)((char*)&((m)->bins[(i)<<1]) - (SIZE_SZ<<1)))
 
-static inline mbinptr bin_at(mstateptr m, int i){
+static inline mbinptr bin_at(mstateptr m, int i)
+{
   return ((mbinptr)((char*)&(m->bins[(i)<<1]) - (SIZE_SZ<<1)));
 }
 
@@ -2502,7 +2503,8 @@ static struct malloc_par mp_;
 */
 
 //needed for malloc_stats which "conveniently" is in another file.
-void dump_hashtable(mstate av){
+void dump_hashtable(mstate av)
+{
   dump_metadata(stderr, &(av->htbl), false);
 }
 
@@ -2544,7 +2546,8 @@ hashtable_remove (mstate av, mchunkptr p)
 }
 
 /* temporary hack to marry metadata to data */
-static void twin(chunkinfoptr ci, mchunkptr c){
+static void twin(chunkinfoptr ci, mchunkptr c)
+{
   assert(ci != NULL);
   assert(c != NULL);
   ci->chunk = chunk2mem(c);
@@ -2553,8 +2556,9 @@ static void twin(chunkinfoptr ci, mchunkptr c){
 }
 
 /* temporary hack for testing sanity */
-static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c){
-  if(ci != NULL){
+static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
+{
+  if (ci != NULL){
     return true;
   } else {
     return false;
@@ -2599,7 +2603,7 @@ static void malloc_init_state(av) mstate av;
   init_memcxt(&av->memcxt);
 
   /* init the metadata hash table */
-  if( ! init_metadata(&av->htbl, &av->memcxt)){
+  if ( ! init_metadata(&av->htbl, &av->memcxt)){
     abort();
   }
 
@@ -3183,7 +3187,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       av->system_mem += old_heap->size - old_heap_size;
       arena_mem += old_heap->size - old_heap_size;
 #if 0
-      if(mmapped_mem + arena_mem + sbrked_mem > max_total_mem)
+      if (mmapped_mem + arena_mem + sbrked_mem > max_total_mem)
         max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
       set_head(old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)
@@ -3196,7 +3200,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       av->system_mem += heap->size;
       arena_mem += heap->size;
 #if 0
-      if((unsigned long)(mmapped_mem + arena_mem + sbrked_mem) > max_total_mem)
+      if ((unsigned long)(mmapped_mem + arena_mem + sbrked_mem) > max_total_mem)
 	max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
       /* Set up the new top.  */
@@ -3502,13 +3506,15 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   return 0;
 }
 
-static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim){
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
+{
   assert(_md_victim != NULL);
   return mem2chunk(_md_victim->chunk);
 }
 
 
-static chunkinfoptr register_chunk(mstate av, mchunkptr p){
+static chunkinfoptr register_chunk(mstate av, mchunkptr p)
+{
   chunkinfoptr _md_p = new_chunkinfoptr(av);
   twin(_md_p, p);
   hashtable_add(av, _md_p);
@@ -3517,7 +3523,8 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p){
 
 
 /* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
-static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata){
+static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata)
+{
   INTERNAL_SIZE_T remainder_size;
   mchunkptr remainder; 
   chunkinfoptr _md_remainder;
@@ -3709,12 +3716,12 @@ public_mALLOc(size_t bytes)
     return (*hook)(bytes, RETURN_ADDRESS (0));
 
   arena_get(ar_ptr, bytes);
-  if(!ar_ptr)
+  if (!ar_ptr)
     return 0;
   victim = _int_malloc(ar_ptr, bytes);
-  if(!victim) {
+  if (!victim) {
     /* Maybe the failure is due to running out of mmapped areas. */
-    if(ar_ptr != &main_arena) {
+    if (ar_ptr != &main_arena) {
       (void)mutex_unlock(&ar_ptr->mutex);
       (void)mutex_lock(&main_arena.mutex);
       victim = _int_malloc(&main_arena, bytes);
@@ -3724,7 +3731,7 @@ public_mALLOc(size_t bytes)
       /* ... or sbrk() has failed and there is still a chance to mmap() */
       ar_ptr = arena_get2(ar_ptr->next ? ar_ptr : 0, bytes);
       (void)mutex_unlock(&main_arena.mutex);
-      if(ar_ptr) {
+      if (ar_ptr) {
         victim = _int_malloc(ar_ptr, bytes);
         (void)mutex_unlock(&ar_ptr->mutex);
       }
@@ -3763,10 +3770,10 @@ public_fREe(Void_t* mem)
 
 
   /* good place to check our twinning */
-  if(true){
+  if (true){
     _md_p = hashtable_lookup (ar_ptr, p);
   
-    if(!check_metadata_chunk(_md_p, p)){
+    if (!check_metadata_chunk(_md_p, p)){
       fprintf(stderr, "%p of size %zu has no metadata\n",  chunk2mem(p), chunksize(p));
       return;
     }
@@ -3785,7 +3792,7 @@ public_fREe(Void_t* mem)
 
 
 #if THREAD_STATS
-  if(!mutex_trylock(&ar_ptr->mutex))
+  if (!mutex_trylock(&ar_ptr->mutex))
     ++(ar_ptr->stat_lock_direct);
   else {
     (void)mutex_lock(&ar_ptr->mutex);
@@ -3839,10 +3846,10 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 
 #if HAVE_MREMAP
     newp = mremap_chunk(oldp, nb);
-    if(newp) return chunk2mem(newp);
+    if (newp) return chunk2mem(newp);
 #endif
     /* Note the extra SIZE_SZ overhead. */
-    if(oldsize - SIZE_SZ >= nb) return oldmem; /* do nothing */
+    if (oldsize - SIZE_SZ >= nb) return oldmem; /* do nothing */
     /* Must alloc, copy, free. */
     newmem = public_mALLOc(bytes);
     if (newmem == 0) return 0; /* propagate failure */
@@ -3854,7 +3861,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 
   ar_ptr = arena_for_chunk(oldp);
 #if THREAD_STATS
-  if(!mutex_trylock(&ar_ptr->mutex))
+  if (!mutex_trylock(&ar_ptr->mutex))
     ++(ar_ptr->stat_lock_direct);
   else {
     (void)mutex_lock(&ar_ptr->mutex);
@@ -3899,13 +3906,13 @@ public_mEMALIGn(size_t alignment, size_t bytes)
   if (alignment <  MINSIZE) alignment = MINSIZE;
 
   arena_get(ar_ptr, bytes + alignment + MINSIZE);
-  if(!ar_ptr)
+  if (!ar_ptr)
     return 0;
   p = _int_memalign(ar_ptr, alignment, bytes);
   (void)mutex_unlock(&ar_ptr->mutex);
-  if(!p) {
+  if (!p) {
     /* Maybe the failure is due to running out of mmapped areas. */
-    if(ar_ptr != &main_arena) {
+    if (ar_ptr != &main_arena) {
       (void)mutex_lock(&main_arena.mutex);
       p = _int_memalign(&main_arena, alignment, bytes);
       (void)mutex_unlock(&main_arena.mutex);
@@ -3913,7 +3920,7 @@ public_mEMALIGn(size_t alignment, size_t bytes)
 #if USE_ARENAS
       /* ... or sbrk() has failed and there is still a chance to mmap() */
       ar_ptr = arena_get2(ar_ptr->next ? ar_ptr : 0, bytes);
-      if(ar_ptr) {
+      if (ar_ptr) {
         p = _int_memalign(ar_ptr, alignment, bytes);
         (void)mutex_unlock(&ar_ptr->mutex);
       }
@@ -3934,10 +3941,10 @@ public_vALLOc(size_t bytes)
   mstate ar_ptr;
   Void_t *p;
 
-  if(__malloc_initialized < 0)
+  if (__malloc_initialized < 0)
     ptmalloc_init ();
   arena_get(ar_ptr, bytes + mp_.pagesize + MINSIZE);
-  if(!ar_ptr)
+  if (!ar_ptr)
     return 0;
   p = _int_valloc(ar_ptr, bytes);
   (void)mutex_unlock(&ar_ptr->mutex);
@@ -3950,7 +3957,7 @@ public_pVALLOc(size_t bytes)
   mstate ar_ptr;
   Void_t *p;
 
-  if(__malloc_initialized < 0)
+  if (__malloc_initialized < 0)
     ptmalloc_init ();
   arena_get(ar_ptr, bytes + 2*mp_.pagesize + MINSIZE);
   p = _int_pvalloc(ar_ptr, bytes);
@@ -3985,7 +3992,7 @@ public_cALLOc(size_t n, size_t elem_size)
   if (hook != NULL) {
     sz = bytes;
     mem = (*hook)(sz, RETURN_ADDRESS (0));
-    if(mem == 0)
+    if (mem == 0)
       return 0;
 #ifdef HAVE_MEMCPY
     return memset(mem, 0, sz);
@@ -3998,7 +4005,7 @@ public_cALLOc(size_t n, size_t elem_size)
   sz = bytes;
 
   arena_get(av, sz);
-  if(!av)
+  if (!av)
     return 0;
 
   /* Check if we hand out the top chunk, in which case there may be no
@@ -4023,7 +4030,7 @@ public_cALLOc(size_t n, size_t elem_size)
 
   if (mem == 0) {
     /* Maybe the failure is due to running out of mmapped areas. */
-    if(av != &main_arena) {
+    if (av != &main_arena) {
       (void)mutex_lock(&main_arena.mutex);
       mem = _int_malloc(&main_arena, sz);
       (void)mutex_unlock(&main_arena.mutex);
@@ -4033,7 +4040,7 @@ public_cALLOc(size_t n, size_t elem_size)
       (void)mutex_lock(&main_arena.mutex);
       av = arena_get2(av->next ? av : 0, sz);
       (void)mutex_unlock(&main_arena.mutex);
-      if(av) {
+      if (av) {
         mem = _int_malloc(av, sz);
         (void)mutex_unlock(&av->mutex);
       }
@@ -4097,7 +4104,7 @@ public_iCALLOc(size_t n, size_t elem_size, Void_t** chunks)
   Void_t** m;
 
   arena_get(ar_ptr, n*elem_size);
-  if(!ar_ptr)
+  if (!ar_ptr)
     return 0;
 
   m = _int_icalloc(ar_ptr, n, elem_size, chunks);
@@ -4112,7 +4119,7 @@ public_iCOMALLOc(size_t n, size_t sizes[], Void_t** chunks)
   Void_t** m;
 
   arena_get(ar_ptr, 0);
-  if(!ar_ptr)
+  if (!ar_ptr)
     return 0;
 
   m = _int_icomalloc(ar_ptr, n, sizes, chunks);
@@ -4159,7 +4166,7 @@ public_mALLINFo()
   struct mallinfo m;
   size_t avail;
 
-  if(__malloc_initialized < 0)
+  if (__malloc_initialized < 0)
     ptmalloc_init ();
   _int_get_arena_info(&main_arena, &mai);
   /* Account for top */
@@ -4756,7 +4763,8 @@ _int_free(mstate av, Void_t* mem)
   }
 }
 
-static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize){
+static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize)
+{
   bool hsuccess;
   chunkinfoptr _md_top = av->_md_top;
 
@@ -4764,7 +4772,7 @@ static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_siz
 
   assert(chunkinfo2chunk(_md_top) == nextchunk);
 
-  if( _md_top != NULL){
+  if ( _md_top != NULL){
     hsuccess = hashtable_remove(av, av->top);
     assert(hsuccess);
     unused_var(hsuccess);
@@ -4970,7 +4978,7 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
 	/* iam: need to update oldp's metatdata to at some stage */
 	bool hsuccess;
 	chunkinfoptr _md_top = av->_md_top; 
-	if( _md_top != NULL){
+	if ( _md_top != NULL){
 	  hsuccess = hashtable_remove(av, av->top);
 	  assert(hsuccess);
 	  unused_var(hsuccess);
@@ -5645,7 +5653,7 @@ int mALLOPt(param_number, value) int param_number; int value;
   mstate av = &main_arena;
   int res = 1;
 
-  if(__malloc_initialized < 0)
+  if (__malloc_initialized < 0)
     ptmalloc_init ();
   (void)mutex_lock(&av->mutex);
   /* Ensure initialization/consolidation */
@@ -5671,7 +5679,7 @@ int mALLOPt(param_number, value) int param_number; int value;
   case M_MMAP_THRESHOLD:
 #if USE_ARENAS
     /* Forbid setting the threshold too high. */
-    if((unsigned long)value > HEAP_MAX_SIZE/2)
+    if ((unsigned long)value > HEAP_MAX_SIZE/2)
       res = 0;
     else
 #endif

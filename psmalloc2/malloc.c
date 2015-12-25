@@ -4350,11 +4350,10 @@ _int_malloc(mstate av, size_t bytes)
           bck == unsorted_chunks(av) &&
           victim == av->last_remainder &&
           (unsigned long)(size) > (unsigned long)(nb + MINSIZE)) {
-	chunkinfoptr _md_victim;
 
 	_md_victim = hashtable_lookup(av, victim);
 
-	/* this should be removable once we get our global act together */
+	/* iam: this should be removable once we get our global act together */
 	if(_md_victim == NULL){
 	  _md_victim = register_chunk(av, victim);
 	}
@@ -4379,15 +4378,18 @@ _int_malloc(mstate av, size_t bytes)
 	  remainder = chunk_at_offset(victim, nb);
 	  set_head(remainder, remainder_size | PREV_INUSE);
 	  set_foot(remainder, remainder_size);
+
+	  /* put remainder in the unsorted chunks */
+	  unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	  remainder->bk = remainder->fd = unsorted_chunks(av);
+
+	  /* register remainder */
 	  _md_remainder = register_chunk(av, remainder);
 
 	  /* stash the remainder in av */
 	  av->last_remainder = remainder;
 	  av->_md_last_remainder = _md_remainder;
 
-	  /* put remainder in the unsorted chunks */
-	  unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	  remainder->bk = remainder->fd = unsorted_chunks(av);
 
 	  /* update the victim */
 	  set_head(victim, nb | PREV_INUSE | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
@@ -4472,7 +4474,7 @@ _int_malloc(mstate av, size_t bytes)
 	if ((unsigned long)(size) >= (unsigned long)(nb)) {
 	  remainder_size = size - nb;
 	  ps_unlink(victim, &bck, &fwd);
-
+	  
 	  /* Exhaust */
 	  if (remainder_size < MINSIZE)  {
 	    set_inuse_bit_at_offset(victim, size);
@@ -4484,12 +4486,41 @@ _int_malloc(mstate av, size_t bytes)
 	  }
 	  /* Split */
 	  else {
-	    remainder = chunk_at_offset(victim, nb);
-	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	    remainder->bk = remainder->fd = unsorted_chunks(av);
-	    set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-	    set_head(remainder, remainder_size | PREV_INUSE);
-	    set_foot(remainder, remainder_size);
+
+	    _md_victim = hashtable_lookup(av, victim);
+
+	    /* iam: this should be removable once we get our global act together */
+	    if(_md_victim == NULL){
+	      _md_victim = register_chunk(av, victim);
+	    }
+	
+
+	    if(0){
+	      /* iam: old code; same old odd order */
+	      remainder = chunk_at_offset(victim, nb);
+	      unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	      remainder->bk = remainder->fd = unsorted_chunks(av);
+	      set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	      set_head(remainder, remainder_size | PREV_INUSE);
+	      set_foot(remainder, remainder_size);
+
+	    } else {
+
+	      /* configure remainder */
+	      remainder = chunk_at_offset(victim, nb);
+	      unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	      remainder->bk = remainder->fd = unsorted_chunks(av);
+	      set_head(remainder, remainder_size | PREV_INUSE);
+	      set_foot(remainder, remainder_size);
+
+	      _md_remainder = register_chunk(av, remainder);
+	      unused_var(_md_remainder);
+
+	      /* update victim */
+	      set_head(victim, nb | PREV_INUSE | arena_bit(av));
+	      twin(_md_victim, victim);
+
+	    }
 	    check_malloced_chunk(av, victim, nb);
 	    /* iam: work to do here; victim needs updating and remainder needs metadata */
 	    return chunk2mem(victim);
@@ -4570,17 +4601,52 @@ _int_malloc(mstate av, size_t bytes)
 
         /* Split */
         else {
-          remainder = chunk_at_offset(victim, nb);
+	  //workzone
 
-          unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-          remainder->bk = remainder->fd = unsorted_chunks(av);
-          /* advertise as last remainder */
-          if (in_smallbin_range(nb))
-            av->last_remainder = remainder;
+	  _md_victim = hashtable_lookup(av, victim);
 
-          set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-          set_head(remainder, remainder_size | PREV_INUSE);
-          set_foot(remainder, remainder_size);
+	  /* iam: this should be removable once we get our global act together */
+	  if(_md_victim == NULL){
+	    _md_victim = register_chunk(av, victim);
+	  }
+
+	  if(0){
+	    /* iam: old code */
+	    remainder = chunk_at_offset(victim, nb);
+
+	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	    remainder->bk = remainder->fd = unsorted_chunks(av);
+	    /* advertise as last remainder */
+	    if (in_smallbin_range(nb))
+	      av->last_remainder = remainder;
+	    
+	    set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	    set_head(remainder, remainder_size | PREV_INUSE);
+	    set_foot(remainder, remainder_size);
+
+
+	  } else {
+	    /* configure remainder */
+	    remainder = chunk_at_offset(victim, nb);
+	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	    remainder->bk = remainder->fd = unsorted_chunks(av);
+	    set_head(remainder, remainder_size | PREV_INUSE);
+	    set_foot(remainder, remainder_size);
+	    
+	    _md_remainder = register_chunk(av, remainder);
+	    
+	    /* advertise as last remainder */
+	    if (in_smallbin_range(nb)){
+	      av->last_remainder = remainder;
+	      av->_md_last_remainder = _md_remainder;
+	    }
+
+	    /* update victim */
+	    set_head(victim, nb | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	    twin(_md_victim, victim);
+	    
+	  }
+
           check_malloced_chunk(av, victim, nb);
 	  /* iam: work to do here; victim needs updating and remainder needs metadata */
           return chunk2mem(victim);

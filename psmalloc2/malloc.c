@@ -4648,7 +4648,7 @@ _int_malloc(mstate av, size_t bytes)
 	  }
 
           check_malloced_chunk(av, victim, nb);
-	  /* iam: work to do here; victim needs updating and remainder needs metadata */
+	  /* iam: metadata done */
           return chunk2mem(victim);
         }
       }

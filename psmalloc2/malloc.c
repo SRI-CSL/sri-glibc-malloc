@@ -3771,7 +3771,7 @@ public_fREe(Void_t* mem)
     _md_p = hashtable_lookup (ar_ptr, p);
   
     if(!check_metadata_chunk(_md_p, p)){
-      fprintf(stderr, "%p has no metadata\n",  chunk2mem(p));
+      fprintf(stderr, "%p of size %zu has no metadata\n",  chunk2mem(p), chunksize(p));
       return;
     }
   }

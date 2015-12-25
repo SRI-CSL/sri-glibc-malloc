@@ -1532,7 +1532,7 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p);
 
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
 
-static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize);
+static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize);
 
 static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
 
@@ -4731,8 +4731,14 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 
   /* free(0) has no effect */
   if (mem != 0) {
+
     p = mem2chunk(mem);
     size = chunksize(p);
+
+    /* iam: this should be removable once we get our global act together */
+    if(safetynet && _md_p == NULL){
+      _md_p = register_chunk(av, p);
+    }
 
     check_inuse_chunk(av, p);
 
@@ -4771,7 +4777,8 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
       if (!prev_inuse(p)) {
         prevsize = p->prev_size;
         size += prevsize;
-        p = chunk_at_offset(p, -((long) prevsize));
+        p = chunk_at_offset(p, -((long) prevsize));  // will need to remove _md_p and then find the new p's metadata
+	                                             // and update it's length etc
         ps_unlink(p, &bck, &fwd);
       }
 
@@ -4782,7 +4789,7 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
         /* consolidate forward */
         if (!nextinuse) {
           ps_unlink(nextchunk, &bck, &fwd);
-          size += nextsize;
+          size += nextsize;                         //need to remove next_chunk's metadata 
         } else
 	  clear_inuse_bit_at_offset(nextchunk, 0);
 
@@ -4801,9 +4808,11 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 
         set_head(p, size | PREV_INUSE);
         set_foot(p, size);
+	//need to update p's metadata
 
         check_free_chunk(av, p);
-      }
+
+      } /* nextchunk != av->top */
 
       /*
          If the chunk borders the current high end of memory,
@@ -4813,10 +4822,9 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
       else {
 	/* nextchunk == av->top */
 
-	/* iam: need to update p's metatdata to at some stage */
-	
+	/* iam: need to update p's metatdata to at some stage; should be able to add a new arg to coallese_chunk */
 
-	av->_md_top = coallese_chunk(av, p, size, nextchunk, nextsize);
+	av->_md_top = coallese_chunk(av, NULL, p, size, nextchunk, nextsize); //iam: fix me!
 	av->top = chunkinfo2chunk(av->_md_top);
 	
         check_chunk(av, p);
@@ -4875,6 +4883,7 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
       mp_.n_mmaps--;
       mp_.mmapped_mem -= (size + offset);
       ret = munmap((char*)p - offset, size + offset);
+      hashtable_remove(av, p);
       /* munmap returns non-zero on failure */
       assert(ret == 0);
       unused_var(ret);
@@ -4883,12 +4892,25 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
   }
 }
 
-static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize)
+static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T p_size, mchunkptr nextchunk, INTERNAL_SIZE_T nextsize)
 {
   bool hsuccess;
   chunkinfoptr _md_top = av->_md_top;
 
-  /* at some stage we will need to blow away p's md if it has any; or reuse it */
+  /* at some stage we will need to blow away p's md if it has any */
+
+  if ( _md_p != NULL){
+
+    assert(chunkinfo2chunk(_md_p) == p);
+
+    hsuccess = hashtable_remove(av, p);
+    assert(hsuccess);
+    unused_var(hsuccess);
+  } else {
+    //fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
+  }
+
+  
 
   assert(chunkinfo2chunk(_md_top) == nextchunk);
 
@@ -5011,7 +5033,7 @@ static void malloc_consolidate(av) mstate av;
 
 	    /* iam: need to update p's metatdata to at some stage */
 
-	    av->_md_top = coallese_chunk(av, p, size, nextchunk, nextsize);
+	    av->_md_top = coallese_chunk(av, NULL, p, size, nextchunk, nextsize); //iam: fix me!
 	    av->top = chunkinfo2chunk(av->_md_top);
 	
           }

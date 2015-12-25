@@ -35,10 +35,18 @@ OK taking the route of least resistance:  doing it with one arena first...
 
   - get av->top under control
 
-  - use free to spot chunks with no metadata
+  - use free and realloc to spot chunks with no metadata
 
-  - handle the mallocs (_int_malloc)
+  - handle the allocations: malloc (_int_malloc) calloc, realloc, memalign
 
   - handle the frees (_int_free); think this should get a chunkinfoptr arg.
 
-  - handle the rest (calloc, realloc, and the rest..)
+  - handle the rest (systrim, cfree, valloc, pvalloc, icalloc, icomalloc ...)
+
+
+4. Mysteries
+
+   - call to hook in _int_calloc
+
+
+ 

@@ -39,7 +39,7 @@ OK taking the route of least resistance:  doing it with one arena first...
 
   - handle the allocations: malloc (_int_malloc) calloc, realloc, memalign
 
-  - handle the frees (_int_free); think this should get a chunkinfoptr arg.
+  - handle the frees (_int_free, malloc_consolidate )
 
   - handle the rest (systrim, cfree, valloc, pvalloc, icalloc, icomalloc ...)
 
@@ -50,3 +50,4 @@ OK taking the route of least resistance:  doing it with one arena first...
 
 
  
+5. Need to have some tests for the odd ball members of the malloc clan. 

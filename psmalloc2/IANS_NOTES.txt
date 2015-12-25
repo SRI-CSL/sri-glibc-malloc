@@ -31,3 +31,14 @@ Not my strong suit.
 OK taking the route of least resistance:  doing it with one arena first...
 
 
+3. Plan of attack: Working in the !USE_ARENAS case.
+
+  - get av->top under control
+
+  - use free to spot chunks with no metadata
+
+  - handle the mallocs (_int_malloc)
+
+  - handle the frees (_int_free); think this should get a chunkinfoptr arg.
+
+  - handle the rest (calloc, realloc, and the rest..)

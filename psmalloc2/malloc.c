@@ -1524,8 +1524,7 @@ typedef struct malloc_chunk* mchunkptr;
 
 #if __STD_C
 
-/* iam: just plonked down here for the time being; should we worry about !__STD_C at some stage? */
-static const bool ian_says = false;
+/* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
 
@@ -3050,6 +3049,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 #endif
 {
   mchunkptr       old_top;        /* incoming value of av->top */
+  chunkinfoptr    old_md_top;     /* incoming value of av->_md_top  */
   INTERNAL_SIZE_T old_size;       /* its size */
   char*           old_end;        /* its end address */
 
@@ -3083,8 +3083,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   if ((unsigned long)(nb) >= (unsigned long)(mp_.mmap_threshold) &&
       (mp_.n_mmaps < mp_.n_mmaps_max)) {
 
-    char* mm;             /* return value from mmap call*/
-
+    char* mm;               /* return value from mmap call   */
+    chunkinfoptr _md_p;     /* the metadata for the mm chunk */
     /*
       Round up size to nearest page.  For mmapped chunks, the overhead
       is one SIZE_SZ unit larger than for normal chunks, because there
@@ -3118,6 +3118,12 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           p = (mchunkptr)mm;
           set_head(p, size|IS_MMAPPED);
         }
+	
+	/* handle the metadata  */
+	_md_p = new_chunkinfoptr(av);
+	twin(_md_p, p);
+	hashtable_add(av,_md_p);
+
 
         /* update statistics */
 
@@ -3144,6 +3150,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   /* Record incoming configuration of top */
 
   old_top  = av->top;
+  old_md_top  = av->_md_top;
+  
   old_size = chunksize(old_top);
   old_end  = (char*)(chunk_at_offset(old_top, old_size));
 
@@ -3411,11 +3419,20 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
       /* Adjust top based on results of second sbrk */
       if (snd_brk != (char*)(MORECORE_FAILURE)) {
-	/* handle the metadata below for now */
-        av->top = (mchunkptr)aligned_brk;
 
+        av->top = (mchunkptr)aligned_brk;
         set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
-        av->system_mem += correction;
+
+	/* handle the metadata below */
+
+	av->_md_top = new_chunkinfoptr(av);
+	twin(av->_md_top, av->top);
+	hashtable_add(av,av->_md_top);
+
+	/* iam: what to do about old_top and the fenceposts? */
+
+
+	av->system_mem += correction;
 
         /*
           If not the first time through, we either have a
@@ -3441,11 +3458,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
             intentional. We need the fencepost, even if old_top otherwise gets
             lost.
           */
-          chunk_at_offset(old_top, old_size            )->size =
-            (2*SIZE_SZ)|PREV_INUSE;
+          chunk_at_offset(old_top, old_size)->size = (2*SIZE_SZ)|PREV_INUSE;
 
-          chunk_at_offset(old_top, old_size + 2*SIZE_SZ)->size =
-            (2*SIZE_SZ)|PREV_INUSE;
+          chunk_at_offset(old_top, old_size + 2*SIZE_SZ)->size = (2*SIZE_SZ)|PREV_INUSE;
 
           /* If possible, release the rest. */
           if (old_size >= MINSIZE) {
@@ -3473,23 +3488,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
   /* finally, do the allocation */
   p = av->top;
+  _md_p = av->_md_top;
   size = chunksize(p);
 
-  /* iam: some of this should trickle up; but for now .. */
-  if ( old_top == p){
-
-    _md_p = hashtable_lookup(av, p);
-    if(_md_p == NULL){
-      fprintf(stderr, "top: %p has no metatdata\n",  chunk2mem(p));
-    }
-    
-  } else {
-
-    _md_p = new_chunkinfoptr(av);
-    twin(_md_p, p);
-    hashtable_add(av,_md_p);
-
-  }
 
   /* check that one of the above allocation paths succeeded */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
@@ -3766,7 +3767,7 @@ public_fREe(Void_t* mem)
 
 
   /* good place to check our twinning */
-  if(false){
+  if(true){
     _md_p = hashtable_lookup (ar_ptr, p);
   
     if(!check_metadata_chunk(_md_p, p)){
@@ -4239,7 +4240,7 @@ _int_malloc(mstate av, size_t bytes)
     if ( (victim = *fb) != 0) {
       *fb = victim->fd;
       check_remalloced_chunk(av, victim, nb);
-      //fprintf(stderr, "0\n");
+      /* iam: should have metadata already; who sets the IN_USE? */
       return chunk2mem(victim);
     }
   }
@@ -4268,7 +4269,7 @@ _int_malloc(mstate av, size_t bytes)
         if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
-	//fprintf(stderr, "1\n");
+	/* iam: should have metadata already; who sets the IN_USE? */
         return chunk2mem(victim);
       }
     }
@@ -4336,7 +4337,7 @@ _int_malloc(mstate av, size_t bytes)
         set_foot(remainder, remainder_size);
 
         check_malloced_chunk(av, victim, nb);
-	//fprintf(stderr, "3\n");
+	/* iam: work to do here; victim needs updating and remainder needs metadata */
         return chunk2mem(victim);
       }
 
@@ -4351,7 +4352,7 @@ _int_malloc(mstate av, size_t bytes)
 	if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
-	//fprintf(stderr, "4\n");
+	/* iam: should have metadata already; who sets the IN_USE? */
         return chunk2mem(victim);
       }
 
@@ -4419,7 +4420,7 @@ _int_malloc(mstate av, size_t bytes)
 	    if (av != &main_arena)
 	      victim->size |= NON_MAIN_ARENA;
 	    check_malloced_chunk(av, victim, nb);
-	    //fprintf(stderr, "5\n");
+	    /* iam: should have metadata already; who sets the IN_USE? */
 	    return chunk2mem(victim);
 	  }
 	  /* Split */
@@ -4432,7 +4433,7 @@ _int_malloc(mstate av, size_t bytes)
 	    set_head(remainder, remainder_size | PREV_INUSE);
 	    set_foot(remainder, remainder_size);
 	    check_malloced_chunk(av, victim, nb);
-	    //fprintf(stderr, "6\n");
+	    /* iam: work to do here; victim needs updating and remainder needs metadata */
 	    return chunk2mem(victim);
 	  }
 	}
@@ -4505,7 +4506,7 @@ _int_malloc(mstate av, size_t bytes)
 	  if (av != &main_arena)
 	    victim->size |= NON_MAIN_ARENA;
           check_malloced_chunk(av, victim, nb);
-	  //fprintf(stderr, "7\n");
+	  /* iam: should have metadata already; who sets the IN_USE? */
           return chunk2mem(victim);
         }
 
@@ -4524,7 +4525,7 @@ _int_malloc(mstate av, size_t bytes)
           set_head(remainder, remainder_size | PREV_INUSE);
           set_foot(remainder, remainder_size);
           check_malloced_chunk(av, victim, nb);
-	  //fprintf(stderr, "8\n");
+	  /* iam: work to do here; victim needs updating and remainder needs metadata */
           return chunk2mem(victim);
         }
       }
@@ -4562,7 +4563,7 @@ _int_malloc(mstate av, size_t bytes)
 
 
       check_malloced_chunk(av, victim, nb);
-      //fprintf(stderr, "9\n");
+      /* iam: done and dusted */
       return chunk2mem(victim);
     }
 
@@ -4582,7 +4583,6 @@ _int_malloc(mstate av, size_t bytes)
        Otherwise, relay to handle system-dependent cases
     */
     else {
-      //fprintf(stderr, "10\n");
       return sYSMALLOc(nb, av);
     }
   }

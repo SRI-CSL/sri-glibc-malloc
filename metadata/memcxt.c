@@ -7,7 +7,7 @@
 #include "utils.h"
 
 #ifndef NDEBUG
-#warning "sanity checking in memcxt is on"
+#warning "sanity checking in memcxt is on; FIX: "assert" here is determined by NDEBUG"
 #endif
 
 #define BITS_IN_MASK  64

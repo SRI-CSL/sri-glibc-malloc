@@ -3051,7 +3051,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 #endif
 {
   mchunkptr       old_top;        /* incoming value of av->top */
-  chunkinfoptr    old_md_top;     /* incoming value of av->_md_top  */
+  chunkinfoptr    _md_old_top;    /* incoming value of av->_md_top  */
   INTERNAL_SIZE_T old_size;       /* its size */
   char*           old_end;        /* its end address */
 
@@ -3086,7 +3086,6 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       (mp_.n_mmaps < mp_.n_mmaps_max)) {
 
     char* mm;               /* return value from mmap call   */
-    chunkinfoptr _md_p;     /* the metadata for the mm chunk */
     /*
       Round up size to nearest page.  For mmapped chunks, the overhead
       is one SIZE_SZ unit larger than for normal chunks, because there
@@ -3122,7 +3121,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
         }
 	
 	/* handle the metadata  */
-	_md_p = register_chunk(av, p);
+	register_chunk(av, p);
 
         /* update statistics */
 
@@ -3149,7 +3148,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   /* Record incoming configuration of top */
 
   old_top  = av->top;
-  old_md_top  = av->_md_top;
+  _md_old_top  = av->_md_top;
   
   old_size = chunksize(old_top);
   old_end  = (char*)(chunk_at_offset(old_top, old_size));
@@ -3315,9 +3314,10 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       If MORECORE extends previous space, we can likewise extend top size.
     */
 
-    if (brk == old_end && snd_brk == (char*)(MORECORE_FAILURE))
+    if (brk == old_end && snd_brk == (char*)(MORECORE_FAILURE)){
       set_head(old_top, (size + old_size) | PREV_INUSE);
-
+      twin(_md_old_top, old_top); //iam: update the metadata too
+    }
     else if (contiguous(av) && old_size && brk < old_end) {
       /* Oops!  Someone else killed our space..  Can't touch anything.  */
       assert(0);
@@ -3858,7 +3858,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 #if HAVE_MREMAP
     newp = mremap_chunk(oldp, nb);
     if (newp) {
-      register_chunk(av, newp);
+      register_chunk(ar_ptr, newp);
       return chunk2mem(newp);
     }
 #endif

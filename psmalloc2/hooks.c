@@ -302,7 +302,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
 #if 0 /* Erase freed memory. */
   memset(mem, 0, chunksize(p) - (SIZE_SZ+1));
 #endif
-  _int_free(&main_arena, mem);
+  _int_free(&main_arena, NULL, mem); //iam: fix me!
   (void)mutex_unlock(&main_arena.mutex);
 }
 
@@ -460,7 +460,7 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
     return;
   }
 #endif
-  _int_free(&main_arena, mem);
+  _int_free(&main_arena, NULL, mem); //iam: fix me!
 }
 
 #endif /* !defined NO_THREADS && USE_STARTER */

@@ -140,6 +140,8 @@ void public_mSTATs()
     }
   }
 
+#else
+  fprintf(stderr, "\n");
 #endif
 
 

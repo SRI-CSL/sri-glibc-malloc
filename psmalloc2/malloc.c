@@ -1535,7 +1535,7 @@ static chunkinfoptr coallese_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T p_siz
 static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
 
 Void_t*         _int_malloc(mstate, size_t);
-void            _int_free(mstate, Void_t*);
+void            _int_free(mstate, chunkinfoptr, Void_t*);
 Void_t*         _int_realloc(mstate, chunkinfoptr, Void_t*, size_t);
 Void_t*         _int_memalign(mstate, size_t, size_t);
 Void_t*         _int_valloc(mstate, size_t);
@@ -3222,7 +3222,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_head(chunk_at_offset(old_top, old_size), (2*SIZE_SZ)|PREV_INUSE);
 	set_foot(chunk_at_offset(old_top, old_size), (2*SIZE_SZ));
 	set_head(old_top, old_size|PREV_INUSE|NON_MAIN_ARENA);
-	_int_free(av, chunk2mem(old_top));
+	_int_free(av, NULL, chunk2mem(old_top)); //iam: fix
       } else {
 	set_head(old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
@@ -3467,7 +3467,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
           /* If possible, release the rest. */
           if (old_size >= MINSIZE) {
-            _int_free(av, chunk2mem(old_top));
+            _int_free(av, NULL, chunk2mem(old_top)); //iam: fix
           }
 
         }
@@ -3777,13 +3777,12 @@ public_fREe(Void_t* mem)
 
 
   /* good place to check our twinning */
-  if (true){
-    _md_p = hashtable_lookup (ar_ptr, p);
+  _md_p = hashtable_lookup (ar_ptr, p);
   
-    if (!check_metadata_chunk(_md_p, p)){
-      fprintf(stderr, "public_fREe: %p of size %zu has no metadata\n",  chunk2mem(p), chunksize(p));
-    }
+  if (!check_metadata_chunk(_md_p, p)){
+    fprintf(stderr, "public_fREe: %p of size %zu has no metadata\n",  chunk2mem(p), chunksize(p));
   }
+
 
 #if HAVE_MMAP
   /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
@@ -3807,7 +3806,7 @@ public_fREe(Void_t* mem)
 #else
   (void)mutex_lock(&ar_ptr->mutex);
 #endif
-  _int_free(ar_ptr, mem);
+  _int_free(ar_ptr, _md_p, mem);
   (void)mutex_unlock(&ar_ptr->mutex);
 }
 #ifdef libc_hidden_def
@@ -4716,7 +4715,7 @@ _int_malloc(mstate av, size_t bytes)
 */
 
 void
-_int_free(mstate av, Void_t* mem)
+_int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 {
   mchunkptr       p;           /* chunk corresponding to mem */
   INTERNAL_SIZE_T size;        /* its size */
@@ -5043,12 +5042,14 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   INTERNAL_SIZE_T  oldsize;         /* its size */
 
   mchunkptr        newp;            /* chunk to return */
+  chunkinfoptr     _md_newp;        /* metadata of the chunk to return */
   INTERNAL_SIZE_T  newsize;         /* its size */
   Void_t*          newmem;          /* corresponding user mem */
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
 
   mchunkptr        remainder;       /* extra space at end of newp */
+  chunkinfoptr     _md_remainder;   /* metadata for the extra space at end of newp */
   unsigned long    remainder_size;  /* its size */
 
   mchunkptr        bck;             /* misc temp for linking */
@@ -5062,7 +5063,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 
 #if REALLOC_ZERO_BYTES_FREES
   if (bytes == 0) {
-    _int_free(av, oldmem);
+    _int_free(av, _md_oldp, oldmem);
     return 0;
   }
 #endif
@@ -5077,6 +5078,12 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   oldp    = mem2chunk(oldmem);
   oldsize = chunksize(oldp);
 
+  /* iam: this should be removable once we get our global act together */
+  if(_md_oldp == NULL){
+    _md_oldp = register_chunk(av, oldp);
+  }
+
+  
   check_inuse_chunk(av, oldp);
 
   if (!chunk_is_mmapped(oldp)) {
@@ -5108,11 +5115,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 
 	/* iam: need to update oldp's metatdata */
         set_head_size(oldp, nb | arena_bit(av));  //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-	if (_md_oldp != NULL){
-	  twin(_md_oldp, oldp);
-	} else {
-	  // should fail here once we have our act together.
-	}
+	twin(_md_oldp, oldp);
 	
         av->top = chunk_at_offset(oldp, nb);
         set_head(av->top, (newsize - nb) | PREV_INUSE);
@@ -5183,7 +5186,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
             }
           }
 
-          _int_free(av, oldmem);
+          _int_free(av, _md_oldp, oldmem);
           check_inuse_chunk(av, newp);
           return chunk2mem(newp);
         }
@@ -5201,12 +5204,41 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
       set_inuse_bit_at_offset(newp, newsize);
     }
     else { /* split remainder */
-      remainder = chunk_at_offset(newp, nb);
-      set_head_size(newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
-      set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-      /* Mark remainder as inuse so free() won't complain */
-      set_inuse_bit_at_offset(remainder, remainder_size);
-      _int_free(av, chunk2mem(remainder));
+
+      if(0){
+	/* iam: old code  */
+	remainder = chunk_at_offset(newp, nb);
+	set_head_size(newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
+	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	/* Mark remainder as inuse so free() won't complain */
+	set_inuse_bit_at_offset(remainder, remainder_size);
+	_int_free(av, NULL, chunk2mem(remainder));
+      } else {
+
+	/* iam: not sure where newp came form (yet) */
+	_md_newp = hashtable_lookup(av, newp);
+	
+	/* iam: this should be removable once we get our global act together */
+	if(_md_newp == NULL){
+	  _md_newp = register_chunk(av, newp);
+	}
+
+	/* configure remainder */
+	remainder = chunk_at_offset(newp, nb);
+	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
+	/* Mark remainder as inuse so free() won't complain */
+	set_inuse_bit_at_offset(remainder, remainder_size);
+	_md_remainder = register_chunk(av, remainder);
+
+	/* update newp */
+	set_head_size(newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
+	twin(_md_newp, newp);
+
+	/* process the remainder as free  */
+	_int_free(av, _md_remainder, chunk2mem(remainder));
+
+      }
+      
     }
 
     check_inuse_chunk(av, newp);
@@ -5233,12 +5265,23 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     if (oldsize == newsize - offset)
       return oldmem;
 
+
+    
+
     cp = (char*)mremap((char*)oldp - offset, oldsize + offset, newsize, 1);
 
     if (cp != MAP_FAILED) {
 
+      /* iam: safer to assume here that we are being moved; optimizations later */
+
+      hashtable_remove(av, oldp);
+
       newp = (mchunkptr)(cp + offset);
       set_head(newp, (newsize - offset)|IS_MMAPPED);
+
+      /* iam: reregister it */
+      _md_oldp = register_chunk(av, newp);
+      
 
       assert(aligned_OK(chunk2mem(newp)));
       assert((newp->prev_size == offset));
@@ -5265,7 +5308,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
       newmem = _int_malloc(av, nb - MALLOC_ALIGN_MASK);
       if (newmem != 0) {
         MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
-        _int_free(av, oldmem);
+        _int_free(av, _md_oldp, oldmem);
       }
     }
     return newmem;
@@ -5360,7 +5403,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     set_head(newp, newsize | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
     set_inuse_bit_at_offset(newp, newsize);
     set_head_size(p, leadsize | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
-    _int_free(av, chunk2mem(p));
+    _int_free(av, NULL, chunk2mem(p)); //iam: fix me!
     p = newp;
 
     assert (newsize >= nb &&
@@ -5375,7 +5418,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
       remainder = chunk_at_offset(p, nb);
       set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av)); //iam: (av != &main_arena ? NON_MAIN_ARENA : 0));
       set_head_size(p, nb);
-      _int_free(av, chunk2mem(remainder));
+      _int_free(av, NULL, chunk2mem(remainder));  //iam: fix me!
     }
   }
 

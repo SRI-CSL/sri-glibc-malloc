@@ -1542,7 +1542,6 @@ Void_t*         _int_realloc(mstate, chunkinfoptr, Void_t*, size_t);
 Void_t*         _int_memalign(mstate, size_t, size_t);
 Void_t*         _int_valloc(mstate, size_t);
 static Void_t*  _int_pvalloc(mstate, size_t);
-/*static Void_t*  cALLOc(size_t, size_t);*/
 static Void_t** _int_icalloc(mstate, size_t, size_t, Void_t**);
 static Void_t** _int_icomalloc(mstate, size_t, size_t*, Void_t**);
 static int      mTRIm(size_t);
@@ -1580,7 +1579,6 @@ Void_t*         _int_realloc();
 Void_t*         _int_memalign();
 Void_t*         _int_valloc();
 Void_t*         _int_pvalloc();
-/*static Void_t*  cALLOc();*/
 static Void_t** _int_icalloc();
 static Void_t** _int_icomalloc();
 static int      mTRIm();
@@ -4013,6 +4011,7 @@ public_cALLOc(size_t n, size_t elem_size)
     }
   }
 
+  /* iam: not sure what to do here */
   if (hook != NULL) {
     sz = bytes;
     mem = (*hook)(sz, RETURN_ADDRESS (0));
@@ -5428,67 +5427,6 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
   return chunk2mem(p);
 }
 
-#if 0
-/*
-  ------------------------------ calloc ------------------------------
-*/
-
-#if __STD_C
-Void_t* cALLOc(size_t n_elements, size_t elem_size)
-#else
-Void_t* cALLOc(n_elements, elem_size) size_t n_elements; size_t elem_size;
-#endif
-{
-  mchunkptr p;
-  unsigned long clearsize;
-  unsigned long nclears;
-  INTERNAL_SIZE_T* d;
-
-  Void_t* mem = mALLOc(n_elements * elem_size);
-
-  if (mem != 0) {
-    p = mem2chunk(mem);
-
-#if MMAP_CLEARS
-    if (!chunk_is_mmapped(p)) /* don't need to clear mmapped space */
-#endif
-    {
-      /*
-        Unroll clear of <= 36 bytes (72 if 8byte sizes)
-        We know that contents have an odd number of
-        INTERNAL_SIZE_T-sized words; minimally 3.
-      */
-
-      d = (INTERNAL_SIZE_T*)mem;
-      clearsize = chunksize(p) - SIZE_SZ;
-      nclears = clearsize / sizeof(INTERNAL_SIZE_T);
-      assert(nclears >= 3);
-
-      if (nclears > 9)
-        MALLOC_ZERO(d, clearsize);
-
-      else {
-        *(d+0) = 0;
-        *(d+1) = 0;
-        *(d+2) = 0;
-        if (nclears > 4) {
-          *(d+3) = 0;
-          *(d+4) = 0;
-          if (nclears > 6) {
-            *(d+5) = 0;
-            *(d+6) = 0;
-            if (nclears > 8) {
-              *(d+7) = 0;
-              *(d+8) = 0;
-            }
-          }
-        }
-      }
-    }
-  }
-  return mem;
-}
-#endif /* 0 */
 
 /*
   ------------------------- independent_calloc -------------------------

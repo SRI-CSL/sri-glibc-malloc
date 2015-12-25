@@ -4991,7 +4991,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
           (unsigned long)(newsize = oldsize + chunksize(next)) >=
           (unsigned long)(nb + MINSIZE)) {
 
-	/* iam: need to update oldp's metatdata to at some stage; once we pass it in that is ... */
+	/* we are going to move top nb bytes along; so we'll need to provide new metatdata */
 	bool hsuccess;
 	chunkinfoptr _md_top = av->_md_top; 
 	if ( _md_top != NULL){

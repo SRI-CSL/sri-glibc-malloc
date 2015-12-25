@@ -9,8 +9,6 @@
 
 #include "memcxt.h"
 
-
-
 /*
  *
  * Dynamic hashing, after CACM April 1988 pp 446-457, by Per-Ake Larson.

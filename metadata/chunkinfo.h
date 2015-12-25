@@ -25,7 +25,7 @@ typedef struct chunkinfo {
   bucket_pool_t* bucket_pool_ptr;  /* BD's optimization #1.              */
 } bucket_t;
 
-typedef bucket_t* chunkinfoptr;
+typedef struct chunkinfo* chunkinfoptr;
 
 typedef struct segment_s {
   bucket_t* segment[SEGMENT_LENGTH];

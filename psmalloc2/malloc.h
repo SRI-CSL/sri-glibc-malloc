@@ -251,10 +251,13 @@ extern void __malloc_check_init __MALLOC_P ((void));
 struct malloc_state;
 typedef struct malloc_state *mstate;
 
+struct chunkinfo;
+  
 extern mstate         _int_new_arena __MALLOC_P ((size_t __ini_size));
 extern __malloc_ptr_t _int_malloc __MALLOC_P ((mstate __m, size_t __size));
 extern void           _int_free __MALLOC_P ((mstate __m, __malloc_ptr_t __ptr));
 extern __malloc_ptr_t _int_realloc __MALLOC_P ((mstate __m,
+						struct chunkinfo*  __md_ptr,
 						__malloc_ptr_t __ptr,
 						size_t __size));
 extern __malloc_ptr_t _int_memalign __MALLOC_P ((mstate __m, size_t __alignment,

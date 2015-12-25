@@ -1536,7 +1536,7 @@ static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
 
 Void_t*         _int_malloc(mstate, size_t);
 void            _int_free(mstate, Void_t*);
-Void_t*         _int_realloc(mstate, Void_t*, size_t);
+Void_t*         _int_realloc(mstate, chunkinfoptr, Void_t*, size_t);
 Void_t*         _int_memalign(mstate, size_t, size_t);
 Void_t*         _int_valloc(mstate, size_t);
 static Void_t*  _int_pvalloc(mstate, size_t);
@@ -3836,14 +3836,15 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   oldp    = mem2chunk(oldmem);
   oldsize = chunksize(oldp);
 
+  ar_ptr = arena_for_chunk(oldp); /* iam: happens much later in gloger's code */
+
   /* another good place to check our twinning */
-  if (true){
-    _md_oldp = hashtable_lookup (ar_ptr, oldp);
+  _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
-    if (!check_metadata_chunk(_md_oldp, oldp)){
-      fprintf(stderr, "public_rEALLOc: %p of size %zu has no metadata\n",  chunk2mem(oldp), chunksize(oldp));
-    }
+  if (!check_metadata_chunk(_md_oldp, oldp)){
+    fprintf(stderr, "public_rEALLOc: %p of size %zu has no metadata\n",  chunk2mem(oldp), chunksize(oldp));
   }
+
 
   if ( !checked_request2size(bytes, &nb) ){
     return 0;
@@ -3856,12 +3857,16 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 
 #if HAVE_MREMAP
     newp = mremap_chunk(oldp, nb);
-    if (newp) return chunk2mem(newp);
+    if (newp) {
+      register_chunk(av, newp);
+      return chunk2mem(newp);
+    }
 #endif
     /* Note the extra SIZE_SZ overhead. */
     if (oldsize - SIZE_SZ >= nb) return oldmem; /* do nothing */
     /* Must alloc, copy, free. */
     newmem = public_mALLOc(bytes);
+    /* iam: malloc should have registered newmem */
     if (newmem == 0) return 0; /* propagate failure */
     MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
     munmap_chunk(oldp);
@@ -3869,7 +3874,8 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   }
 #endif
 
-  ar_ptr = arena_for_chunk(oldp);
+  // old location: ar_ptr = arena_for_chunk(oldp);
+
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))
     ++(ar_ptr->stat_lock_direct);
@@ -3886,7 +3892,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   tsd_setspecific(arena_key, (Void_t *)ar_ptr);
 #endif
 
-  newp = _int_realloc(ar_ptr, oldmem, bytes);
+  newp = _int_realloc(ar_ptr, _md_oldp, oldmem, bytes);
 
   (void)mutex_unlock(&ar_ptr->mutex);
   assert(!newp || chunk_is_mmapped(mem2chunk(newp)) ||
@@ -4925,7 +4931,7 @@ static void malloc_consolidate(av) mstate av;
 */
 
 Void_t*
-_int_realloc(mstate av, Void_t* oldmem, size_t bytes)
+_int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 {
   INTERNAL_SIZE_T  nb;              /* padded request size */
 
@@ -4985,7 +4991,7 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
           (unsigned long)(newsize = oldsize + chunksize(next)) >=
           (unsigned long)(nb + MINSIZE)) {
 
-	/* iam: need to update oldp's metatdata to at some stage */
+	/* iam: need to update oldp's metatdata to at some stage; once we pass it in that is ... */
 	bool hsuccess;
 	chunkinfoptr _md_top = av->_md_top; 
 	if ( _md_top != NULL){
@@ -4996,7 +5002,14 @@ _int_realloc(mstate av, Void_t* oldmem, size_t bytes)
 	  fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
 	}
 
+	/* iam: need to update oldp's metatdata */
         set_head_size(oldp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
+	if (_md_oldp != NULL){
+	  twin(_md_oldp, oldp);
+	} else {
+	  // should fail here once we have our act together.
+	}
+	
         av->top = chunk_at_offset(oldp, nb);
         set_head(av->top, (newsize - nb) | PREV_INUSE);
 

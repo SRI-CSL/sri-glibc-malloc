@@ -2561,16 +2561,81 @@ static void twin(chunkinfoptr ci, mchunkptr c)
   ci->prev_size =  c->prev_size;
 }
 
+static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
+{
+  return ( sz & ~(SIZE_BITS));
+}
+
 /* temporary hack for testing sanity */
 static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
 {
   if (ci != NULL){
+    //iam: start checking more details now...
+    // an  uncommented print statement  means we pass this test currently.
+    if(chunkinfo2chunk(ci) != c){
+      fprintf(stderr, "metadata and data do not match\n");
+      return false;
+    }
+    if(size2chunksize(ci->size) != size2chunksize(c->size)){
+      fprintf(stderr, "ci->size = %zu  c->size = %zu\n", ci->size, c->size);
+      return false; 
+    } else if(ci->size != c->size){
+      //iam : currently this fails a lot...
+      //fprintf(stderr, "bits do not match ci->size = %zu  c->size = %zu\n", ci->size, c->size);
+      return false; 
+    }
+    
     return true;
+
   } else {
+
     return false;
+
   }
 }
 
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
+{
+  assert(_md_victim != NULL);
+  return mem2chunk(_md_victim->chunk);
+}
+
+
+static chunkinfoptr register_chunk(mstate av, mchunkptr p)
+{
+  chunkinfoptr _md_p = new_chunkinfoptr(av);
+  twin(_md_p, p);
+  hashtable_add(av, _md_p);
+  return _md_p;
+}
+
+
+/* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
+static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata)
+{
+  INTERNAL_SIZE_T remainder_size;
+  mchunkptr remainder; 
+  chunkinfoptr _md_remainder;
+
+  assert(chunksize(victim) == victim_size);
+  assert((unsigned long)victim_size >= (unsigned long)(desiderata + MINSIZE)); //iam: why the casts?
+
+  /* configure the remainder */
+  remainder_size = victim_size - desiderata;
+  remainder = chunk_at_offset(victim, desiderata);
+  set_head(remainder, remainder_size | PREV_INUSE);
+  
+  /* pair it with new metatdata and add the metadata into the hashtable */
+  
+  _md_remainder = register_chunk(av, remainder);
+
+  /* configure the victim */
+  set_head(victim, desiderata | PREV_INUSE | arena_bit(av)); 
+  /* we should also fix the victim's metatdata */
+  twin(_md_victim, victim);
+
+  return _md_remainder;
+}
 
 /*
   Initialize a malloc_state struct.
@@ -3512,48 +3577,6 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
   return 0;
 }
 
-static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
-{
-  assert(_md_victim != NULL);
-  return mem2chunk(_md_victim->chunk);
-}
-
-
-static chunkinfoptr register_chunk(mstate av, mchunkptr p)
-{
-  chunkinfoptr _md_p = new_chunkinfoptr(av);
-  twin(_md_p, p);
-  hashtable_add(av, _md_p);
-  return _md_p;
-}
-
-
-/* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
-static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata)
-{
-  INTERNAL_SIZE_T remainder_size;
-  mchunkptr remainder; 
-  chunkinfoptr _md_remainder;
-
-  assert(chunksize(victim) == victim_size);
-  assert((unsigned long)victim_size >= (unsigned long)(desiderata + MINSIZE)); //iam: why the casts?
-
-  /* configure the remainder */
-  remainder_size = victim_size - desiderata;
-  remainder = chunk_at_offset(victim, desiderata);
-  set_head(remainder, remainder_size | PREV_INUSE);
-  
-  /* pair it with new metatdata and add the metadata into the hashtable */
-  
-  _md_remainder = register_chunk(av, remainder);
-
-  /* configure the victim */
-  set_head(victim, desiderata | PREV_INUSE | arena_bit(av)); 
-  /* we should also fix the victim's metatdata */
-  twin(_md_victim, victim);
-
-  return _md_remainder;
-}
 
 
 /*
@@ -3785,7 +3808,7 @@ public_fREe(Void_t* mem)
   _md_p = hashtable_lookup (ar_ptr, p);
   
   if (!check_metadata_chunk(_md_p, p)){
-    fprintf(stderr, "public_fREe: %p of size %zu has no metadata\n",  chunk2mem(p), chunksize(p));
+    //fprintf(stderr, ".");
   }
 
 
@@ -3853,7 +3876,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
   if (!check_metadata_chunk(_md_oldp, oldp)){
-    fprintf(stderr, "public_rEALLOc: %p of size %zu has no metadata\n",  chunk2mem(oldp), chunksize(oldp));
+    //fprintf(stderr, ".");
   }
 
 

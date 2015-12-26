@@ -38,11 +38,11 @@ OK taking the route of least resistance:  doing it with one arena first...
 
   [x] use free and realloc to spot chunks with no metadata
 
-  [x] handle the allocations: malloc (_int_malloc) calloc, realloc, memalign
+  [x] handle the allocations: _int_malloc, sysmalloc, _int_calloc,_int_ realloc, _int_memalign
 
-  [] handle the frees (_int_free, malloc_consolidate )
+  [] handle the frees (_int_free, malloc_consolidate, systrim)
 
-  [] handle the rest (systrim, cfree, valloc, pvalloc, icalloc, icomalloc ...)
+  [] handle the rest ([x] cfree, [x] valloc, [x] pvalloc, [x] icalloc, [x] icomalloc, ialloc)
 
 
 4. Mysteries

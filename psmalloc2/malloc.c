@@ -5546,6 +5546,7 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
   INTERNAL_SIZE_T array_size;     /* request size of pointer array */
   Void_t*         mem;            /* malloced aggregate space */
   mchunkptr       p;              /* corresponding chunk */
+  chunkinfoptr    _md_p;          /* metadata of corresponding chunk */
   INTERNAL_SIZE_T remainder_size; /* remaining bytes while splitting */
   Void_t**        marray;         /* either "chunks" or malloced ptr array */
   mchunkptr       array_chunk;    /* chunk for malloced ptr array */
@@ -5601,6 +5602,8 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
     return 0;
 
   p = mem2chunk(mem);
+  _md_p = hashtable_lookup(av, p);
+  
   assert(!chunk_is_mmapped(p));
   remainder_size = chunksize(p);
 
@@ -5615,10 +5618,12 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
     array_chunk = chunk_at_offset(p, contents_size);
     marray = (Void_t**) (chunk2mem(array_chunk));
     set_head(array_chunk, (remainder_size - contents_size) | size_flags);
+    register_chunk(av, array_chunk);
+    
     remainder_size = contents_size;
   }
 
-  /* split out elements */
+  /* split out elements and register them */
   for (i = 0; ; ++i) {
     marray[i] = chunk2mem(p);
     if (i != n_elements-1) {
@@ -5628,10 +5633,13 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
         size = request2size(sizes[i]);
       remainder_size -= size;
       set_head(p, size | size_flags);
+      if(i == 0){ twin(_md_p, p); } else { register_chunk(av, p);  }
       p = chunk_at_offset(p, size);
     }
     else { /* the final element absorbs any overallocation slop */
       set_head(p, remainder_size | size_flags);
+      if(i == 0){ twin(_md_p, p); } else { register_chunk(av, p);  }
+      
       break;
     }
   }

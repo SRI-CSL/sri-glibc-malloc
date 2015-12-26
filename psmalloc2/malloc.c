@@ -3614,8 +3614,13 @@ static int sYSTRIm(pad, av) size_t pad; mstate av;
 
         if (released != 0) {
           /* Success. Adjust top. */
+
           av->system_mem -= released;
+
+	  /* update top and it's metadata */
           set_head(av->top, (top_size - released) | PREV_INUSE);
+	  twin(av->_md_top, av->top);
+	  
           check_malloc_state(av);
           return 1;
         }

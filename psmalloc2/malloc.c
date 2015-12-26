@@ -4897,8 +4897,7 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
   bool hsuccess;
   chunkinfoptr _md_top = av->_md_top;
 
-  /* at some stage we will need to blow away p's md if it has any */
-
+  /*  need to blow away p's metadata */
   if ( _md_p != NULL){
 
     assert(chunkinfo2chunk(_md_p) == p);
@@ -4907,7 +4906,8 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
     assert(hsuccess);
     unused_var(hsuccess);
   } else {
-    //fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
+    //iam: after we complete _int_free and malloc_consolidate this can get ditched.
+    fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
   }
 
   
@@ -5031,7 +5031,7 @@ static void malloc_consolidate(av) mstate av;
           else {
 	    /* nextchunk == av->top */
 
-	    /* iam: need to update p's metatdata to at some stage */
+	    /* iam: pass in p's metatdata to coallese_chunk  */
 
 	    av->_md_top = coallese_chunk(av, NULL, p, size, nextchunk, nextsize); //iam: fix me!
 	    av->top = chunkinfo2chunk(av->_md_top);

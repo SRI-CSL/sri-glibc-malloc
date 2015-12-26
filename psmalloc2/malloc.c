@@ -2579,9 +2579,13 @@ static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
       fprintf(stderr, "ci->size = %zu  c->size = %zu\n", ci->size, c->size);
       return false; 
-    } else if(ci->size != c->size){
+    } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       //iam : currently this fails a lot...
-      //fprintf(stderr, "bits do not match ci->size = %zu  c->size = %zu\n", ci->size, c->size);
+      fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      return false; 
+    } else if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
+      //iam : currently this fails a lot...
+      //fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d\n", prev_inuse((mchunkptr)ci), prev_inuse(c));
       return false; 
     }
     
@@ -4295,7 +4299,7 @@ _int_malloc(mstate av, size_t bytes)
     if ( (victim = *fb) != 0) {
       *fb = victim->fd;
       check_remalloced_chunk(av, victim, nb);
-      /* iam: should have metadata already; who sets the IN_USE? */
+      /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
       return chunk2mem(victim);
     }
   }
@@ -4324,7 +4328,7 @@ _int_malloc(mstate av, size_t bytes)
         if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
-	/* iam: should have metadata already; who sets the IN_USE? */
+	/* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
         return chunk2mem(victim);
       }
     }
@@ -4429,7 +4433,7 @@ _int_malloc(mstate av, size_t bytes)
 	if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
         check_malloced_chunk(av, victim, nb);
-	/* iam: should have metadata already; who sets the IN_USE? */
+	/* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
         return chunk2mem(victim);
       }
 
@@ -4497,7 +4501,7 @@ _int_malloc(mstate av, size_t bytes)
 	    if (av != &main_arena)
 	      victim->size |= NON_MAIN_ARENA;
 	    check_malloced_chunk(av, victim, nb);
-	    /* iam: should have metadata already; who sets the IN_USE? */
+	    /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
 	    return chunk2mem(victim);
 	  }
 	  /* Split */
@@ -4600,7 +4604,7 @@ _int_malloc(mstate av, size_t bytes)
 	  if (av != &main_arena)
 	    victim->size |= NON_MAIN_ARENA;
           check_malloced_chunk(av, victim, nb);
-	  /* iam: should have metadata already; who sets the IN_USE? */
+	  /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
           return chunk2mem(victim);
         }
 

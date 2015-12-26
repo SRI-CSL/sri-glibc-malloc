@@ -37,27 +37,6 @@ const size_t BUFFERSZ = 1024;
 
 typedef unsigned char uchar;
 
-static bool readline(FILE* fp, uchar* buffer, size_t buffersz);
-  
-static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz);
-
-static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
-
-static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
-
-static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz);
-
-static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz);
-
-/* These need to be kept in synch with ../mhooks/mhook.c */
-
-enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
-
-enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
-
-static bool dirtywork(uintptr_t addresses[], size_t len, const uchar* buffer, size_t buffersz);
-
-
 typedef struct replay_stats_s {
   size_t malloc_count;
   clock_t malloc_clock;
@@ -69,7 +48,28 @@ typedef struct replay_stats_s {
   clock_t realloc_clock;
 } replay_stats_t;
 
-static replay_stats_t stats;
+
+
+static bool readline(FILE* fp, uchar* buffer, size_t buffersz);
+  
+static bool replayline(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
+
+static bool replay_malloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
+
+static bool replay_calloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
+
+static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
+
+static bool replay_free(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
+
+/* These need to be kept in synch with ../mhooks/mhook.c */
+
+enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
+
+enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
+
+static bool dirtywork(uintptr_t addresses[], size_t len, const uchar* buffer, size_t buffersz);
+
 
 static inline float stat2float(size_t count, clock_t clock){
   float retval = 0;
@@ -79,40 +79,36 @@ static inline float stat2float(size_t count, clock_t clock){
   return retval;
 }
 
-static void dump_stats(FILE* fp,  replay_stats_t* stats){
-  fprintf(fp, "malloc   %.2f  clocks per call\n",  stat2float(stats->malloc_count, stats->malloc_clock));
-  fprintf(fp, "free   %.2f  clocks per call\n",  stat2float(stats->free_count, stats->free_clock));
-  fprintf(fp, "calloc   %.2f  clocks per call\n",  stat2float(stats->calloc_count, stats->calloc_clock));
-  fprintf(fp, "realloc  %.2f  clocks per call\n",  stat2float(stats->realloc_count, stats->realloc_clock));
+static void dump_stats(FILE* fp,  replay_stats_t* statsp){
+  fprintf(fp, "malloc   %.2f  clocks per call\n",  stat2float(statsp->malloc_count, statsp->malloc_clock));
+  fprintf(fp, "free   %.2f  clocks per call\n",  stat2float(statsp->free_count, statsp->free_clock));
+  fprintf(fp, "calloc   %.2f  clocks per call\n",  stat2float(statsp->calloc_count, statsp->calloc_clock));
+  fprintf(fp, "realloc  %.2f  clocks per call\n",  stat2float(statsp->realloc_count, statsp->realloc_clock));
 }
 
 
-int main(int argc, char* argv[]){
+static int process_file(char *filename, bool verbose){
   FILE* fp;
   uchar buffer[BUFFERSZ  + 1];
   size_t linecount;
   lphash_t htbl;
+  replay_stats_t stats;
   int code;
-
+  
   code = 0;
   fp = NULL;
-  
-
-  if (argc != 2) {
-    fprintf(stdout, "Usage: %s <mhook output file>\n", argv[0]);
-    return 1;
-  }
-
   buffer[BUFFERSZ] = '\0';   /* this should never be touched again  */
+
+  memset(&stats, 0, sizeof(replay_stats_t));
   
   if (!init_lphash(&htbl)) {
     fprintf(stderr, "Could not initialize the linear pool hashtable: %s\n", strerror(errno));
     return 1;
   }
 
-  fp = fopen(argv[1], "r");
+  fp = fopen(filename, "r");
   if (fp == NULL) {
-    fprintf(stderr, "Could not open %s: %s\n", argv[1], strerror(errno));
+    fprintf(stderr, "Could not open %s: %s\n", filename, strerror(errno));
     code = 1;
     goto exit;
   }
@@ -123,7 +119,7 @@ int main(int argc, char* argv[]){
   
   while(readline(fp, buffer, BUFFERSZ)) {
     
-    if (!replayline(&htbl, buffer, BUFFERSZ)) {
+    if (!replayline(&htbl, &stats, buffer, BUFFERSZ)) {
       fprintf(stderr, "Replaying line %zu failed: %s\n", linecount, buffer);
       code = 1;
       goto exit;
@@ -133,25 +129,37 @@ int main(int argc, char* argv[]){
   }
 
 
-  if (!silent_running) {
-    fprintf(stdout, "replayed %zu lines from  %s\n", linecount, argv[1]);
-    dump_lphash(stdout, &htbl, false);
-  }
-
-
-  
  exit:
 
   if (fp != NULL) { fclose(fp); }
 
-  malloc_stats();
 
-  fprintf(stderr, "\nReplay hash:\n");
-  dump_lphash(stderr, &htbl, true);
-
+  if(verbose){
+    fprintf(stderr, "\nReplayed %zu lines from  %s\n", linecount, filename);
+    fprintf(stderr, "Replay hash:\n");
+    dump_lphash(stderr, &htbl, false);
+    dump_stats(stderr, &stats);
+  }
+  
   delete_lphash(&htbl);
     
-  dump_stats(stdout, &stats);
+    
+  return code;
+}
+
+int main(int argc, char* argv[]){
+  int code;
+  
+  if (argc != 2) {
+    fprintf(stdout, "Usage: %s <mhook output file>\n", argv[0]);
+    return 1;
+  }
+
+  code = process_file(argv[1], true);
+  
+  malloc_stats();
+
+
   return code;
 }
 
@@ -188,7 +196,7 @@ static bool readline(FILE* fp, uchar* buffer, size_t buffersz) {
   return false;
 }
 
-static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
+static bool replayline(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz) {
   uchar opchar;
   bool retval;
 
@@ -202,19 +210,19 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   
   switch(opchar) {
   case 'm': {
-    retval = replay_malloc(htbl, buffer, buffersz); 
+    retval = replay_malloc(htbl, statsp, buffer, buffersz); 
     break;
   }
   case 'f': {
-    retval = replay_free(htbl, buffer, buffersz); 
+    retval = replay_free(htbl, statsp, buffer, buffersz); 
     break;
   }
   case 'c': {
-    retval = replay_calloc(htbl, buffer, buffersz); 
+    retval = replay_calloc(htbl, statsp, buffer, buffersz); 
     break;
   }
   case 'r': {
-    retval = replay_realloc(htbl, buffer, buffersz); 
+    retval = replay_realloc(htbl, statsp, buffer, buffersz); 
     break;
   }
   default : retval = false;
@@ -224,7 +232,7 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
 }
 
 
-static inline void *_r_malloc(size_t size){
+static void *_r_malloc(replay_stats_t* statsp, size_t size){
   void* rptr;
   clock_t start;
 
@@ -232,27 +240,27 @@ static inline void *_r_malloc(size_t size){
 
   rptr = malloc(size);
 
-  stats.malloc_clock += clock() - start;
-  stats.malloc_count++;
+  statsp->malloc_clock += clock() - start;
+  statsp->malloc_count++;
 
   return rptr; 
 }
 
-static inline void *_r_realloc(void *ptr, size_t size){
+static void *_r_realloc(replay_stats_t* statsp, void *ptr, size_t size){
   void* rptr;
   clock_t start;
-
+  
   start = clock();
 
   rptr  = realloc(ptr, size);
 
-  stats.realloc_clock += clock() - start;
-  stats.realloc_count++;
+  statsp->realloc_clock += clock() - start;
+  statsp->realloc_count++;
   
   return rptr;
 }
 
-static inline void * _r_calloc(size_t count, size_t size){
+static void * _r_calloc(replay_stats_t* statsp, size_t count, size_t size){
   void* rptr;
   clock_t start;
 
@@ -260,27 +268,27 @@ static inline void * _r_calloc(size_t count, size_t size){
     
   rptr = calloc(count, size);
   
-  stats.calloc_clock += clock() - start;
-  stats.calloc_count++;
+  statsp->calloc_clock += clock() - start;
+  statsp->calloc_count++;
 
   return rptr;
 }
 
-static inline void _r_free(void *ptr){
+static void _r_free(replay_stats_t* statsp, void *ptr){
   clock_t start;
 
   start = clock();
 
   free(ptr);
   
-  stats.free_clock += clock() - start;
-  stats.free_count++;
+  statsp->free_clock += clock() - start;
+  statsp->free_count++;
   
 }
 
 
 
-static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
+static bool replay_malloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz) {
   uintptr_t addresses[MALLOCARGS];
   size_t sz;
   void *key;
@@ -306,7 +314,7 @@ static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
     sz = (size_t)addresses[0];
     key =  (void *)addresses[1];
 
-    val = _r_malloc(sz);
+    val = _r_malloc(statsp, sz);
     
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
@@ -323,7 +331,7 @@ static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
 
 }
 
-static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
+static bool replay_calloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz) {
   uintptr_t addresses[CALLOCARGS];
   size_t sz;
   size_t cnt;
@@ -351,7 +359,7 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
     sz = (size_t)addresses[1];
     key =  (void *)addresses[2];
 
-    val = _r_calloc(cnt, sz);
+    val = _r_calloc(statsp, cnt, sz);
     
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
@@ -367,7 +375,7 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
 
 }
 
-static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
+static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz) {
   uintptr_t addresses[REALLOCARGS];
   void *ptr_in;
   void *ptr_out;
@@ -423,7 +431,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
     }
 
-    val_new = _r_realloc(val_old, sz);
+    val_new = _r_realloc(statsp, val_old, sz);
 
     if (sz == 0) {
 
@@ -496,7 +504,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
 }
 
-static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
+static bool replay_free(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz) {
   uintptr_t addresses[FREEARGS];
   void *key;
   void *val;
@@ -523,13 +531,13 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
     if (key == NULL) {
       val = NULL;
 
-      _r_free(key);
+      _r_free(statsp, key);
 
     } else {
       val = lphash_lookup(htbl, key);
       if (val != NULL) {
 
-	_r_free(val);
+	_r_free(statsp, val);
 	
 	lphash_delete(htbl, key);
       } else {

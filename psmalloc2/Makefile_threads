@@ -43,17 +43,7 @@ malloc.so: $(MALLOCOBJ) malloc.h
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
 
-t-test1: t-test1.c t-test.h $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -lpthread -o $@
 
-t-test2: t-test2.c t-test.h $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) t-test2.c $(LIB_MALLOC) -lpthread -o $@
-
-tst-mallocstate: tst-mallocstate.c $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) tst-mallocstate.c $(LIB_MALLOC) -lpthread -o $@
-
-tst-mstats: tst-mstats.c $(LIB_MALLOC)
-	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC) -lpthread  -o $@
 
 
 stest0: $(MALLOCOBJ)
@@ -68,10 +58,10 @@ stest2: $(MALLOCOBJ)
 lphash.o:
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
-replay: $(MALLOCOBJ) lphash.o
+replay: replay.c $(MALLOCOBJ) lphash.o
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ) lphash.o  -lpthread  -o  $@
 
-testreplay:
+testreplay: replay
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
 
 check: $(TESTS)

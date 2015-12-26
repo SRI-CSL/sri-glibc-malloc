@@ -309,11 +309,12 @@ extern "C" {
 
 #if MALLOC_DEBUG
 #include <assert.h>
+#define unused_var(x)
 #else
 #undef assert
 #define assert(x) ((void)0)
+#define unused_var(x) ((void)x)
 #endif
-
 
 /*
   INTERNAL_SIZE_T is the word-size used for internal bookkeeping
@@ -2860,7 +2861,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 
   if (av != &main_arena) {
-
+    /* iam: can't happen if we are not using arenas, D'oh */
+#if USE_ARENAS
     heap_info *old_heap, *heap;
     size_t old_heap_size;
 
@@ -2907,7 +2909,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
       }
     }
-
+#endif
   } else { /* av == main_arena */
 
 
@@ -3276,6 +3278,7 @@ munmap_chunk(p) mchunkptr p;
 
   /* munmap returns non-zero on failure */
   assert(ret == 0);
+  unused_var(ret);
 }
 
 #if HAVE_MREMAP
@@ -4314,12 +4317,15 @@ _int_free(mstate av, Void_t* mem)
 	    sYSTRIm(mp_.top_pad, av);
 #endif
 	} else {
+	  /* iam: can't happen when not using arenas */
+#if USE_ARENAS
 	  /* Always try heap_trim(), even if the top chunk is not
              large, because the corresponding heap might go away.  */
 	  heap_info *heap = heap_for_ptr(top(av));
 
 	  assert(heap->ar_ptr == av);
 	  heap_trim(heap, mp_.top_pad);
+#endif
 	}
       }
 
@@ -4341,6 +4347,7 @@ _int_free(mstate av, Void_t* mem)
       ret = munmap((char*)p - offset, size + offset);
       /* munmap returns non-zero on failure */
       assert(ret == 0);
+      unused_var(ret);
 #endif
     }
   }

@@ -76,7 +76,6 @@
 #undef __THROW
 #define __THROW
 #endif
-
 # endif
 # define __MALLOC_P(args)	args __THROW
 /* This macro will be used for functions which might take C++ callback

@@ -395,6 +395,8 @@ memalign_check(alignment, bytes, caller)
   if (alignment <  MINSIZE) alignment = MINSIZE;
 
   checked_request2size(bytes+1, nb);
+  unused_var(nb);
+  
   (void)mutex_lock(&main_arena.mutex);
   mem = (top_check() >= 0) ? _int_memalign(&main_arena, alignment, bytes+1) :
     NULL;

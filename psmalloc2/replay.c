@@ -223,13 +223,69 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   return retval;
 }
 
+
+static inline void *_r_malloc(size_t size){
+  void* ptr;
+  clock_t start;
+
+  start = clock();
+
+  ptr = malloc(size);
+
+  stats.malloc_clock += clock() - start;
+  stats.malloc_count++;
+
+  return ptr; 
+}
+
+static inline void *_r_realloc(void *ptr, size_t size){
+  void* rptr;
+  clock_t start;
+
+  start = clock();
+
+  rptr  = realloc(ptr, size);
+
+  stats.realloc_clock += clock() - start;
+  stats.realloc_count++;
+  
+  return rptr;
+}
+
+static inline void * _r_calloc(size_t count, size_t size){
+  void* ptr;
+  clock_t start;
+
+  start = clock();
+    
+  ptr = calloc(count, size);
+  
+  stats.calloc_clock += clock() - start;
+  stats.calloc_count++;
+
+  return ptr;
+}
+
+static inline void _r_free(void *ptr){
+  clock_t start;
+
+  start = clock();
+
+  free(ptr);
+  
+  stats.free_clock += clock() - start;
+  stats.free_count++;
+  
+}
+
+
+
 static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   uintptr_t addresses[MALLOCARGS];
   size_t sz;
   void *key;
   void *val;
   bool success;
-  clock_t start;
  
   if ((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')) {
     return false;
@@ -250,13 +306,7 @@ static bool replay_malloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
     sz = (size_t)addresses[0];
     key =  (void *)addresses[1];
 
-    start = clock();
-
-    val = malloc(sz);
-
-    stats.malloc_clock += clock() - start;
-    stats.malloc_count++;
-
+    val = _r_malloc(sz);
     
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
@@ -280,7 +330,6 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
   void *key;
   void *val;
   bool success;
-  clock_t start;
 
   if ((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')) {
     return false;
@@ -302,13 +351,8 @@ static bool replay_calloc(lphash_t* htbl, const uchar* buffer, size_t buffersz) 
     sz = (size_t)addresses[1];
     key =  (void *)addresses[2];
 
-    start = clock();
+    val = _r_calloc(cnt, sz);
     
-    val = calloc(cnt, sz);
-    
-    stats.calloc_clock += clock() - start;
-    stats.calloc_count++;
-
     /* could assert that key is not in the htbl */
     if ( ! lphash_insert(htbl, key, val) ) {
       fprintf(stderr, "Could not insert %p => %p into the htbl: %s\n", key, val, strerror(errno));
@@ -331,7 +375,6 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
   void *val_old;
   void *val_new;
   bool success;
-  clock_t start;
 
   if ((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')) {
     return false;
@@ -380,12 +423,7 @@ static bool replay_realloc(lphash_t* htbl, const uchar* buffer, size_t buffersz)
 
     }
 
-    start = clock();
-
-    val_new = realloc(val_old, sz);
-
-    stats.realloc_clock += clock() - start;
-    stats.realloc_count++;
+    val_new = _r_realloc(val_old, sz);
 
     if (sz == 0) {
 
@@ -463,7 +501,6 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
   void *key;
   void *val;
   bool success;
-  clock_t start;
 
   if ((buffer == NULL) || (buffersz != BUFFERSZ) || (buffer[1] != ' ')) {
     return false;
@@ -486,23 +523,13 @@ static bool replay_free(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
     if (key == NULL) {
       val = NULL;
 
-      start = clock();
-
-      free(key);
-
-      stats.free_clock += clock() - start;
-      stats.free_count++;
+      _r_free(key);
 
     } else {
       val = lphash_lookup(htbl, key);
       if (val != NULL) {
 
-	start = clock();
-
-	free(val);
-
-	stats.free_clock += clock() - start;
-	stats.free_count++;
+	_r_free(val);
 	
 	lphash_delete(htbl, key);
       } else {

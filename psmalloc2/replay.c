@@ -225,17 +225,17 @@ static bool replayline(lphash_t* htbl, const uchar* buffer, size_t buffersz) {
 
 
 static inline void *_r_malloc(size_t size){
-  void* ptr;
+  void* rptr;
   clock_t start;
 
   start = clock();
 
-  ptr = malloc(size);
+  rptr = malloc(size);
 
   stats.malloc_clock += clock() - start;
   stats.malloc_count++;
 
-  return ptr; 
+  return rptr; 
 }
 
 static inline void *_r_realloc(void *ptr, size_t size){
@@ -253,17 +253,17 @@ static inline void *_r_realloc(void *ptr, size_t size){
 }
 
 static inline void * _r_calloc(size_t count, size_t size){
-  void* ptr;
+  void* rptr;
   clock_t start;
 
   start = clock();
     
-  ptr = calloc(count, size);
+  rptr = calloc(count, size);
   
   stats.calloc_clock += clock() - start;
   stats.calloc_count++;
 
-  return ptr;
+  return rptr;
 }
 
 static inline void _r_free(void *ptr){

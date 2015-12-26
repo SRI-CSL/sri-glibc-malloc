@@ -19,7 +19,8 @@ we need to find out that this is not an arena in our cyclic list.
 but touching that list requires the lock :-(
 
 one possibility that we mentioned in the designfest meeting was to
-retain some innocuous metadata such as this.
+retain some innocuous metadata such as this. though we then rely
+(a bit) on the application not trashing memory.
 
 
 2.  over the break I have two alternatives. work on the multi arena case
@@ -33,15 +34,15 @@ OK taking the route of least resistance:  doing it with one arena first...
 
 3. Plan of attack: Working in the !USE_ARENAS case.
 
-  - get av->top under control
+  [x] get av->top under control
 
-  - use free and realloc to spot chunks with no metadata
+  [x] use free and realloc to spot chunks with no metadata
 
-  - handle the allocations: malloc (_int_malloc) calloc, realloc, memalign
+  [x] handle the allocations: malloc (_int_malloc) calloc, realloc, memalign
 
-  - handle the frees (_int_free, malloc_consolidate )
+  [] handle the frees (_int_free, malloc_consolidate )
 
-  - handle the rest (systrim, cfree, valloc, pvalloc, icalloc, icomalloc ...)
+  [] handle the rest (systrim, cfree, valloc, pvalloc, icalloc, icomalloc ...)
 
 
 4. Mysteries
@@ -51,3 +52,6 @@ OK taking the route of least resistance:  doing it with one arena first...
 
  
 5. Need to have some tests for the odd ball members of the malloc clan. 
+
+
+6. USE_ARENAS case.

@@ -146,6 +146,9 @@ int main(int argc, char* argv[]){
 
   malloc_stats();
 
+  fprintf(stderr, "\nReplay hash:\n");
+  dump_lphash(stderr, &htbl, true);
+
   delete_lphash(&htbl);
     
   dump_stats(stdout, &stats);

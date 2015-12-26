@@ -171,7 +171,7 @@ void public_mSTATs()
 #endif
 
   ar_ptr = _int_get_arena(0);
-  fprintf(stderr, "\nhashtable:\n");
+  fprintf(stderr, "\nMetadata hashtable:\n");
   dump_hashtable(ar_ptr);
 
 

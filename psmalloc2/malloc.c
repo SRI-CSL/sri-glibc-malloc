@@ -4907,7 +4907,7 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
     unused_var(hsuccess);
   } else {
     //iam: after we complete _int_free and malloc_consolidate this can get ditched.
-    fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
+    //fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
   }
 
   

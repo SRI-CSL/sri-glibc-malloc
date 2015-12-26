@@ -42,7 +42,7 @@ OK taking the route of least resistance:  doing it with one arena first...
 
   [] handle the frees (_int_free, malloc_consolidate, systrim)
 
-  [] handle the rest ([x] cfree, [x] valloc, [x] pvalloc, [x] icalloc, [x] icomalloc, ialloc)
+  [] handle the rest ([x] cfree, [x] valloc, [x] pvalloc, [x] icalloc, [x] icomalloc, [x] ialloc)
 
 
 4. Mysteries

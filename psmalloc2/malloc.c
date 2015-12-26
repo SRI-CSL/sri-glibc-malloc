@@ -3222,7 +3222,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_head(chunk_at_offset(old_top, old_size), (2*SIZE_SZ)|PREV_INUSE);
 	set_foot(chunk_at_offset(old_top, old_size), (2*SIZE_SZ));
 	set_head(old_top, old_size|PREV_INUSE|NON_MAIN_ARENA);
-	_int_free(av, NULL, chunk2mem(old_top)); //iam: fix
+	_int_free(av, NULL, chunk2mem(old_top)); //iam: fix me!
       } else {
 	set_head(old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
@@ -3467,7 +3467,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
           /* If possible, release the rest. */
           if (old_size >= MINSIZE) {
-            _int_free(av, NULL, chunk2mem(old_top)); //iam: fix
+            _int_free(av, NULL, chunk2mem(old_top)); //iam: fix me!
           }
 
         }
@@ -4365,45 +4365,33 @@ _int_malloc(mstate av, size_t bytes)
 	
 
         /* split and reattach remainder */
-	if(0){
-	  /* iam: old code; odd order if you ask me ... */
-	  remainder_size = size - nb;
-	  remainder = chunk_at_offset(victim, nb);
-	  unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	  av->last_remainder = remainder;
-	  remainder->bk = remainder->fd = unsorted_chunks(av);
-	  
-	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	  set_head(remainder, remainder_size | PREV_INUSE);
-	  set_foot(remainder, remainder_size);
-	} else {
-	  
-	  /* iam: configure remainder */
-	  remainder_size = size - nb;
-	  remainder = chunk_at_offset(victim, nb);
-	  set_head(remainder, remainder_size | PREV_INUSE);
-	  set_foot(remainder, remainder_size);
-
-	  /* put remainder in the unsorted chunks */
-	  unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	  remainder->bk = remainder->fd = unsorted_chunks(av);
-
-	  /* register remainder */
-	  _md_remainder = register_chunk(av, remainder);
-
-	  /* stash the remainder in av */
-	  av->last_remainder = remainder;
-	  av->_md_last_remainder = _md_remainder;
-
-
-	  /* update the victim */
-	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	  twin(_md_victim, victim);
-
-	}
+	/* iam: configure remainder */
+	remainder_size = size - nb;
+	remainder = chunk_at_offset(victim, nb);
+	set_head(remainder, remainder_size | PREV_INUSE);
+	set_foot(remainder, remainder_size);
+	
+	/* put remainder in the unsorted chunks */
+	unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	remainder->bk = remainder->fd = unsorted_chunks(av);
+	
+	/* register remainder */
+	_md_remainder = register_chunk(av, remainder);
+	
+	/* stash the remainder in av */
+	av->last_remainder = remainder;
+	av->_md_last_remainder = _md_remainder;
+	
+	
+	/* update the victim */
+	set_head(victim, nb | PREV_INUSE | arena_bit(av));
+	twin(_md_victim, victim);
+	
+	
 	
         check_malloced_chunk(av, victim, nb);
 	/* iam: metadata done */
+
         return chunk2mem(victim);
       }
 
@@ -4500,32 +4488,21 @@ _int_malloc(mstate av, size_t bytes)
 	    }
 	
 
-	    if(0){
-	      /* iam: old code; same old odd order */
-	      remainder = chunk_at_offset(victim, nb);
-	      unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	      remainder->bk = remainder->fd = unsorted_chunks(av);
-	      set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	      set_head(remainder, remainder_size | PREV_INUSE);
-	      set_foot(remainder, remainder_size);
-
-	    } else {
-
-	      /* configure remainder */
-	      remainder = chunk_at_offset(victim, nb);
-	      unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	      remainder->bk = remainder->fd = unsorted_chunks(av);
-	      set_head(remainder, remainder_size | PREV_INUSE);
-	      set_foot(remainder, remainder_size);
-
-	      _md_remainder = register_chunk(av, remainder);
-	      unused_var(_md_remainder);
-
-	      /* update victim */
-	      set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	      twin(_md_victim, victim);
-
-	    }
+	    /* configure remainder */
+	    remainder = chunk_at_offset(victim, nb);
+	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	    remainder->bk = remainder->fd = unsorted_chunks(av);
+	    set_head(remainder, remainder_size | PREV_INUSE);
+	    set_foot(remainder, remainder_size);
+	    
+	    _md_remainder = register_chunk(av, remainder);
+	    unused_var(_md_remainder);
+	    
+	    /* update victim */
+	    set_head(victim, nb | PREV_INUSE | arena_bit(av));
+	    twin(_md_victim, victim);
+	    
+	    
 	    check_malloced_chunk(av, victim, nb);
 	    /* iam: work to do here; victim needs updating and remainder needs metadata */
 	    return chunk2mem(victim);
@@ -4533,7 +4510,7 @@ _int_malloc(mstate av, size_t bytes)
 	}
       }
     }
-
+    
     /*
       Search for a chunk by scanning bins, starting with next largest
       bin. This search is strictly by best-fit; i.e., the smallest
@@ -4615,50 +4592,32 @@ _int_malloc(mstate av, size_t bytes)
 	    _md_victim = register_chunk(av, victim);
 	  }
 
-	  if(0){
-	    /* iam: old code */
-	    remainder = chunk_at_offset(victim, nb);
-
-	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	    remainder->bk = remainder->fd = unsorted_chunks(av);
-	    /* advertise as last remainder */
-	    if (in_smallbin_range(nb))
-	      av->last_remainder = remainder;
-	    
-	    set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	    set_head(remainder, remainder_size | PREV_INUSE);
-	    set_foot(remainder, remainder_size);
-
-
-	  } else {
-	    /* configure remainder */
-	    remainder = chunk_at_offset(victim, nb);
-	    unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
-	    remainder->bk = remainder->fd = unsorted_chunks(av);
-	    set_head(remainder, remainder_size | PREV_INUSE);
-	    set_foot(remainder, remainder_size);
-	    
-	    _md_remainder = register_chunk(av, remainder);
-	    
-	    /* advertise as last remainder */
-	    if (in_smallbin_range(nb)){
-	      av->last_remainder = remainder;
-	      av->_md_last_remainder = _md_remainder;
-	    }
-
-	    /* update victim */
-	    set_head(victim, nb | PREV_INUSE | arena_bit(av));
-	    twin(_md_victim, victim);
-	    
+	  /* configure remainder */
+	  remainder = chunk_at_offset(victim, nb);
+	  unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
+	  remainder->bk = remainder->fd = unsorted_chunks(av);
+	  set_head(remainder, remainder_size | PREV_INUSE);
+	  set_foot(remainder, remainder_size);
+	  
+	  _md_remainder = register_chunk(av, remainder);
+	  
+	  /* advertise as last remainder */
+	  if (in_smallbin_range(nb)){
+	    av->last_remainder = remainder;
+	    av->_md_last_remainder = _md_remainder;
 	  }
-
+	  
+	  /* update victim */
+	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
+	  twin(_md_victim, victim);
+	  
           check_malloced_chunk(av, victim, nb);
 	  /* iam: metadata done */
           return chunk2mem(victim);
         }
       }
     }
-
+    
   use_top:
     /*
       If large enough, split off the chunk bordering the end of memory
@@ -4723,15 +4682,18 @@ _int_malloc(mstate av, size_t bytes)
 void
 _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 {
-  mchunkptr       p;           /* chunk corresponding to mem */
-  INTERNAL_SIZE_T size;        /* its size */
-  mfastbinptr*    fb;          /* associated fastbin */
-  mchunkptr       nextchunk;   /* next contiguous chunk */
-  INTERNAL_SIZE_T nextsize;    /* its size */
-  int             nextinuse;   /* true if nextchunk is used */
-  INTERNAL_SIZE_T prevsize;    /* size of previous contiguous chunk */
-  mchunkptr       bck;         /* misc temp for linking */
-  mchunkptr       fwd;         /* misc temp for linking */
+  mchunkptr       p;               /* chunk corresponding to mem */
+  INTERNAL_SIZE_T size;            /* its size */
+  mfastbinptr*    fb;              /* associated fastbin */
+  mchunkptr       nextchunk;       /* next contiguous chunk */
+  chunkinfoptr    _md_nextchunk;   /* metadata of next chunk */
+  mchunkptr       prevchunk;       /* prev contiguous chunk */
+  chunkinfoptr    _md_prevchunk;   /* metadata of prev chunk */
+  INTERNAL_SIZE_T nextsize;        /* its size */
+  int             nextinuse;       /* true if nextchunk is used */
+  INTERNAL_SIZE_T prevsize;        /* size of previous contiguous chunk */
+  mchunkptr       bck;             /* misc temp for linking */
+  mchunkptr       fwd;             /* misc temp for linking */
 
 
   /* free(0) has no effect */
@@ -4774,30 +4736,46 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
     */
 
     else if (!chunk_is_mmapped(p)) {
+      
       nextchunk = chunk_at_offset(p, size);
+      _md_nextchunk = hashtable_lookup(av, nextchunk);
+
       nextsize = chunksize(nextchunk);
       assert(nextsize > 0);
 
       /* consolidate backward */
       if (!prev_inuse(p)) {
-        prevsize = p->prev_size;
+	/* iam: p gets absorbed into prevchunk */
+	prevsize = p->prev_size;
+	prevchunk = chunk_at_offset(p, -((long) prevsize));
+	_md_prevchunk = hashtable_lookup(av, prevchunk);
+	
+	hashtable_remove(av, p);
+	
         size += prevsize;
-        p = chunk_at_offset(p, -((long) prevsize));  // will need to remove _md_p and then find the new p's metadata
-	                                             // and update it's length etc
+        p = prevchunk;
+	_md_p = _md_prevchunk;
+	
         ps_unlink(p, &bck, &fwd);
       }
 
       if (nextchunk != av->top) {
+
         /* get and clear inuse bit */
         nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
 
         /* consolidate forward */
         if (!nextinuse) {
+	  /* iam: nextchunk gets absorbed into p */
           ps_unlink(nextchunk, &bck, &fwd);
-          size += nextsize;                         //need to remove next_chunk's metadata 
-        } else
+	  hashtable_remove(av, nextchunk);
+	  unused_var(_md_nextchunk); //iam: prolly need it at some stage.
+          size += nextsize;                         
+	  
+        } else {
 	  clear_inuse_bit_at_offset(nextchunk, 0);
-
+	}
+	
         /*
           Place the chunk in unsorted chunk list. Chunks are
           not placed into regular bins until after they have
@@ -4811,9 +4789,10 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
         bck->fd = p;
         fwd->bk = p;
 
-        set_head(p, size | PREV_INUSE);
+        /* update p's metadata */
+	set_head(p, size | PREV_INUSE);
         set_foot(p, size);
-	//need to update p's metadata
+	twin(_md_p, p);
 
         check_free_chunk(av, p);
 
@@ -4961,12 +4940,16 @@ static void malloc_consolidate(av) mstate av;
   mfastbinptr*    fb;                 /* current fastbin being consolidated */
   mfastbinptr*    maxfb;              /* last fastbin (for loop control) */
   mchunkptr       p;                  /* current chunk being consolidated */
+  chunkinfoptr    _md_p;              /* current chunk's metadata  */
   mchunkptr       nextp;              /* next chunk to consolidate */
   mchunkptr       unsorted_bin;       /* bin header */
   mchunkptr       first_unsorted;     /* chunk to link to */
 
   /* These have same use as in free() */
   mchunkptr       nextchunk;
+  chunkinfoptr    _md_nextchunk;
+  mchunkptr       prevchunk;
+  chunkinfoptr    _md_prevchunk;
   INTERNAL_SIZE_T size;
   INTERNAL_SIZE_T nextsize;
   INTERNAL_SIZE_T prevsize;
@@ -5001,36 +4984,49 @@ static void malloc_consolidate(av) mstate av;
         do {
           check_inuse_chunk(av, p);
           nextp = p->fd;
+	  _md_p = hashtable_lookup(av, p);
 
           /* Slightly streamlined version of consolidation code in free() */
           size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
           nextchunk = chunk_at_offset(p, size);
+	  _md_nextchunk = hashtable_lookup(av, nextchunk);
           nextsize = chunksize(nextchunk);
 
           if (!prev_inuse(p)) {
             prevsize = p->prev_size;
             size += prevsize;
-            p = chunk_at_offset(p, -((long) prevsize));
+	    prevchunk = chunk_at_offset(p, -((long) prevsize));
+	    _md_prevchunk = hashtable_lookup(av, prevchunk);
+	    hashtable_remove(av, p);
+            p = prevchunk;
+	    _md_p =  _md_prevchunk;
             ps_unlink(p, &bck, &fwd);
           }
 
           if (nextchunk != av->top) {
-            nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
+	    nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
 
             if (!nextinuse) {
+	      /* iam: nextchunk gets absorbed into p */
               size += nextsize;
+	      hashtable_remove(av, nextchunk);
+	      unused_var(_md_nextchunk); //iam: prolly need it at some stage.
               ps_unlink(nextchunk, &bck, &fwd);
-            } else
+            } else {
 	      clear_inuse_bit_at_offset(nextchunk, 0);
-
+	    }
+	    
             first_unsorted = unsorted_bin->fd;
             unsorted_bin->fd = p;
             first_unsorted->bk = p;
 
-            set_head(p, size | PREV_INUSE);
             p->bk = unsorted_bin;
             p->fd = first_unsorted;
+
+            set_head(p, size | PREV_INUSE);
             set_foot(p, size);
+	    twin(_md_p, p);
+	    
           }
 
           else {
@@ -5038,7 +5034,7 @@ static void malloc_consolidate(av) mstate av;
 
 	    /* iam: pass in p's metatdata to coallese_chunk  */
 
-	    av->_md_top = coallese_chunk(av, NULL, p, size, nextchunk, nextsize); //iam: fix me!
+	    av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize); //iam: fix me!
 	    av->top = chunkinfo2chunk(av->_md_top);
 	
           }
@@ -5233,42 +5229,31 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     }
     else { /* split remainder */
 
-      if(0){
-	/* iam: old code  */
-	remainder = chunk_at_offset(newp, nb);
-	set_head_size(newp, nb | arena_bit(av));
-	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
-	/* Mark remainder as inuse so free() won't complain */
-	set_inuse_bit_at_offset(remainder, remainder_size);
-	_int_free(av, NULL, chunk2mem(remainder));
-      } else {
-
-	/* iam: not sure where newp came form (yet) */
-	_md_newp = hashtable_lookup(av, newp);
-	
-	/* iam: this should be removable once we get our global act together */
-	if(safetynet && _md_newp == NULL){
-	  _md_newp = register_chunk(av, newp);
-	}
-
-	/* configure remainder */
-	remainder = chunk_at_offset(newp, nb);
-	set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
-	/* Mark remainder as inuse so free() won't complain */
-	set_inuse_bit_at_offset(remainder, remainder_size);
-	_md_remainder = register_chunk(av, remainder);
-
-	/* update newp */
-	set_head_size(newp, nb |  arena_bit(av));
-	twin(_md_newp, newp);
-
-	/* process the remainder as free  */
-	_int_free(av, _md_remainder, chunk2mem(remainder));
-
+      /* iam: not sure where newp came form (yet) */
+      _md_newp = hashtable_lookup(av, newp);
+      
+      /* iam: this should be removable once we get our global act together */
+      if(safetynet && _md_newp == NULL){
+	_md_newp = register_chunk(av, newp);
       }
       
+      /* configure remainder */
+      remainder = chunk_at_offset(newp, nb);
+      set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
+      /* Mark remainder as inuse so free() won't complain */
+      set_inuse_bit_at_offset(remainder, remainder_size);
+      _md_remainder = register_chunk(av, remainder);
+      
+      /* update newp */
+      set_head_size(newp, nb |  arena_bit(av));
+      twin(_md_newp, newp);
+      
+      /* process the remainder as free  */
+      _int_free(av, _md_remainder, chunk2mem(remainder));
+      
+      
     }
-
+    
     check_inuse_chunk(av, newp);
     return chunk2mem(newp);
   }

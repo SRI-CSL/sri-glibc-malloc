@@ -40,11 +40,9 @@ OK taking the route of least resistance:  doing it with one arena first...
 
   [x] handle the allocations: _int_malloc, sysmalloc, _int_calloc, _int_ realloc, _int_memalign
 
-  [] handle the frees (_int_free, malloc_consolidate, systrim)
+  [x] handle the frees (_int_free, malloc_consolidate, systrim)
 
-  [x] handle the rest ([x] cfree, [x] valloc, [x] pvalloc, [x] icalloc, [x] icomalloc, [x] ialloc)
-
-  []  check the splitting and coallesing for procedural abstractionability :-O 
+  [x] handle the rest (cfree, valloc, pvalloc, icalloc, icomalloc, ialloc)
 
 4. Mysteries we need to look into further 
 
@@ -56,3 +54,6 @@ OK taking the route of least resistance:  doing it with one arena first...
 
 
 6. USE_ARENAS case.
+
+
+7. Update ptmalloc so we have something to compare with.

@@ -34,7 +34,7 @@ PERFORMANCE OF THIS SOFTWARE.
     !defined USE_NO_SPINLOCKS
 
 /* iam: just to keep us well informed while developing */
-#warning "!!!!!!!> We are NOT using pthread mutexes <!!!!!!!"
+#warning "!!!!!!!> We are NOT using pthread mutexes; using Gloger's fast inline spinlocks <!!!!!!!"
 
 #include <time.h>
 #include <sched.h>

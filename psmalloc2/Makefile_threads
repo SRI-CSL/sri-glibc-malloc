@@ -59,16 +59,16 @@ stest0: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@
 
 stest1: $(MALLOCOBJ)
-	$(CC) $(CFLAGS) $(T_FLAGS) stest1.c $(MALLOCOBJ)  -o  $@
+	$(CC) $(CFLAGS) $(T_FLAGS) stest1.c $(MALLOCOBJ)  -lpthread -o  $@
 
 stest2: $(MALLOCOBJ)
-	$(CC) $(CFLAGS) $(T_FLAGS) stest2.c $(MALLOCOBJ)  -o  $@
+	$(CC) $(CFLAGS) $(T_FLAGS) stest2.c $(MALLOCOBJ)  -lpthread -o  $@
 
 lphash.o:
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
 replay: $(MALLOCOBJ) lphash.o
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o -o  $@
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ) lphash.o  -lpthread  -o  $@
 
 testreplay:
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt

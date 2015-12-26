@@ -250,6 +250,7 @@ free_atfork(Void_t* mem, const Void_t *caller)
   Void_t *vptr = NULL;
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
+  chunkinfoptr _md_p;                   /* metadata of chunk  */
 
   if (mem == 0)                              /* free(0) has no effect */
     return;
@@ -265,10 +266,14 @@ free_atfork(Void_t* mem, const Void_t *caller)
 #endif
 
   ar_ptr = arena_for_chunk(p);
+
+  _md_p = hashtable_lookup(ar_ptr, p);
+
+  
   tsd_getspecific(arena_key, vptr);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_lock(&ar_ptr->mutex);
-  _int_free(ar_ptr, mem);
+  _int_free(ar_ptr, _md_p, mem);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_unlock(&ar_ptr->mutex);
 }

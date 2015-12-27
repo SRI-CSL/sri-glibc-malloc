@@ -56,10 +56,10 @@ OK taking the route of least resistance:  doing it with one arena first...
 solution to the mmap problem mentioned in 1.  
 
   [] sysmalloc
-  [] public_malloc
-  [] public_memalign
-  [] public_free
-  [] _int_free
+  [x] public_malloc
+  [x] public_memalign
+  [x] public_calloc	
+  [x] _int_free
   [] arena.c
 
 

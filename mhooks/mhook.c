@@ -12,6 +12,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
+
+#include "mhook.h"
+
+
 extern void *__libc_malloc(size_t size);
 extern void __libc_free(void *ptr);
 extern void *__libc_calloc(size_t nmemb, size_t size);
@@ -54,26 +58,26 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
     storehexstring(&buffer[4], (uintptr_t)size1);
     storehexstring(&buffer[23], (uintptr_t)p);
     storehexstring(&buffer[42], (uintptr_t)caller);
-    sz = 58;
+    sz = MALLOCLEN;
     break;
   case 'f':
     storehexstring(&buffer[4], (uintptr_t)p);
     storehexstring(&buffer[23], (uintptr_t)caller);
-    sz = 39;
+    sz = FREELEN;
     break;
   case 'c':
     storehexstring(&buffer[4], (uintptr_t)size1);
     storehexstring(&buffer[23], (uintptr_t)size2);
     storehexstring(&buffer[42], (uintptr_t)p);
     storehexstring(&buffer[61], (uintptr_t)caller);
-    sz = 77;
+    sz = CALLOCLEN;
     break;
   case 'r':
     storehexstring(&buffer[4], (uintptr_t)p);
     storehexstring(&buffer[23], (uintptr_t)size1);
     storehexstring(&buffer[42], (uintptr_t)q);
     storehexstring(&buffer[61], (uintptr_t)caller);
-    sz = 77;
+    sz = REALLOCLEN;
     break;
   default:
     sz = 5;

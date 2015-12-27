@@ -10,7 +10,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-fPIC                                     \
 	-DUSE_ARENAS=0                            \
 	-DNDEBUG                                  \
-	-Isysdeps/generic -I. 
+	-Isysdeps/generic                         \
+	-I. 
 
 #	-DMALLOC_DEBUG				  \
 
@@ -68,7 +69,7 @@ lphash.o:
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
 replaylib.o:
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replaylib.c -c
+	$(CC) $(CFLAGS) -I../lphash -I../mhooks $(T_FLAGS) replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o  -o  $@
@@ -84,7 +85,7 @@ check: $(TESTS)
 	./tst-mstats || echo "Test mstats failed!"
 
 clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o replay
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay
 
 
 # dependencies

@@ -10,6 +10,8 @@
 
 #include "replaylib.h"
 
+#include "mhook.h"
+
 #include "lphash.h"
 
 #include "malloc.h"
@@ -44,12 +46,6 @@ static bool replay_calloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* b
 static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
 
 static bool replay_free(lphash_t* htbl, replay_stats_t* statsp, const uchar* buffer, size_t buffersz);
-
-/* These need to be kept in synch with ../mhooks/mhook.c */
-
-enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
-
-enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
 
 static bool dirtywork(uintptr_t addresses[], size_t len, const uchar* buffer, size_t buffersz);
 

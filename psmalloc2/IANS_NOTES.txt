@@ -54,17 +54,29 @@ OK taking the route of least resistance:  doing it with one arena first...
 
 
 6. USE_ARENAS case. We can do the twinning part of the USE_ARENAS case, independently of the
-solution to the mmap problem mentioned in 1.  This will mean having a multithreaded
-tes/replay of some sort.
+solution to the mmap problem mentioned in 1.  
+
+  [] sysmalloc
+  [] public_malloc
+  [] public_memalign
+  [] public_free
+  [] _int_free
+  [] arena.c
+
 
 
 7. Update ptmalloc so we have something to compare with.
 
-8. mtreply mystery... ok so even glibc plays up, so it must be either the flags or reply related.
+8. This will mean having a multithreaded test/replay of some sort.
+
+9. mtreply mystery... ok so even glibc plays up, so it must be either the flags or reply related.
 suspect found:
 
 static lppool_t the_pool;
 
 
-on line 1386 of  lphash.c
+on line 1386 of  lphash.c.   FIXED.
+
+
+
 

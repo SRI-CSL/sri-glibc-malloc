@@ -3881,7 +3881,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
   if (!check_metadata_chunk(_md_oldp, oldp)){
-    //fprintf(stderr, ".");
+    //printf(stderr, ".");
   }
 
 

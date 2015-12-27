@@ -80,5 +80,7 @@ on line 1386 of  lphash.c.   FIXED.
 
 10. Might want to bring "replay/lphash.[ch]" upto date with "lphash/lphash.[ch]"
 
+11. Clean up mhook (with a mhook.h), and make sure I have not broken other things like dsmalloc.
+
 
 

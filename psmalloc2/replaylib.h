@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-extern int process_file(char *filename, bool verbose);
+extern int process_file(const char *filename, bool verbose);
 
 
 #endif

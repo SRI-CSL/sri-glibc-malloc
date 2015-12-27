@@ -69,7 +69,7 @@ static void dump_stats(FILE* fp,  replay_stats_t* statsp){
 }
 
 
-int process_file(char *filename, bool verbose){
+int process_file(const char *filename, bool verbose){
   FILE* fp;
   uchar buffer[BUFFERSZ  + 1];
   size_t linecount;

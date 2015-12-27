@@ -29,7 +29,7 @@ TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest0 stest1 stest2
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay
+all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay mtreplay
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)
@@ -61,6 +61,9 @@ replaylib.o:
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+
+mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 testreplay: replay
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt

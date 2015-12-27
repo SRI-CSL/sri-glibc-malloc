@@ -2593,6 +2593,7 @@ static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
 
   } else {
 
+    fprintf(stderr, "No metadata for %p\n", chunk2mem(c));
     return false;
 
   }

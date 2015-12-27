@@ -72,7 +72,7 @@ endif
 tests: test mtest0 mtest1 mtest2
 
 test: $(metaobj) test.o dsassert.o
-	${CC}   $(metaobj) test.o  dsassert.o -o test
+	$(CC)   $(metaobj) test.o  dsassert.o -o test
 
 mtest0: mtest0.c $(metaobj) $(mobj)
 	$(CC) $(TCFLAGS) -o mtest0 mtest0.c $(metaobj) $(mobj)

@@ -23,7 +23,7 @@ LIB_MALLOC = libmalloc.a
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: malloc.so $(LIB_MALLOC) replay
+all: malloc.so $(LIB_MALLOC) replay mtreplay
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)
@@ -47,8 +47,15 @@ replaylib.o:
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
+mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+
 testreplay: replay
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
+
+mtestreplay: mtreplay
+	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
+
 
 
 # dependencies

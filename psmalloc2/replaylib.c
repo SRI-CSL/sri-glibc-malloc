@@ -78,6 +78,7 @@ int process_file(const char *filename, bool verbose){
   int code;
   
   code = 0;
+  linecount = 0;
   fp = NULL;
   buffer[BUFFERSZ] = '\0';   /* this should never be touched again  */
 

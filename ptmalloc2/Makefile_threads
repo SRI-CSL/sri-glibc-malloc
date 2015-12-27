@@ -57,6 +57,5 @@ mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
 
-
 # dependencies
 malloc.o: arena.c hooks.c

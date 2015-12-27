@@ -3265,7 +3265,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       if (mmapped_mem + arena_mem + sbrked_mem > max_total_mem)
         max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
-      set_head(old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)
+      set_head(old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)  /* iam: some work here by the looks */
 	       | PREV_INUSE);
     }
     else if ((heap = new_heap(nb + (MINSIZE + sizeof(*heap)), mp_.top_pad))) {
@@ -3278,7 +3278,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       if ((unsigned long)(mmapped_mem + arena_mem + sbrked_mem) > max_total_mem)
 	max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
-      /* Set up the new top.  */
+      /* Set up the new top.  */                                                 /* iam: some work here by the looks */
       top(av) = chunk_at_offset(heap, sizeof(*heap));
       set_head(top(av), (heap->size - sizeof(*heap)) | PREV_INUSE);
 

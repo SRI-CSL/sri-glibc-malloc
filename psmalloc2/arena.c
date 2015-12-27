@@ -161,7 +161,6 @@ static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
   } 
 
   *aptr = ptr;
-
 }
 
 
@@ -252,13 +251,13 @@ free_atfork(Void_t* mem, const Void_t *caller)
   mchunkptr p;                          /* chunk corresponding to mem */
   chunkinfoptr _md_p;                   /* metadata of chunk  */
 
-  if (mem == 0)                              /* free(0) has no effect */
+  if (mem == 0)                         /* free(0) has no effect */
     return;
 
-  p = mem2chunk(mem);         /* do not bother to replicate free_check here */
+  p = mem2chunk(mem);                   /* do not bother to replicate free_check here */
 
 #if HAVE_MMAP
-  if (chunk_is_mmapped(p))                       /* release mmapped memory. */
+  if (chunk_is_mmapped(p))               /* release mmapped memory. */
   {
     munmap_chunk(p);
     return;
@@ -693,7 +692,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
-  /* Can this heap go away completely? */
+  /* Can this heap go away completely? */                      /* iam: some work here by the looks */
   while(top_chunk == chunk_at_offset(heap, sizeof(*heap))) {
     prev_heap = heap->prev;
     p = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
@@ -840,7 +839,7 @@ _int_new_arena(size_t size)
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
   top(a) = (mchunkptr)ptr;
-  set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);
+  set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);    /* iam: some work here by the looks */
 
   return a;
 }

@@ -2,27 +2,28 @@
 # by Wolfram Gloger 1996-1999, 2001, 2002, 2003, 2004, 2006
 # iam: snip snip; trimmed and cleaned up 
 
-LDFLAGS = -shared -fPIC
+LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O                                     \
 	-Wall -Wstrict-prototypes                 \
-	-fPIC                                     \
-	-DUSE_ARENAS=0                            \
+	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
 	-DNDEBUG                                  \
-	-Isysdeps/generic -I. 
+	-fPIC                                     \
+	-Isysdeps/pthread -Isysdeps/generic -I. 
 
-#	-DMALLOC_DEBUG				  \
-
+# Flags for the compilation of malloc.c
+M_FLAGS   = -DTHREAD_STATS=1 
+#-DMALLOC_DEBUG=1
 
 MALLOCOBJ = malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
 %.o: %.c %.h 
-	$(CC) $(CFLAGS)  $< -c 
+	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: $(METAOBJ) malloc.so $(LIB_MALLOC) replay
+all: malloc.so $(LIB_MALLOC) replay
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)
@@ -31,23 +32,23 @@ libmalloc.a: $(MALLOCOBJ)
 shared: $(METAOBJ) malloc.so 
 
 malloc.so: $(MALLOCOBJ) malloc.h
-	$(CC)  $(CFLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
+	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
+
+clean:
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
+
 
 lphash.o:
-	$(CC) $(CFLAGS) -I../lphash ../lphash/lphash.c -c
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
 replaylib.o:
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o  -o  $@
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 testreplay: replay
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
-
-
-clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so lphash.o replay
 
 
 # dependencies

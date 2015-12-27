@@ -86,6 +86,7 @@ check: $(TESTS)
 
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay
+	rm -rf *.dSYM 
 
 
 # dependencies

@@ -42,7 +42,8 @@ malloc.so: $(MALLOCOBJ) malloc.h
 
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
-
+	rm -rf *.dSYM
+	
 
 stest0: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@

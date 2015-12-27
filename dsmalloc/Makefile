@@ -30,9 +30,9 @@ ifeq (Darwin, $(findstring Darwin, ${OS}))
 BUILD_PLATFORM=DARWIN
 
 CFLAGS = -O${OPTIMIZATION} -fPIC $(DEFS) -DHAVE_MEMCPY -DDARWIN -Wall
-LIB = libdsmalloc.dynlib
+LIB = libdsmalloc.dylib
 LIBFLAGS = -dynamiclib 
-LINK = libdsmalloc.dynlib
+LINK = libdsmalloc.dylib
 
 else
 

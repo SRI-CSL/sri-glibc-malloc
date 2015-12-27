@@ -21,9 +21,6 @@ typedef struct lpbucket_pool_s lpbucket_pool_t;
 
 typedef struct lpsegment_pool_s lpsegment_pool_t;
 
-typedef struct lpmemcxt_s lpmemcxt_t;
-
-
 #define LPSEGMENT_LENGTH 256
 
 #define LPDIRECTORY_LENGTH 1024
@@ -67,10 +64,10 @@ typedef struct lpsegment_s {
 typedef enum { LPDIRECTORY, LPSEGMENT, LPBUCKET } lpmemtype_t;
 
 
-struct lpmemcxt_s {
+typedef struct lpmemcxt_s {
   void *(*allocate)(lpmemtype_t, size_t);
   void (*release)(lpmemtype_t, void*, size_t);
-};
+} lpmemcxt_t;
 
 
 

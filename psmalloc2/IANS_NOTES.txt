@@ -61,3 +61,10 @@ tes/replay of some sort.
 7. Update ptmalloc so we have something to compare with.
 
 8. mtreply mystery... ok so even glibc plays up, so it must be either the flags or reply related.
+suspect found:
+
+static lppool_t the_pool;
+
+
+on line 1386 of  lphash.c
+

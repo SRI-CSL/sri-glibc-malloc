@@ -87,17 +87,12 @@ typedef struct lphash_cfg_s {
 
   uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                      */
 
-  bool multithreaded;               /* are we going to protect against contention                              */
-
-
 } lphash_cfg_t;
 
 
 struct lphash_s {
 
   lphash_cfg_t cfg;             /* configuration constants                                                */
-
-  pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
 
   lpsegment_t** directory;         /* the array of segment pointers                                          */
 

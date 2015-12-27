@@ -6,8 +6,6 @@
 
 #include "lphash.h"
 
-const bool      lphash_multithreaded             = false;
-
 const size_t    lphash_segment_length            = LPSEGMENT_LENGTH;
 const size_t    lphash_initial_directory_length  = LPDIRECTORY_LENGTH;
 const size_t    lphash_segments_at_startup       = 1;
@@ -146,7 +144,6 @@ static void lphash_cfg_init(lphash_cfg_t* cfg){
 
   lpinit_pool_memcxt(&(cfg->memcxt));
 
-  cfg->multithreaded            = lphash_multithreaded;
   cfg->segment_length           = lphash_segment_length;
   cfg->initial_directory_length = lphash_initial_directory_length;
   cfg->min_load                 = lphash_min_load;   
@@ -194,11 +191,6 @@ bool init_lphash(lphash_t* lhtbl){
     
   memcxt = &(lhtbl_cfg->memcxt);
     
-  /* lock for resolving contention  (only when cfg->multithreaded)   */
-  if(lhtbl_cfg->multithreaded){
-    pthread_mutex_init(&lhtbl->mutex, NULL);
-  }
-
   lhtbl->directory_length = lhtbl_cfg->initial_directory_length;
   lhtbl->directory_current = lphash_segments_at_startup; 
 
@@ -1381,7 +1373,7 @@ static bool free_lpsegment(lppool_t* pool, lpsegment_t* segp){
   return true;
 }
 
-/* just one for now */
+/* just one for now   */
 static bool the_lppool_is_ok = false;
 static lppool_t the_pool;
 

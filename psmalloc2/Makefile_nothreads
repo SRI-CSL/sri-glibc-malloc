@@ -67,8 +67,11 @@ stest2: $(MALLOCOBJ)
 lphash.o:
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
-replay: replay.c $(MALLOCOBJ) lphash.o
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o -o  $@
+replaylib.o:
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replaylib.c -c
+
+replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o  -o  $@
 
 testreplay: replay
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt

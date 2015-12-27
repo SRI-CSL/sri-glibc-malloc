@@ -37,7 +37,7 @@ lphash.o:
 	$(CC) $(CFLAGS) -I../lphash ../lphash/lphash.c -c
 
 replaylib.o:
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replaylib.c -c
+	$(CC) $(CFLAGS) -I../lphash -I../mhooks $(T_FLAGS) replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o  -o  $@

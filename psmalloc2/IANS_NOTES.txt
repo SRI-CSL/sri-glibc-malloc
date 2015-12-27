@@ -52,7 +52,6 @@ OK taking the route of least resistance:  doing it with one arena first...
  
 5. Need to have some tests for the odd ball members of the malloc clan. 
 
-
 6. USE_ARENAS case. We can do the twinning part of the USE_ARENAS case, independently of the
 solution to the mmap problem mentioned in 1.  
 
@@ -65,9 +64,9 @@ solution to the mmap problem mentioned in 1.
 
 
 
-7. Update ptmalloc so we have something to compare with.
+7. Update ptmalloc so we have something to compare with. [X]
 
-8. This will mean having a multithreaded test/replay of some sort.
+8. This will mean having a multithreaded test/replay of some sort. [X]
 
 9. mtreply mystery... ok so even glibc plays up, so it must be either the flags or reply related.
 suspect found:
@@ -75,12 +74,13 @@ suspect found:
 static lppool_t the_pool;
 
 
-on line 1386 of  lphash.c.   FIXED.
+on line 1386 of  lphash.c.   FIXED. [X]
 
 
 10. Might want to bring "replay/lphash.[ch]" upto date with "lphash/lphash.[ch]"
 
-11. Clean up mhook (with a mhook.h), and make sure I have not broken other things like dsmalloc.
+11. Clean up mhook (with a mhook.h) [X], and make sure
+I have not broken other things like dsmalloc.
 
 
 

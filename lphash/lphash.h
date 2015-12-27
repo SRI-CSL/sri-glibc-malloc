@@ -65,8 +65,8 @@ typedef enum { LPDIRECTORY, LPSEGMENT, LPBUCKET } lpmemtype_t;
 
 
 typedef struct lpmemcxt_s {
-  void *(*allocate)(lpmemtype_t, size_t);
-  void (*release)(lpmemtype_t, void*, size_t);
+  lpsegment_pool_t* segments;
+  lpbucket_pool_t* buckets;
 } lpmemcxt_t;
 
 

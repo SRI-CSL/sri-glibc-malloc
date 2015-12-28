@@ -3265,20 +3265,21 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       if (mmapped_mem + arena_mem + sbrked_mem > max_total_mem)
         max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
-      set_head(old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)  /* iam: some work here by the looks */
-	       | PREV_INUSE);
+      set_head(old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)  | PREV_INUSE);
+      twin(_md_old_top, old_top);
+      
     }
     else if ((heap = new_heap(nb + (MINSIZE + sizeof(*heap)), mp_.top_pad))) {
       /* Use a newly allocated heap.  */
       heap->ar_ptr = av;
-      heap->prev = old_heap;                                                     /* iam: some work here by the looks */
+      heap->prev = old_heap;                                                    
       av->system_mem += heap->size;
       arena_mem += heap->size;
 #if 0
       if ((unsigned long)(mmapped_mem + arena_mem + sbrked_mem) > max_total_mem)
 	max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
-      /* Set up the new top.  */                                                 /* iam: some work here by the looks */
+      /* Set up the new top.  */                                                
       top(av) = chunk_at_offset(heap, sizeof(*heap));
       set_head(top(av), (heap->size - sizeof(*heap)) | PREV_INUSE);
       _md_top(av) = register_chunk(av, top(av));
@@ -3294,7 +3295,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	set_head(chunk_at_offset(old_top, old_size), (2*SIZE_SZ)|PREV_INUSE);
 	set_foot(chunk_at_offset(old_top, old_size), (2*SIZE_SZ));
 	set_head(old_top, old_size|PREV_INUSE|NON_MAIN_ARENA);
-	_int_free(av, NULL, chunk2mem(old_top)); //iam: fix me!
+	twin(_md_old_top, old_top);
+	_int_free(av, _md_old_top, chunk2mem(old_top)); 
       } else {
 	set_head(old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
 	set_foot(old_top, (old_size + 2*SIZE_SZ));

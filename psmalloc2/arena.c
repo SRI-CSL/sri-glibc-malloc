@@ -46,6 +46,8 @@
 
 #define top(ar_ptr) ((ar_ptr)->top)
 
+#define _md_top(ar_ptr) ((ar_ptr)->_md_top)
+
 /* A heap is a single contiguous memory region holding (coalesceable)
    malloc_chunks.  It is allocated with mmap() and always starts at an
    address aligned to HEAP_MAX_SIZE.  Not used unless compiling with
@@ -257,7 +259,7 @@ free_atfork(Void_t* mem, const Void_t *caller)
   p = mem2chunk(mem);                   /* do not bother to replicate free_check here */
 
 #if HAVE_MMAP
-  if (chunk_is_mmapped(p))               /* release mmapped memory. */
+  if (chunk_is_mmapped(p))              /* release mmapped memory. */
   {
     munmap_chunk(p);
     return;
@@ -559,11 +561,13 @@ dump_heap(heap) heap_info *heap;
 #endif
 {
   char *ptr;
-  mchunkptr p;
+  mchunkptr p;                                                        /* iam: some work here by the looks */
 
   fprintf(stderr, "Heap %p, size %10lx:\n", heap, (long)heap->size);
+  
   ptr = (heap->ar_ptr != (mstate)(heap+1)) ?
     (char*)(heap + 1) : (char*)(heap + 1) + sizeof(struct malloc_state);
+
   p = (mchunkptr)(((unsigned long)ptr + MALLOC_ALIGN_MASK) &
                   ~MALLOC_ALIGN_MASK);
   for(;;) {
@@ -839,7 +843,8 @@ _int_new_arena(size_t size)
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
   top(a) = (mchunkptr)ptr;
-  set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);    /* iam: some work here by the looks */
+  set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);
+  _md_top(a) = register_chunk(a, top(a));
 
   return a;
 }

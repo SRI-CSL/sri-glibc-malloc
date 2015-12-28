@@ -3249,7 +3249,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 
   if (av != &main_arena) {
-    //iam: this should not happen if we are not using arenas...
+    //iam: this should not happen if we are *not* using arenas...
 #if USE_ARENAS
 
     heap_info *old_heap, *heap;
@@ -3271,7 +3271,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
     else if ((heap = new_heap(nb + (MINSIZE + sizeof(*heap)), mp_.top_pad))) {
       /* Use a newly allocated heap.  */
       heap->ar_ptr = av;
-      heap->prev = old_heap;
+      heap->prev = old_heap;                                                     /* iam: some work here by the looks */
       av->system_mem += heap->size;
       arena_mem += heap->size;
 #if 0
@@ -3281,7 +3281,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       /* Set up the new top.  */                                                 /* iam: some work here by the looks */
       top(av) = chunk_at_offset(heap, sizeof(*heap));
       set_head(top(av), (heap->size - sizeof(*heap)) | PREV_INUSE);
-
+      _md_top(av) = register_chunk(av, top(av));
+  
+      
       /* Setup fencepost and free the old top chunk. */
       /* The fencepost takes at least MINSIZE bytes, because it might
 	 become the top chunk again later.  Note that a footer is set

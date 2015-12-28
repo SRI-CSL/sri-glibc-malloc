@@ -40,11 +40,6 @@ shared: $(METAOBJ) malloc.so
 malloc.so: $(MALLOCOBJ) malloc.h
 	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
 
-clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
-	rm -rf *.dSYM
-	
-
 stest0: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -lpthread -o  $@
 
@@ -77,6 +72,12 @@ mtestreplay: mtreplay
 
 gmtestreplay: gmtreplay
 	./gmtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+
+clean:
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay
+	rm -rf *.dSYM
+	
 
 
 check: $(TESTS)

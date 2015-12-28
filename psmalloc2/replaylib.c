@@ -17,6 +17,7 @@
 #include "malloc.h"
 
 const bool silent_running = true;
+const bool deviation_warnings = false;
 
 const size_t BUFFERSZ = 1024;
 
@@ -422,8 +423,10 @@ static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* 
 
 	} else {
 
-	  fprintf(stderr, "replay_realloc: deviating from script %p != %p in our run %p == %p in script\n",
-		  val_old, val_new, ptr_in, ptr_out);
+	  if(deviation_warnings){
+	    fprintf(stderr, "replay_realloc: deviating from script %p != %p in our run %p == %p in script\n",
+		    val_old, val_new, ptr_in, ptr_out);
+	  }
 
 	  lphash_delete(htbl, ptr_in);
 
@@ -440,8 +443,10 @@ static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* 
 	
 	if (val_old == val_new) {
 	  
-	  fprintf(stderr, "replay_realloc: deviating from script %p == %p in our run %p != %p in script\n",
-		  val_old, val_new, ptr_in, ptr_out);
+	  if(deviation_warnings){
+	    fprintf(stderr, "replay_realloc: deviating from script %p == %p in our run %p != %p in script\n",
+		    val_old, val_new, ptr_in, ptr_out);
+	  }
 	  
 	}
 

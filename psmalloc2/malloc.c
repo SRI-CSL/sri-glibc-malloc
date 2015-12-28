@@ -3143,6 +3143,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
   mchunkptr       p;              /* the allocated/returned chunk */
   chunkinfoptr   _md_p;           /* the allocated/returned chunk's metadata  */
+ 
+  mchunkptr fencepost;            /* fenceposts */
 
   unsigned long   sum;            /* for updating stats */
 
@@ -3290,16 +3292,23 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	 become the top chunk again later.  Note that a footer is set
 	 up, too, although the chunk is marked in use. */
       old_size -= MINSIZE;
-      set_head(chunk_at_offset(old_top, old_size + 2*SIZE_SZ), 0|PREV_INUSE);
+      fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
+      set_head(fencepost, 0|PREV_INUSE);
+      register_chunk(av,  fencepost);
+
       if (old_size >= MINSIZE) {
-	set_head(chunk_at_offset(old_top, old_size), (2*SIZE_SZ)|PREV_INUSE);
-	set_foot(chunk_at_offset(old_top, old_size), (2*SIZE_SZ));
+	fencepost = chunk_at_offset(old_top, old_size);
+	set_head(fencepost, (2*SIZE_SZ)|PREV_INUSE);
+	set_foot(fencepost, (2*SIZE_SZ));
+	register_chunk(av, fencepost);
+	
 	set_head(old_top, old_size|PREV_INUSE|NON_MAIN_ARENA);
 	twin(_md_old_top, old_top);
 	_int_free(av, _md_old_top, chunk2mem(old_top)); 
       } else {
 	set_head(old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
+	twin(_md_old_top, old_top);
       }
     }
 #endif
@@ -3506,7 +3515,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
 	av->_md_top = register_chunk(av, av->top);
 
-	/* iam: what to do about old_top and the fenceposts? */
+	/* iam: deal with old_top and the fenceposts.. */
 
 
 	av->system_mem += correction;
@@ -3528,6 +3537,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           */
           old_size = (old_size - 4*SIZE_SZ) & ~MALLOC_ALIGN_MASK;
           set_head(old_top, old_size | PREV_INUSE);
+	  twin(_md_old_top, old_top);
 
           /*
             Note that the following assignments completely overwrite
@@ -3535,9 +3545,14 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
             intentional. We need the fencepost, even if old_top otherwise gets
             lost.
           */
-          chunk_at_offset(old_top, old_size)->size = (2*SIZE_SZ)|PREV_INUSE;
 
-          chunk_at_offset(old_top, old_size + 2*SIZE_SZ)->size = (2*SIZE_SZ)|PREV_INUSE;
+	  fencepost = chunk_at_offset(old_top, old_size);
+	  set_head(fencepost, (2*SIZE_SZ)|PREV_INUSE);
+	  register_chunk(av, fencepost);
+	  
+	  fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
+	  set_head(fencepost, (2*SIZE_SZ)|PREV_INUSE);
+	  register_chunk(av, fencepost);
 
           /* If possible, release the rest. */
           if (old_size >= MINSIZE) {

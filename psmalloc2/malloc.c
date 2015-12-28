@@ -2567,7 +2567,7 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 }
 
 /* temporary hack for testing sanity */
-static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
+static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
 {
   if (ci != NULL){
     //iam: start checking more details now...
@@ -2577,7 +2577,7 @@ static bool check_metadata_chunk(chunkinfoptr ci, mchunkptr c)
       return false;
     }
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      fprintf(stderr, "ci->size = %zu  c->size = %zu\n", ci->size, c->size);
+      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d\n", ci->size, c->size, arena_bit(av) == 0);
       return false; 
     } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       //iam : currently this fails a lot...
@@ -3814,7 +3814,7 @@ public_fREe(Void_t* mem)
   /* good place to check our twinning */
   _md_p = hashtable_lookup (ar_ptr, p);
   
-  if (!check_metadata_chunk(_md_p, p)){
+  if (!check_metadata_chunk(ar_ptr, _md_p, p)){
     //fprintf(stderr, ".");
   }
 
@@ -3882,7 +3882,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   /* another good place to check our twinning */
   _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
-  if (!check_metadata_chunk(_md_oldp, oldp)){
+  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp)){
     //printf(stderr, ".");
   }
 

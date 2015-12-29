@@ -48,7 +48,7 @@ OK taking the route of least resistance:  doing it with one arena first...
 
    - call to hook in _int_calloc
 
-   - do the fenceposts need metadata? suppose so.
+   - [x] do the fenceposts need metadata? suppose so.
     
  
 5. Need to have some tests for the odd ball members of the malloc clan. 
@@ -56,8 +56,8 @@ OK taking the route of least resistance:  doing it with one arena first...
 6. USE_ARENAS case. We can do the twinning part of the USE_ARENAS case, independently of the
 solution to the mmap problem mentioned in 1.  
 
-  [] arena.c
-  [] sysmalloc
+  [x] arena.c
+  [x] sysmalloc
   [x] public_malloc
   [x] public_memalign
   [x] public_calloc	

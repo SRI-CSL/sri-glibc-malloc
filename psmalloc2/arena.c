@@ -270,7 +270,10 @@ free_atfork(Void_t* mem, const Void_t *caller)
 
   _md_p = hashtable_lookup(ar_ptr, p);
 
-  
+  if(_md_p == NULL){
+    MISSING_METADATA(ar_ptr, p);
+  } 
+
   tsd_getspecific(arena_key, vptr);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_lock(&ar_ptr->mutex);
@@ -561,7 +564,7 @@ dump_heap(heap) heap_info *heap;
 #endif
 {
   char *ptr;
-  mchunkptr p;                                                        /* iam: some work here by the looks */
+  mchunkptr p;                                                        
 
   fprintf(stderr, "Heap %p, size %10lx:\n", heap, (long)heap->size);
   
@@ -703,7 +706,12 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = mp_.pagesize;
-  mchunkptr top_chunk = top(ar_ptr), p, bck, fwd;
+  mchunkptr top_chunk = top(ar_ptr);
+
+  mchunkptr p;
+  chunkinfoptr _md_p;
+  
+  mchunkptr bck, fwd;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
@@ -726,15 +734,30 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     /* iam: we are going to delete this heap and consolidate the tail of the previous heap */
     
     p = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
+    _md_p = hashtable_lookup(ar_ptr, p);
+
+    if(_md_p == NULL){
+      fprintf(stderr, "heap_trim %p missing metadata. Not trimming\n", p);
+      return 0;
+    }
+    
     assert(p->size == (0|PREV_INUSE)); /* must be fencepost */
 
+    hashtable_remove(ar_ptr, p);
     p = prev_chunk(p);
+    _md_p = hashtable_lookup(ar_ptr, p);
+    
+    if(_md_p == NULL){
+      MISSING_METADATA(ar_ptr, p);
+    } 
+
+
     new_size = chunksize(p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
     assert(new_size>0 && new_size<(long)(2*MINSIZE));
 
     if(!prev_inuse(p)){
-      new_size += p->prev_size;   /* iam: 'nuther chunk bites the dust */
+      new_size += p->prev_size;   
     }
     assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
 
@@ -750,17 +773,28 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     delete_heap(heap);
     heap = prev_heap;
     
-    if(!prev_inuse(p)) { /* consolidate backward  iam: again? i thought adjacent frees would already have been coalesced */
-      p = prev_chunk(p);         /* iam: 'nuther chunk bites the dust */
+    if(!prev_inuse(p)) {
+      /* consolidate backward  
+       * iam: already done the size above
+       */
+      hashtable_remove(ar_ptr, p);   /* iam: 'nuther chunk bites the dust */
+      p = prev_chunk(p);
       ps_unlink(p, &bck, &fwd);
+      _md_p = hashtable_lookup(ar_ptr, p);
+
+      if(_md_p == NULL){
+	MISSING_METADATA(ar_ptr, p);
+      } 
+      
     }
     assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);
     assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
 
     /* iam: we need to get metadata of so we can update it and store it */
     top(ar_ptr) = top_chunk = p;
+    _md_top(ar_ptr) = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
-
+    twin(_md_p, p);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
 

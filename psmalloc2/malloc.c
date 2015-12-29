@@ -2500,6 +2500,12 @@ static inline int arena_bit(mstate av)
   return (av != &main_arena ? NON_MAIN_ARENA : 0);
 }
 
+static bool is_main_arena(mstate av)
+{
+  return arena_bit(av) == 0;
+}
+
+
 /*
    ----------- Metadata playground -----------
 
@@ -2561,14 +2567,25 @@ static void twin(chunkinfoptr ci, mchunkptr c)
   ci->prev_size =  c->prev_size;
 }
 
+
 static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 {
   return ( sz & ~(SIZE_BITS));
 }
 
+
+static void missing_metadata(mstate av, mchunkptr p, const char* file, int lineno){
+  fprintf(stderr, "No metadata for %p @ %s line %d. main_arena %d. chunk_is_mmapped: %d\n", 
+	  chunk2mem(p), file, lineno, is_main_arena(av), chunk_is_mmapped(p));
+}
+
+#define MISSING_METADATA(AV, P)  missing_metadata(AV, P, __FILE__, __LINE__)
+
+
 /* temporary hack for testing sanity */
 static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
 {
+
   if (ci != NULL){
     //iam: start checking more details now...
     // an  uncommented print statement  means we pass this test currently.
@@ -2577,7 +2594,7 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
       return false;
     }
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d\n", ci->size, c->size, arena_bit(av) == 0);
+      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d\n", ci->size, c->size, is_main_arena(av));
       return false; 
     } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       //iam : currently this fails a lot...
@@ -2590,14 +2607,11 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
     }
     
     return true;
-
-  } else {
-
-    fprintf(stderr, "No metadata for %p\n", chunk2mem(c));
-    return false;
-
-  }
+  } 
+  return false;
 }
+
+
 
 static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
 {
@@ -3834,6 +3848,10 @@ public_fREe(Void_t* mem)
 
   /* good place to check our twinning */
   _md_p = hashtable_lookup (ar_ptr, p);
+
+  if(_md_p == NULL){
+    MISSING_METADATA(ar_ptr, p);
+  } 
   
   if (!check_metadata_chunk(ar_ptr, _md_p, p)){
     //fprintf(stderr, ".");
@@ -3903,6 +3921,10 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   /* another good place to check our twinning */
   _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
+  if(_md_oldp == NULL){
+    MISSING_METADATA(ar_ptr, oldp);
+  } 
+
   if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp)){
     //printf(stderr, ".");
   }
@@ -4411,6 +4433,7 @@ _int_malloc(mstate av, size_t bytes)
 
 	/* iam: this should be removable once we get our global act together */
 	if(safetynet && _md_victim == NULL){
+	  MISSING_METADATA(av, victim);
 	  _md_victim = register_chunk(av, victim);
 	}
 	
@@ -4535,6 +4558,7 @@ _int_malloc(mstate av, size_t bytes)
 
 	    /* iam: this should be removable once we get our global act together */
 	    if(safetynet && _md_victim == NULL){
+	      MISSING_METADATA(av, victim);
 	      _md_victim = register_chunk(av, victim);
 	    }
 	
@@ -4640,6 +4664,7 @@ _int_malloc(mstate av, size_t bytes)
 
 	  /* iam: this should be removable once we get our global act together */
 	  if(safetynet && _md_victim == NULL){
+	    MISSING_METADATA(av, victim);
 	    _md_victim = register_chunk(av, victim);
 	  }
 
@@ -4755,6 +4780,7 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 
     /* iam: this should be removable once we get our global act together */
     if(safetynet && _md_p == NULL){
+      MISSING_METADATA(av, p);
       _md_p = register_chunk(av, p);
     }
 
@@ -4791,6 +4817,10 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
       nextchunk = chunk_at_offset(p, size);
       _md_nextchunk = hashtable_lookup(av, nextchunk);
 
+      if(_md_nextchunk == NULL){
+	MISSING_METADATA(av, nextchunk);
+      }
+
       nextsize = chunksize(nextchunk);
       assert(nextsize > 0);
 
@@ -4800,6 +4830,11 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
 	prevsize = p->prev_size;
 	prevchunk = chunk_at_offset(p, -((long) prevsize));
 	_md_prevchunk = hashtable_lookup(av, prevchunk);
+
+	if(_md_prevchunk == NULL){
+	  MISSING_METADATA(av, prevchunk);
+	}
+
 	
 	hashtable_remove(av, p);
 	
@@ -5037,17 +5072,30 @@ static void malloc_consolidate(av) mstate av;
           nextp = p->fd;
 	  _md_p = hashtable_lookup(av, p);
 
+	  if(_md_p == NULL){
+	    MISSING_METADATA(av, p);
+	  }
+	  
           /* Slightly streamlined version of consolidation code in free() */
           size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
           nextchunk = chunk_at_offset(p, size);
 	  _md_nextchunk = hashtable_lookup(av, nextchunk);
-          nextsize = chunksize(nextchunk);
+
+	  if(_md_nextchunk == NULL){
+	    MISSING_METADATA(av, nextchunk);
+	  } 
+	  nextsize = chunksize(nextchunk);
 
           if (!prev_inuse(p)) {
             prevsize = p->prev_size;
             size += prevsize;
 	    prevchunk = chunk_at_offset(p, -((long) prevsize));
 	    _md_prevchunk = hashtable_lookup(av, prevchunk);
+
+	    if(_md_prevchunk == NULL){
+	      MISSING_METADATA(av, prevchunk);
+	    }
+
 	    hashtable_remove(av, p);
             p = prevchunk;
 	    _md_p =  _md_prevchunk;
@@ -5155,6 +5203,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 
   /* iam: this should be removable once we get our global act together */
   if(safetynet && _md_oldp == NULL){
+    MISSING_METADATA(av, oldp);
     _md_oldp = register_chunk(av, oldp);
   }
 
@@ -5285,6 +5334,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
       
       /* iam: this should be removable once we get our global act together */
       if(safetynet && _md_newp == NULL){
+	MISSING_METADATA(av, newp);
 	_md_newp = register_chunk(av, newp);
       }
       
@@ -5443,6 +5493,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
   _md_p = hashtable_lookup(av, p);
 
   if (safetynet && _md_p == NULL){ 
+    MISSING_METADATA(av, p);
     _md_p = register_chunk(av, p);
   }
 
@@ -5639,6 +5690,10 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
 
   p = mem2chunk(mem);
   _md_p = hashtable_lookup(av, p);
+
+  if(_md_p == NULL){
+    MISSING_METADATA(av, p);
+  } 
   
   assert(!chunk_is_mmapped(p));
   remainder_size = chunksize(p);

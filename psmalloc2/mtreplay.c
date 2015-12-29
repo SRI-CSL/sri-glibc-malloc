@@ -9,6 +9,7 @@
 
 #define MAX_THREADS  1024
 
+static const bool verbose = false;
 
 /*
  *  Nothing fancy yet.
@@ -31,7 +32,7 @@ typedef struct targs {
 
 void* thread_main(void* targ){
   targs_t* targsp = (targs_t*)targ;
-  process_file(targsp->filename, false);
+  process_file(targsp->filename, verbose);
   pthread_exit(NULL);
 }
 
@@ -91,7 +92,9 @@ int main(int argc, char* argv[]){
    
   }
   
-  //malloc_stats();
+  if (verbose) {
+    malloc_stats();
+  }
   
   
   pthread_exit(NULL);

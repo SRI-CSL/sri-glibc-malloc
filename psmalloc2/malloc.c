@@ -3205,13 +3205,15 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           correction = MALLOC_ALIGNMENT - front_misalign;
           p = (mchunkptr)(mm + correction);
           p->prev_size = correction;
-          set_head(p, (size - correction) |IS_MMAPPED);
+          set_head(p, (size - correction) | IS_MMAPPED);
         }
         else {
           p = (mchunkptr)mm;
           set_head(p, size|IS_MMAPPED);
         }
-	
+
+	fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+
 	/* handle the metadata  */
 	register_chunk(av, p);
 
@@ -3843,6 +3845,7 @@ public_fREe(Void_t* mem)
 
   p = mem2chunk(mem);
 
+  
   ar_ptr = arena_for_chunk(p);
 
 

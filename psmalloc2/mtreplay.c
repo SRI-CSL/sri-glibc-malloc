@@ -31,7 +31,7 @@ typedef struct targs {
 
 void* thread_main(void* targ){
   targs_t* targsp = (targs_t*)targ;
-  process_file(targsp->filename, true);
+  process_file(targsp->filename, false);
   pthread_exit(NULL);
 }
 
@@ -91,7 +91,7 @@ int main(int argc, char* argv[]){
    
   }
   
-  malloc_stats();
+  //malloc_stats();
   
   
   pthread_exit(NULL);

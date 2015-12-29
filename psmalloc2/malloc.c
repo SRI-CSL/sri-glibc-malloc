@@ -2583,7 +2583,7 @@ static void missing_metadata(mstate av, mchunkptr p, const char* file, int linen
 
 
 /* temporary hack for testing sanity */
-static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
+static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const char* file, int lineno)
 {
 
   if (ci != NULL){
@@ -2594,11 +2594,13 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c)
       return false;
     }
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d\n", ci->size, c->size, is_main_arena(av));
+      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
+	      ci->size, c->size, is_main_arena(av), file, lineno);
+      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       //iam : currently this fails a lot...
-      fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     } else if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       //iam : currently this fails a lot...
@@ -3856,7 +3858,7 @@ public_fREe(Void_t* mem)
     MISSING_METADATA(ar_ptr, p);
   } 
   
-  if (!check_metadata_chunk(ar_ptr, _md_p, p)){
+  if (!check_metadata_chunk(ar_ptr, _md_p, p, __FILE__, __LINE__)){
     //fprintf(stderr, ".");
   }
 
@@ -3928,7 +3930,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
     MISSING_METADATA(ar_ptr, oldp);
   } 
 
-  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp)){
+  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__)){
     //printf(stderr, ".");
   }
 

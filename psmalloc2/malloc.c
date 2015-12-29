@@ -3215,7 +3215,8 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
         }
 
 	if(!is_main_arena(av)){
-	  //iam: fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	  //fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	  /* iam: mmapped chunks have their metadata stored in the main arena. */
 	  (void)mutex_unlock(&av->mutex);
 	  (void)mutex_lock(&main_arena.mutex);
 	}

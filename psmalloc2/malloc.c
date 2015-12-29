@@ -3215,11 +3215,13 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
         }
 
 	if(!is_main_arena(av)){
-	  fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	  //iam: fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	  (void)mutex_unlock(&av->mutex);
+	  (void)mutex_lock(&main_arena.mutex);
 	}
 
 	/* handle the metadata  */
-	register_chunk(av, p);
+	register_chunk(&main_arena, p);
 
         /* update statistics */
 
@@ -3235,7 +3237,11 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           mp_.max_total_mem = sum;
 #endif
 
-        check_chunk(av, p);
+        check_chunk(&main_arena, p);
+
+	(void)mutex_unlock(&main_arena.mutex);
+
+	(void)mutex_lock(&av->mutex); //iam: prolly not needed, gonna get unlocked muy pronto...
 
         return chunk2mem(p);
       }
@@ -3849,7 +3855,34 @@ public_fREe(Void_t* mem)
 
   p = mem2chunk(mem);
 
-  
+#if HAVE_MMAP
+  /* iam: hmmmm see point 1. in IANS_NOTES.txt   *//* release mmapped memory. */
+  if (chunk_is_mmapped(p))                       
+    {
+      
+      ar_ptr = &main_arena;
+      (void)mutex_lock(&ar_ptr->mutex);
+
+      _md_p = hashtable_lookup(ar_ptr, p);
+
+      if(_md_p == NULL){
+	MISSING_METADATA(ar_ptr, p);
+      } 
+
+      hashtable_remove(ar_ptr, p);
+      
+      (void)mutex_unlock(&ar_ptr->mutex);
+
+      munmap_chunk(p);
+      
+      return;
+    }
+#endif
+
+
+
+
+
   ar_ptr = arena_for_chunk(p);
 
 
@@ -3865,16 +3898,6 @@ public_fREe(Void_t* mem)
   }
 
 
-#if HAVE_MMAP
-  /* iam: hmmmm see point 1. in IANS_NOTES.txt   */
-  if (chunk_is_mmapped(p))                       /* release mmapped memory. */
-  {
-
-    munmap_chunk(p);
-
-    return;
-  }
-#endif
 
 
 #if THREAD_STATS
@@ -3923,19 +3946,6 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   oldp    = mem2chunk(oldmem);
   oldsize = chunksize(oldp);
 
-  ar_ptr = arena_for_chunk(oldp); /* iam: happens much later in gloger's code */
-
-  /* another good place to check our twinning */
-  _md_oldp = hashtable_lookup (ar_ptr, oldp);
-  
-  if(_md_oldp == NULL){
-    MISSING_METADATA(ar_ptr, oldp);
-  } 
-
-  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__)){
-    //printf(stderr, ".");
-  }
-
 
   if ( !checked_request2size(bytes, &nb) ){
     return 0;
@@ -3946,15 +3956,33 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   {
     Void_t* newmem;
 
+    ar_ptr = &main_arena;
+
+    (void)mutex_lock(&ar_ptr->mutex);
+
+    _md_oldp = hashtable_lookup(ar_ptr, oldp);
+
+    if(_md_oldp == NULL){
+      MISSING_METADATA(ar_ptr, oldp);
+    } 
+    
+    hashtable_remove(ar_ptr, oldp);
+    
 #if HAVE_MREMAP
     newp = mremap_chunk(oldp, nb);
     if (newp) {
       register_chunk(ar_ptr, newp);
+      (void)mutex_unlock(&ar_ptr->mutex);
       return chunk2mem(newp);
     }
 #endif
+
+    (void)mutex_unlock(&ar_ptr->mutex);
+    
     /* Note the extra SIZE_SZ overhead. */
-    if (oldsize - SIZE_SZ >= nb) return oldmem; /* do nothing */
+    if (oldsize - SIZE_SZ >= nb){
+      return oldmem; /* do nothing */
+    }
     /* Must alloc, copy, free. */
     newmem = public_mALLOc(bytes);
     /* iam: malloc should have registered newmem */
@@ -3965,7 +3993,18 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   }
 #endif
 
-  // old location: ar_ptr = arena_for_chunk(oldp);
+  ar_ptr = arena_for_chunk(oldp);
+  
+  /* another good place to check our twinning */
+  _md_oldp = hashtable_lookup (ar_ptr, oldp);
+  
+  if(_md_oldp == NULL){
+    MISSING_METADATA(ar_ptr, oldp);
+  } 
+
+  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__)){
+    //printf(stderr, ".");
+  }
 
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))

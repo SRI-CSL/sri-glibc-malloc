@@ -1,8 +1,11 @@
+0. Locking. most of the locking is done by arena_get and arena_get2.
 
-1. mmapped memory is not associated with an arena, but we will need to
-put it's metadata somewhere... that could make the lookup function a
-bit ugly... since given a chunk we do not really know if it is mmapped
-until we see it metadata, and to find it's metadata ....
+
+1. In ptmalloc and glibc malloc mmapped memory is not associated with
+an arena, but we will need to put it's metadata somewhere... that
+could make the lookup function a bit ugly... since given a chunk we do
+not really know if it is mmapped until we see it metadata, and to find
+it's metadata ....
 
 have a bad feeling that any solution is going to involve locks ...
 
@@ -19,14 +22,14 @@ we need to find out that this is not an arena in our cyclic list.
 but touching that list requires the lock :-(
 
 one possibility that we mentioned in the designfest meeting was to
-retain some innocuous metadata such as this. though we then rely
-(a bit) on the application not trashing memory.
+retain some innocuous metadata such as this. though we then rely (a
+bit) on the application not trashing memory.
 
 
-2.  over the break I have two alternatives. work on the multi arena case
-that is complicated by the above problems. Or work on the single arena case
-which is probably simpler (i.e. dsmallocish) but not as productive. Decisions decisions.
-Not my strong suit.
+2.  over the break I have two alternatives. work on the multi arena
+case that is complicated by the above problems. Or work on the single
+arena case which is probably simpler (i.e. dsmallocish) but not as
+productive. Decisions decisions.  Not my strong suit.
 
 
 OK taking the route of least resistance:  doing it with one arena first...
@@ -73,7 +76,6 @@ solution to the mmap problem mentioned in 1.
 suspect found:
 
 static lppool_t the_pool;
-
 
 on line 1386 of  lphash.c.   FIXED. [X]
 

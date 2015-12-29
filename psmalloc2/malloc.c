@@ -3214,7 +3214,9 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           set_head(p, size|IS_MMAPPED);
         }
 
-	fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	if(!is_main_arena(av)){
+	  fprintf(stderr, "mmapped chunk: %p in main_arena: %d\n", chunk2mem(p), is_main_arena(av));
+	}
 
 	/* handle the metadata  */
 	register_chunk(av, p);

@@ -3281,7 +3281,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       if ((unsigned long)(mmapped_mem + arena_mem + sbrked_mem) > max_total_mem)
 	max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
-      /* Set up the new top.  */                                                
+      /* Set up the new top. */                                                
       top(av) = chunk_at_offset(heap, sizeof(*heap));
       set_head(top(av), (heap->size - sizeof(*heap)) | PREV_INUSE);
       _md_top(av) = register_chunk(av, top(av));
@@ -3297,6 +3297,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       register_chunk(av,  fencepost);
 
       if (old_size >= MINSIZE) {
+
 	fencepost = chunk_at_offset(old_top, old_size);
 	set_head(fencepost, (2*SIZE_SZ)|PREV_INUSE);
 	set_foot(fencepost, (2*SIZE_SZ));
@@ -3304,11 +3305,14 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	
 	set_head(old_top, old_size|PREV_INUSE|NON_MAIN_ARENA);
 	twin(_md_old_top, old_top);
-	_int_free(av, _md_old_top, chunk2mem(old_top)); 
+	_int_free(av, _md_old_top, chunk2mem(old_top));
+	
       } else {
+	
 	set_head(old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
 	set_foot(old_top, (old_size + 2*SIZE_SZ));
 	twin(_md_old_top, old_top);
+	
       }
     }
 #endif

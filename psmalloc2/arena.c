@@ -682,6 +682,17 @@ grow_heap(h, diff) heap_info *h; long diff;
 
 #define delete_heap(heap) munmap((char*)(heap), HEAP_MAX_SIZE)
 
+/* 
+ 
+iam: this is the calling context of heap_trim in _int_free
+
+	  heap_info *heap = heap_for_ptr(top(av));
+	  assert(heap->ar_ptr == av);
+	  heap_trim(heap, mp_.top_pad);
+
+*/
+
+
 static int
 internal_function
 #if __STD_C
@@ -696,33 +707,65 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
-  /* Can this heap go away completely? */                      /* iam: some work here by the looks */
-  while(top_chunk == chunk_at_offset(heap, sizeof(*heap))) {
+  /* Can this heap go away completely? */
+
+  /*
+   * iam: the mstate part of the header only occurs in the first heap
+   * of this arena. all subsequent heaps in the arena start out
+   * with their top being the next pointer after the heap_info
+   * header.
+   *
+   * so this condition is asking: is this non-first heap of
+   * this arena empty.
+  */
+  while(top_chunk == chunk_at_offset(heap, sizeof(*heap))) {    
+
+    /* iam: note that we know prev_heap is not null, because we are in a non-first heap of this arena. */
     prev_heap = heap->prev;
+
+    /* iam: we are going to delete this heap and consolidate the tail of the previous heap */
+    
     p = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
     assert(p->size == (0|PREV_INUSE)); /* must be fencepost */
+
     p = prev_chunk(p);
-    new_size = chunksize(p) + (MINSIZE-2*SIZE_SZ);
+    new_size = chunksize(p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
+    
     assert(new_size>0 && new_size<(long)(2*MINSIZE));
-    if(!prev_inuse(p))
-      new_size += p->prev_size;
-    assert(new_size>0 && new_size<HEAP_MAX_SIZE);
-    if(new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)
+
+    if(!prev_inuse(p)){
+      new_size += p->prev_size;   /* iam: 'nuther chunk bites the dust */
+    }
+    assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
+
+    if(new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)  /* iam: ? */
       break;
+
+    
     ar_ptr->system_mem -= heap->size;
     arena_mem -= heap->size;
+
+    /* iam: we should remove this heap's top from our hashtable  */
+    hashtable_remove(ar_ptr, top_chunk);
     delete_heap(heap);
     heap = prev_heap;
-    if(!prev_inuse(p)) { /* consolidate backward */
-      p = prev_chunk(p);
+    
+    if(!prev_inuse(p)) { /* consolidate backward  iam: again? i thought adjacent frees would already have been coalesced */
+      p = prev_chunk(p);         /* iam: 'nuther chunk bites the dust */
       ps_unlink(p, &bck, &fwd);
     }
     assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);
     assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
+
+    /* iam: we need to get metadata of so we can update it and store it */
     top(ar_ptr) = top_chunk = p;
     set_head(top_chunk, new_size | PREV_INUSE);
-    /*check_chunk(ar_ptr, top_chunk);*/
-  }
+
+    
+    /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
+
+  } /* while */
+  
   top_size = chunksize(top_chunk);
   extra = ((top_size - pad - MINSIZE + (pagesz-1))/pagesz - 1) * pagesz;
   if(extra < (long)pagesz)

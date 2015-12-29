@@ -2594,12 +2594,10 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const 
       return false;
     }
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
-	      ci->size, c->size, is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      //fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n", ci->size, c->size, is_main_arena(av), file, lineno);
+      //fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
-      //iam : currently this fails a lot...
       fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     } else if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks

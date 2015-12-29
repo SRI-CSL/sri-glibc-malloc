@@ -87,3 +87,10 @@ I have not broken other things like dsmalloc.
 
 
 
+12. Current fails (not exhaustive)
+
+
+tests/regress/coverage/random/QF_AUFBV/d6c91c1f.smt2  (core dump)
+tests/regress/coverage/random/QF_AUFBV/da2ad2d3.smt2  (missing metadata)
+
+

@@ -64,8 +64,15 @@ mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o
 gmtreplay: mtreplay.c lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c lphash.o replaylib.o -lpthread  -o  $@
 
+SMT2 = 2668e3c6  d6c91c1f da2ad2d3
+
 testreplay: replay
-	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
+	for smt in $(SMT2) ; do \
+	    echo "<running $$smt >" ; \
+	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
+	    echo "</running $$smt >" ; \
+	done
+
 
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
@@ -77,7 +84,6 @@ gmtestreplay: gmtreplay
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay
 	rm -rf *.dSYM
-	
 
 
 check: $(TESTS)

@@ -66,7 +66,7 @@ mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o
 gmtreplay: mtreplay.c lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c lphash.o replaylib.o -lpthread  -o  $@
 
-SMT2 = 2668e3c6  d6c91c1f da2ad2d3
+SMT2 = 2668e3c6 d6c91c1f da2ad2d3
 
 testreplay: replay
 	for smt in $(SMT2) ; do \
@@ -78,11 +78,9 @@ testreplay: replay
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
+
 gmtestreplay: gmtreplay
 	./gmtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
-
-bug:
-	./replay ../../analysis/data/yices_smt2_da2ad2d3.txt
 
 
 clean:

@@ -86,14 +86,13 @@ void     public_mSTATs __MALLOC_P((void));
 
 void public_mSTATs()
 {
-  mstate ar_ptr;
   struct malloc_global_info mgi;
   unsigned long in_use_b, system_b;
-
+  
 #if THREAD_STATS
   long stat_lock_direct = 0, stat_lock_loop = 0, stat_lock_wait = 0;
 #endif
-
+  
 #if 0
   if(__malloc_initialized < 0)
     ptmalloc_init ();
@@ -108,11 +107,12 @@ void public_mSTATs()
   
 /* iam: seems like ptmalloc wants to use arenas */
 #if USE_ARENAS
-    int i;
-    unsigned long avail_b;
-    struct malloc_arena_info mai;
-
-    for (i=0; (ar_ptr = _int_get_arena(i)); i++) {
+  mstate ar_ptr;
+  int i;
+  unsigned long avail_b;
+  struct malloc_arena_info mai;
+  
+  for (i=0; (ar_ptr = _int_get_arena(i)); i++) {
     _int_get_arena_info(ar_ptr, &mai);
     avail_b = mai.fastavail + mai.binavail + mai.top_size;
     fprintf(stderr, "Arena %d:\n", i);
@@ -135,7 +135,7 @@ void public_mSTATs()
 #else
   fprintf(stderr, "\n");
 #endif
-
+  
 
   
 #if HAVE_MMAP

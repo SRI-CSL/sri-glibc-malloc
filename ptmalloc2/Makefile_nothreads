@@ -47,7 +47,7 @@ testreplay: replay
 
 
 clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so lphash.o replay
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so lphash.o replaylib.o replay
 
 
 # dependencies

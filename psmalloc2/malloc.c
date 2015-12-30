@@ -2610,13 +2610,15 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const 
       fprintf(stderr, "metadata and data do not match\n");
       return false;
     }
-    if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n", ci->size, c->size, is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+    if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
+      fprintf(stderr, "%p: is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n",
+	      chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     }
-    if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
-      fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+    if(size2chunksize(ci->size) != size2chunksize(c->size)){
+      fprintf(stderr, "%p: ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
+	      chunk2mem(c), ci->size, c->size, is_main_arena(av), file, lineno);
+      //fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     }
     if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
@@ -3940,11 +3942,7 @@ public_fREe(Void_t* mem)
     MISSING_METADATA(ar_ptr, p);
   } 
   
-  if (!check_metadata_chunk(ar_ptr, _md_p, p, __FILE__, __LINE__)){
-    //fprintf(stderr, ".");
-  }
-
-
+  check_metadata_chunk(ar_ptr, _md_p, p, __FILE__, __LINE__);
 
 
 #if THREAD_STATS
@@ -3974,9 +3972,10 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   chunkinfoptr _md_oldp;      /* metadata of oldmem            */
     
   INTERNAL_SIZE_T    oldsize; /* its size */
-
-  Void_t* newp;             /* chunk to return */
-
+  
+  Void_t* newmem;
+  mchunkptr newp;              /* chunk corresponding to newmem */
+ 
   __malloc_ptr_t (*hook) __MALLOC_P ((__malloc_ptr_t, size_t,
 				      __const __malloc_ptr_t)) =
     __realloc_hook;
@@ -4001,7 +4000,6 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 #if HAVE_MMAP
   if (chunk_is_mmapped(oldp))
   {
-    Void_t* newmem;
 
     ar_ptr = &main_arena;
 
@@ -4049,9 +4047,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
     MISSING_METADATA(ar_ptr, oldp);
   } 
 
-  if (!check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__)){
-    //printf(stderr, ".");
-  }
+  check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__);
 
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))
@@ -4069,12 +4065,12 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   tsd_setspecific(arena_key, (Void_t *)ar_ptr);
 #endif
 
-  newp = _int_realloc(ar_ptr, _md_oldp, oldmem, bytes);
+  newmem = _int_realloc(ar_ptr, _md_oldp, oldmem, bytes);
 
   (void)mutex_unlock(&ar_ptr->mutex);
-  assert(!newp || chunk_is_mmapped(mem2chunk(newp)) ||
-	 ar_ptr == arena_for_chunk(mem2chunk(newp)));
-  return newp;
+  assert(!newmem || chunk_is_mmapped(mem2chunk(newmem)) ||
+	 ar_ptr == arena_for_chunk(mem2chunk(newmem)));
+  return newmem;
 }
 #ifdef libc_hidden_def
 libc_hidden_def (public_rEALLOc)
@@ -5418,9 +5414,19 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
           check_inuse_chunk(av, newp);
           return chunk2mem(newp);
         }
-      }
-    }
 
+	//iam: need to take care here. newp == oldp 
+	
+      }
+    } /* iam: hunk is already big enough */
+
+    assert(newp == oldp);
+    if(newp != oldp){
+      return 0;
+    }
+    _md_newp = _md_oldp;
+
+    
     /* If possible, free extra space in old or extended chunk */
 
     assert((unsigned long)(newsize) >= (unsigned long)(nb));
@@ -5430,18 +5436,10 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     if (remainder_size < MINSIZE) { /* not enough extra to split off */
       set_head_size(newp, newsize | arena_bit(av));
       set_inuse_bit_at_offset(newp, newsize);
+      twin(_md_newp, newp, false, __FILE__, __LINE__);
     }
     else { /* split remainder */
 
-      /* iam: not sure where newp came form (yet) */
-      _md_newp = hashtable_lookup(av, newp);
-      
-      /* iam: this should be removable once we get our global act together */
-      if(safetynet && _md_newp == NULL){
-	MISSING_METADATA(av, newp);
-	_md_newp = register_chunk(av, newp, __FILE__, __LINE__);
-      }
-      
       /* configure remainder */
       remainder = chunk_at_offset(newp, nb);
       set_head(remainder, remainder_size | PREV_INUSE | arena_bit(av));
@@ -5460,6 +5458,9 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     }
     
     check_inuse_chunk(av, newp);
+
+    check_metadata_chunk(av, _md_newp, newp, __FILE__, __LINE__);
+
     return chunk2mem(newp);
   }
 

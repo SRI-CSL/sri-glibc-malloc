@@ -87,10 +87,9 @@ I have not broken other things like dsmalloc.
 
 
 
-12. Current fails (not exhaustive)
+12. Current fails of a yices make check on shaman:
 
-
-tests/regress/coverage/random/QF_AUFBV/d6c91c1f.smt2  (core dump)
-tests/regress/coverage/random/QF_AUFBV/da2ad2d3.smt2  (missing metadata)
+Pass: 974
+Fail: 0
 
 

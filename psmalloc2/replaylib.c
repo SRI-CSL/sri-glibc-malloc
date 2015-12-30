@@ -18,6 +18,7 @@
 
 const bool silent_running = true;
 const bool deviation_warnings = false;
+const bool track_allocations = false;
 
 const size_t BUFFERSZ = 1024;
 
@@ -114,8 +115,9 @@ int process_file(const char *filename, bool verbose){
   if (fp != NULL) { fclose(fp); }
 
 
+  fprintf(stderr, "\nReplayed %zu lines from  %s\n", linecount, filename);
+
   if(verbose){
-    fprintf(stderr, "\nReplayed %zu lines from  %s\n", linecount, filename);
     fprintf(stderr, "Replay hash:\n");
     dump_lphash(stderr, &htbl, false);
     dump_stats(stderr, &stats);
@@ -203,6 +205,10 @@ static void *_r_malloc(replay_stats_t* statsp, size_t size){
 
   rptr = malloc(size);
 
+  if(track_allocations){
+    fprintf(stderr, "malloc returned %p of requested size %zu\n", rptr, size);
+  }
+
   statsp->malloc_clock += clock() - start;
   statsp->malloc_count++;
 
@@ -217,6 +223,10 @@ static void *_r_realloc(replay_stats_t* statsp, void *ptr, size_t size){
 
   rptr  = realloc(ptr, size);
 
+  if(track_allocations){
+    fprintf(stderr, "realloc returned %p of requested size %zu\n", rptr, size);
+  }
+
   statsp->realloc_clock += clock() - start;
   statsp->realloc_count++;
   
@@ -230,6 +240,10 @@ static void * _r_calloc(replay_stats_t* statsp, size_t count, size_t size){
   start = clock();
     
   rptr = calloc(count, size);
+
+  if(track_allocations){
+    fprintf(stderr, "realloc returned %p of requested size %zu\n", rptr, count * size);
+  }
   
   statsp->calloc_clock += clock() - start;
   statsp->calloc_count++;
@@ -242,6 +256,9 @@ static void _r_free(replay_stats_t* statsp, void *ptr){
 
   start = clock();
 
+  if(track_allocations){
+    fprintf(stderr, "freeing %p\n", ptr);
+  }
   free(ptr);
   
   statsp->free_clock += clock() - start;

@@ -794,7 +794,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     top(ar_ptr) = top_chunk = p;
     _md_top(ar_ptr) = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
-    twin(_md_p, p);
+    twin(_md_p, p, false, __FILE__, __LINE__);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
 
@@ -921,7 +921,7 @@ _int_new_arena(size_t size)
     ptr += MALLOC_ALIGNMENT - misalign;
   top(a) = (mchunkptr)ptr;
   set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);
-  _md_top(a) = register_chunk(a, top(a));
+  _md_top(a) = register_chunk(a, top(a), __FILE__, __LINE__);
 
   return a;
 }

@@ -13,6 +13,29 @@
  *
  */
 
+#define BITS_IN_MASK  64
+
+#define BP_SCALE  1024
+/* one thing for every bit in the bitmask */
+#define BP_LENGTH  BP_SCALE * BITS_IN_MASK  
+
+#define SP_SCALE  8
+/* one thing for every bit in the bitmask */
+#define SP_LENGTH SP_SCALE * BITS_IN_MASK  
+
+struct bucket_pool_s {
+  bucket_t pool[BP_LENGTH];       /* the pool of buckets; one for each bit in the bitmask array */
+  uint64_t bitmasks[BP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use */
+  size_t free_count;              /* the current count of free buckets in this pool             */
+  void* next_bucket_pool;         /* the next bucket pool to look if this one is full           */
+};
+
+struct segment_pool_s {
+  segment_t pool[SP_LENGTH];      /* the pool of segments; one for each bit in the bitmask array */
+  uint64_t bitmasks[SP_SCALE];    /* the array of bitmasks; zero means: free; one means: in use  */
+  size_t free_count;              /* the current count of free segments in this pool             */
+  void* next_segment_pool;        /* the next segment pool to look if this one is full           */
+};
 
 
 typedef struct memcxt_s {

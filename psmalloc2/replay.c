@@ -4,6 +4,8 @@
 
 #include "replaylib.h"
 
+static const bool verbose = false;
+
 /*
  *  Parses the output from ../mhooks/mhook.c and replays it.
  *
@@ -30,10 +32,11 @@ int main(int argc, char* argv[]){
     return 1;
   }
 
-  code = process_file(argv[1], true);
+  code = process_file(argv[1], verbose);
   
-  malloc_stats();
-
+  if (verbose) {
+    malloc_stats();
+  }
 
   return code;
 }

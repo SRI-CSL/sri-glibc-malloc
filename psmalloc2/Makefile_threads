@@ -12,6 +12,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
+#	-DMALLOC_DEBUG=1                          \
+
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1
 
@@ -49,10 +51,10 @@ stest1: $(MALLOCOBJ)
 stest2: $(MALLOCOBJ)
 	$(CC) $(CFLAGS) $(T_FLAGS) stest2.c $(MALLOCOBJ)  -lpthread -o  $@
 
-lphash.o:
+lphash.o: ../lphash/lphash.c
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
 
-replaylib.o:
+replaylib.o:  replaylib.c
 	$(CC) $(CFLAGS) -I../lphash -I../mhooks $(T_FLAGS) replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
@@ -72,7 +74,6 @@ testreplay: replay
 	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
 	    echo "</running $$smt >" ; \
 	done
-
 
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt

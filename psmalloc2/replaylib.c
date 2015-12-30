@@ -115,7 +115,7 @@ int process_file(const char *filename, bool verbose){
   if (fp != NULL) { fclose(fp); }
 
 
-  fprintf(stderr, "\nReplayed %zu lines from  %s\n", linecount, filename);
+  fprintf(stderr, "Replayed %zu lines from  %s\n", linecount, filename);
 
   if(verbose){
     fprintf(stderr, "Replay hash:\n");

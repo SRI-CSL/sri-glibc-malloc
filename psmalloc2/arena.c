@@ -44,6 +44,7 @@
 
 /***************************************************************************/
 
+//iam: these should get the flick...
 #define top(ar_ptr) ((ar_ptr)->top)
 
 #define _md_top(ar_ptr) ((ar_ptr)->_md_top)

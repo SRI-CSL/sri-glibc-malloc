@@ -1526,7 +1526,7 @@ typedef struct malloc_chunk* mchunkptr;
 
 /* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 
-static const bool safetynet = true;  /* iam: turning this off is the acid test of our twinning */
+static const bool safetynet = false;  /* iam: turning this off is the acid test of our twinning */
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, const char* file, int lineno);
 
@@ -2618,7 +2618,7 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const 
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
       fprintf(stderr, "%p: ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
 	      chunk2mem(c), ci->size, c->size, is_main_arena(av), file, lineno);
-      //fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     }
     if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
@@ -3613,7 +3613,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
           /* If possible, release the rest. */
           if (old_size >= MINSIZE) {
-            _int_free(av, NULL, chunk2mem(old_top)); //iam: fix me!
+            _int_free(av, _md_old_top, chunk2mem(old_top)); 
           }
 
         }

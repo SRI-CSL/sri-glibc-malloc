@@ -52,6 +52,8 @@ OK taking the route of least resistance:  doing it with one arena first...
    - call to hook in _int_calloc
 
    - [x] do the fenceposts need metadata? suppose so.
+
+   - why all the extra ()'s in malloc.h?
     
  
 5. Need to have some tests for the odd ball members of the malloc clan. 
@@ -104,4 +106,12 @@ Pass: 974
 Fail: 0
 
 (with check_metadata_chunk turned ON).
+
+
+15. The road ahead:
+
+    - the bins need to become chunkinfoptrs rather than mchunkptrs.
+
+    - the _int_ routines should take and return (where applicable) chunkinfoptrs.
+      note that we need to be careful, because I guess we don't want metadata for NULL.
 

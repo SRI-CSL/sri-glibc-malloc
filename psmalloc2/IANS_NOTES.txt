@@ -87,7 +87,7 @@ I have not broken other things like dsmalloc.
 
 
 
-12. Current fails of a yices make check on shaman:
+12. Current fails of a psmalloc2 yices "make check on" shaman:
 
 Pass: 974
 Fail: 0
@@ -95,4 +95,5 @@ Fail: 0
 (with check_metadata_chunk turned off).
 
 
-13. Next task is to get the metadata to agree with the data.
+13. Next task is to get the metadata to agree with the data, the occasional size,
+and of course lots of prev_size disagrements.

@@ -92,4 +92,7 @@ I have not broken other things like dsmalloc.
 Pass: 974
 Fail: 0
 
+(with check_metadata_chunk turned off).
 
+
+13. Next task is to get the metadata to agree with the data.

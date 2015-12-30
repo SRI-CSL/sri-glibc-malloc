@@ -2514,6 +2514,8 @@ static bool is_main_arena(mstate av)
 
 */
 
+static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const char* file, int lineno);
+
 //needed for malloc_stats which "conveniently" is in another file.
 void dump_hashtable(mstate av)
 {
@@ -2560,9 +2562,11 @@ hashtable_remove (mstate av, mchunkptr p)
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
 
-/* temporary hack to marry metadata to data; 
-   new indicates the chunkinfoptr was newly allocated.
-   false indicates we are just updating already twinned metadata.
+/* 
+ * temporary hack to marry metadata to data; 
+ * new being:
+ * true - indicates the chunkinfoptr was newly allocated.
+ * false - indicates we are just updating already twinned metadata.
 */
 static void twin(chunkinfoptr ci, mchunkptr c, bool new, const char* file, int lineno)
 {
@@ -2607,14 +2611,16 @@ static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const 
       return false;
     }
     if(size2chunksize(ci->size) != size2chunksize(c->size)){
-      //fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n", ci->size, c->size, is_main_arena(av), file, lineno);
-      //fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      fprintf(stderr, "ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n", ci->size, c->size, is_main_arena(av), file, lineno);
+      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
-    } else if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
+    }
+    if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
       fprintf(stderr, "is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
-    } else if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
-      //iam : currently this fails a lot...
+    }
+    if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  //iam: can get away with the cast as long as our metadata chunks look like chunks
+      //iam : currently this fails a lot... not surprising given the circumstances
       //fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d\n", prev_inuse((mchunkptr)ci), prev_inuse(c));
       return false; 
     }

@@ -1526,8 +1526,6 @@ typedef struct malloc_chunk* mchunkptr;
 
 /* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 
-static const bool safetynet = false;  /* iam: turning this off is the acid test of our twinning */
-
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, const char* file, int lineno);
 
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata, const char* file, int lineno);
@@ -4521,10 +4519,7 @@ _int_malloc(mstate av, size_t bytes)
 	_md_victim = hashtable_lookup(av, victim);
 
 	/* iam: this should be removable once we get our global act together */
-	if(safetynet && _md_victim == NULL){
-	  MISSING_METADATA(av, victim);
-	  _md_victim = register_chunk(av, victim, __FILE__, __LINE__);
-	}
+ 	if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
 	
 
         /* split and reattach remainder */
@@ -4646,10 +4641,7 @@ _int_malloc(mstate av, size_t bytes)
 	    _md_victim = hashtable_lookup(av, victim);
 
 	    /* iam: this should be removable once we get our global act together */
-	    if(safetynet && _md_victim == NULL){
-	      MISSING_METADATA(av, victim);
-	      _md_victim = register_chunk(av, victim, __FILE__, __LINE__);
-	    }
+	    if(_md_victim == NULL){ MISSING_METADATA(av, victim);  }
 	
 
 	    /* configure remainder */
@@ -4751,10 +4743,7 @@ _int_malloc(mstate av, size_t bytes)
 	  _md_victim = hashtable_lookup(av, victim);
 
 	  /* iam: this should be removable once we get our global act together */
-	  if(safetynet && _md_victim == NULL){
-	    MISSING_METADATA(av, victim);
-	    _md_victim = register_chunk(av, victim, __FILE__, __LINE__);
-	  }
+	  if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
 
 	  /* configure remainder */
 	  remainder = chunk_at_offset(victim, nb);
@@ -4871,10 +4860,7 @@ _int_free(mstate av, chunkinfoptr _md_p, Void_t* mem)
     size = chunksize(p);
 
     /* iam: this should be removable once we get our global act together */
-    if(safetynet && _md_p == NULL){
-      MISSING_METADATA(av, p);
-      _md_p = register_chunk(av, p, __FILE__, __LINE__);
-    }
+    if(_md_p == NULL){ MISSING_METADATA(av, p); }
 
     check_inuse_chunk(av, p);
 
@@ -5300,11 +5286,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   oldsize = chunksize(oldp);
 
   /* iam: this should be removable once we get our global act together */
-  if(safetynet && _md_oldp == NULL){
-    MISSING_METADATA(av, oldp);
-    _md_oldp = register_chunk(av, oldp, __FILE__, __LINE__);
-  }
-
+  if(_md_oldp == NULL){ MISSING_METADATA(av, oldp); }
   
   check_inuse_chunk(av, oldp);
 
@@ -5597,10 +5579,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
 
   _md_p = hashtable_lookup(av, p);
 
-  if (safetynet && _md_p == NULL){ 
-    MISSING_METADATA(av, p);
-    _md_p = register_chunk(av, p, __FILE__, __LINE__);
-  }
+  if (_md_p == NULL){ MISSING_METADATA(av, p); }
 
   /* iam: so we can tell which path we take */
   newp = NULL;

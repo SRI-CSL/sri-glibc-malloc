@@ -13,6 +13,12 @@
  *
  */
 
+typedef struct memcxt_s {
+  segment_pool_t* segments;
+  bucket_pool_t* buckets;
+} memcxt_t;
+
+
 typedef enum { DIRECTORY, SEGMENT, BUCKET } memtype_t;
 
 extern bool init_memcxt(memcxt_t* memcxt);

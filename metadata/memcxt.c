@@ -35,13 +35,6 @@ struct segment_pool_s {
 };
 
 
-typedef struct memcxt_s {
-  segment_pool_t* segments;
-  bucket_pool_t* buckets;
-} memcxt_t;
-
-
-
 static void* new_directory(memcxt_t* memcxt, void* olddir, size_t size);
 
 static segment_pool_t* new_segments(void);

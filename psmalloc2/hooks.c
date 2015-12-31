@@ -280,11 +280,15 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
 #endif
 {
   mchunkptr p;
-
+  chunkinfoptr _md_p;
+  
   if(!mem) return;
   (void)mutex_lock(&main_arena.mutex);
+
   p = mem2chunk_check(mem);
-  if(!p) {
+  _md_p = hashtable_lookup(&main_arena, p);
+  
+  if(!p || !_md_p) {
     (void)mutex_unlock(&main_arena.mutex);
     if(check_action & 1)
       fprintf(stderr, "free(): invalid pointer %p!\n", mem);
@@ -302,7 +306,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
 #if 0 /* Erase freed memory. */
   memset(mem, 0, chunksize(p) - (SIZE_SZ+1));
 #endif
-  _int_free(&main_arena, NULL, mem); //iam: fix me!
+  _int_free(&main_arena, _md_p, mem); 
   (void)mutex_unlock(&main_arena.mutex);
 }
 
@@ -315,14 +319,16 @@ realloc_check(oldmem, bytes, caller)
 #endif
 {
   mchunkptr oldp;
+  chunkinfoptr _md_oldp;
   INTERNAL_SIZE_T nb, oldsize;
   Void_t* newmem = 0;
 
   if (oldmem == 0) return malloc_check(bytes, NULL);
   (void)mutex_lock(&main_arena.mutex);
   oldp = mem2chunk_check(oldmem);
+  _md_oldp = hashtable_lookup(&main_arena, oldp);
   (void)mutex_unlock(&main_arena.mutex);
-  if(!oldp) {
+  if(!oldp || !_md_oldp) {
     if(check_action & 1)
       fprintf(stderr, "realloc(): invalid pointer %p!\n", oldmem);
     if(check_action & 2)
@@ -362,7 +368,7 @@ realloc_check(oldmem, bytes, caller)
   } else {
 #endif /* HAVE_MMAP */
     if (top_check() >= 0)
-      newmem = _int_realloc(&main_arena, NULL, oldmem, bytes+1); //iam: this needs fixing: we need oldmem's metadata ...
+      newmem = _int_realloc(&main_arena, _md_oldp, oldmem, bytes+1); 
 #if 0 /* Erase freed memory. */
     if(newmem)
       newp = mem2chunk(newmem);
@@ -451,16 +457,21 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
 #endif
 {
   mchunkptr p;
+  chunkinfoptr _md_p;
 
   if(!mem) return;
   p = mem2chunk(mem);
+  _md_p = hashtable_lookup(&main_arena, p);
+  if(_md_p == NULL){
+    return;
+  }
 #if HAVE_MMAP
   if (chunk_is_mmapped(p)) {
     munmap_chunk(p);
     return;
   }
 #endif
-  _int_free(&main_arena, NULL, mem); //iam: fix me!
+  _int_free(&main_arena, _md_p, mem); 
 }
 
 #endif /* !defined NO_THREADS && USE_STARTER */

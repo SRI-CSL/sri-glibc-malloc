@@ -5049,18 +5049,11 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
 
   /*  need to blow away p's metadata */
   if ( _md_p != NULL){
-
     assert(chunkinfo2chunk(_md_p) == p);
-
     hsuccess = hashtable_remove(av, p);
     assert(hsuccess);
     unused_var(hsuccess);
-  } else {
-    //iam: after we complete _int_free and malloc_consolidate this can get ditched.
-    //fprintf(stderr, "coallese_chunk %p  has no metatdada @ %d\n", p, __LINE__);
   }
-
-  
 
   assert(chunkinfo2chunk(_md_top) == nextchunk);
 

@@ -3242,7 +3242,7 @@ static Void_t* sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	}
 
 	/* handle the metadata  */
-	register_chunk(&main_arena, p, __FILE__, __LINE__);
+	_md_p = register_chunk(&main_arena, p, __FILE__, __LINE__);
 
         /* update statistics */
 

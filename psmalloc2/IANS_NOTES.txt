@@ -82,10 +82,10 @@ static lppool_t the_pool;
 on line 1386 of  lphash.c.   FIXED. [X]
 
 
-10. Might want to bring "replay/lphash.[ch]" upto date with "lphash/lphash.[ch]"
+10. [X] Might want to bring "replay/lphash.[ch]" upto date with "lphash/lphash.[ch]" 
 
 11. Clean up mhook (with a mhook.h) [X], and make sure
-I have not broken other things like dsmalloc.
+I have not broken other things like dsmalloc [X].
 
 
 
@@ -113,5 +113,12 @@ Fail: 0
     - the bins need to become chunkinfoptrs rather than mchunkptrs.
 
     - the _int_ routines should take and return (where applicable) chunkinfoptrs.
-      note that we need to be careful, because I guess we don't want metadata for NULL.
+      note that we need to be careful with NULLs, because I guess we don't want
+      metadata for NULL.
+
+      [] sysmalloc
+      [] _int_malloc
+      [] _int_realloc
+      [] _int_free
+
 

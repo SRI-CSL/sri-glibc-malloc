@@ -265,9 +265,14 @@ malloc_check(sz, caller) size_t sz; const Void_t *caller;
 #endif
 {
   Void_t *victim;
-
+  chunkinfoptr _md_victim;
   (void)mutex_lock(&main_arena.mutex);
-  victim = (top_check() >= 0) ? _int_malloc(&main_arena, sz+1) : NULL;
+  if(top_check() >= 0){
+    _md_victim = _int_malloc(&main_arena, sz+1);
+    victim = chunkinfo2mem(_md_victim);
+  } else {
+    victim = NULL;
+  }
   (void)mutex_unlock(&main_arena.mutex);
   return mem2mem_check(victim, sz);
 }
@@ -306,7 +311,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
 #if 0 /* Erase freed memory. */
   memset(mem, 0, chunksize(p) - (SIZE_SZ+1));
 #endif
-  _int_free(&main_arena, _md_p, mem); 
+  _int_free(&main_arena, _md_p); 
   (void)mutex_unlock(&main_arena.mutex);
 }
 
@@ -322,6 +327,7 @@ realloc_check(oldmem, bytes, caller)
   chunkinfoptr _md_oldp;
   INTERNAL_SIZE_T nb, oldsize;
   Void_t* newmem = 0;
+  chunkinfoptr _md_newmem;
 
   if (oldmem == 0) return malloc_check(bytes, NULL);
   (void)mutex_lock(&main_arena.mutex);
@@ -357,8 +363,10 @@ realloc_check(oldmem, bytes, caller)
 	newmem = oldmem; /* do nothing */
       else {
         /* Must alloc, copy, free. */
-        if (top_check() >= 0)
-	  newmem = _int_malloc(&main_arena, bytes+1);
+        if (top_check() >= 0){
+	  _md_newmem = _int_malloc(&main_arena, bytes+1);
+	  newmem = chunkinfo2mem(_md_newmem);
+	}
         if (newmem) {
           MALLOC_COPY(BOUNDED_N(newmem, bytes+1), oldmem, oldsize - 2*SIZE_SZ);
           munmap_chunk(oldp);
@@ -367,8 +375,10 @@ realloc_check(oldmem, bytes, caller)
     }
   } else {
 #endif /* HAVE_MMAP */
-    if (top_check() >= 0)
-      newmem = _int_realloc(&main_arena, _md_oldp, oldmem, bytes+1); 
+    if (top_check() >= 0){
+      _md_newmem = _int_realloc(&main_arena, _md_oldp, oldmem, bytes+1); 
+      newmem = chunkinfo2mem(_md_newmem);
+    }
 #if 0 /* Erase freed memory. */
     if(newmem)
       newp = mem2chunk(newmem);
@@ -399,6 +409,7 @@ memalign_check(alignment, bytes, caller)
 {
   INTERNAL_SIZE_T nb;
   Void_t* mem;
+  chunkinfoptr _md_mem;
 
   if (alignment <= MALLOC_ALIGNMENT) return malloc_check(bytes, NULL);
   if (alignment <  MINSIZE) alignment = MINSIZE;
@@ -406,10 +417,15 @@ memalign_check(alignment, bytes, caller)
   if ( !checked_request2size(bytes+1, &nb) ){
     return 0;
   }
-
   (void)mutex_lock(&main_arena.mutex);
-  mem = (top_check() >= 0) ? _int_memalign(&main_arena, alignment, nb) :  //iam: bytes+1 should be nb
-    NULL;
+
+
+  if (top_check() >= 0) {
+    _md_mem = _int_memalign(&main_arena, alignment, nb); //iam: bytes+1 should be nb
+    mem = chunkinfo2mem(_md_mem);
+  } else {
+    mem = NULL;
+  }
   (void)mutex_unlock(&main_arena.mutex);
   return mem2mem_check(mem, bytes);
 }
@@ -427,10 +443,11 @@ malloc_starter(sz, caller) size_t sz; const Void_t *caller;
 #endif
 {
   Void_t* victim;
+  chunkinfoptr  _md_victim;
 
   ptmalloc_init_minimal();
-  victim = _int_malloc(&main_arena, sz);
-
+  _md_victim = _int_malloc(&main_arena, sz);
+  victim = chunkinfo2mem(_md_victim);
   return victim ? BOUNDED_N(victim, sz) : 0;
 }
 
@@ -442,9 +459,12 @@ memalign_starter(align, sz, caller) size_t align, sz; const Void_t *caller;
 #endif
 {
   Void_t* victim;
+  chunkinfoptr  _md_victim;
 
   ptmalloc_init_minimal();
-  victim = _int_memalign(&main_arena, align, sz);
+  _md_victim = _int_memalign(&main_arena, align, sz);
+
+  victim = chunkinfo2mem(_md_victim);
 
   return victim ? BOUNDED_N(victim, sz) : 0;
 }
@@ -471,7 +491,7 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
     return;
   }
 #endif
-  _int_free(&main_arena, _md_p, mem); 
+  _int_free(&main_arena, _md_p); 
 }
 
 #endif /* !defined NO_THREADS && USE_STARTER */

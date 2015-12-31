@@ -116,9 +116,12 @@ Fail: 0
       note that we need to be careful with NULLs, because I guess we don't want
       metadata for NULL.
 
-      [] sysmalloc
-      [] _int_malloc
-      [] _int_realloc
-      [] _int_free
+      [x] sysmalloc
+      [x] _int_malloc
+      [x] _int_realloc
+      [x] _int_memalign
+      [x] _int_valloc
+      [x] _int_pvalloc
+      [x] _int_free
 
 

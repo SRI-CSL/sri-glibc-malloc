@@ -224,16 +224,20 @@ malloc_atfork(size_t sz, const Void_t *caller)
 {
   Void_t *vptr = NULL;
   Void_t *victim;
+  chunkinfoptr _md_victim;
 
   tsd_getspecific(arena_key, vptr);
   if(vptr == ATFORK_ARENA_PTR) {
     /* We are the only thread that may allocate at all.  */
     if(save_malloc_hook != malloc_check) {
-      return _int_malloc(&main_arena, sz);
+      _md_victim = _int_malloc(&main_arena, sz);
+      return chunkinfo2mem(_md_victim);
+
     } else {
       if(top_check()<0)
         return 0;
-      victim = _int_malloc(&main_arena, sz+1);
+      _md_victim = _int_malloc(&main_arena, sz+1);
+      victim = chunkinfo2mem(_md_victim);
       return mem2mem_check(victim, sz);
     }
   } else {
@@ -278,7 +282,7 @@ free_atfork(Void_t* mem, const Void_t *caller)
   tsd_getspecific(arena_key, vptr);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_lock(&ar_ptr->mutex);
-  _int_free(ar_ptr, _md_p, mem);
+  _int_free(ar_ptr, _md_p);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_unlock(&ar_ptr->mutex);
 }

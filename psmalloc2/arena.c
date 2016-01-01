@@ -711,7 +711,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   mchunkptr p;
   chunkinfoptr _md_p;
   
-  mchunkptr bck, fwd;
+  chunkinfoptr bck, fwd;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
@@ -779,12 +779,14 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
        */
       hashtable_remove(ar_ptr, p);   /* iam: 'nuther chunk bites the dust */
       p = prev_chunk(p);
-      ps_unlink(p, &bck, &fwd);
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if(_md_p == NULL){
 	MISSING_METADATA(ar_ptr, p);
       } 
+      
+      ps_unlink(_md_p, &bck, &fwd);
+
       
     }
     assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);

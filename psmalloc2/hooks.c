@@ -519,7 +519,7 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
 struct malloc_save_state {
   long          magic;
   long          version;
-  mbinptr       av[NBINS * 2 + 2];
+  mbinptr       av[NBINS * 2 + 2];   //iam: check this
   char*         sbrk_base;
   int           sbrked_mem_bytes;
   unsigned long trim_threshold;
@@ -552,7 +552,7 @@ public_gET_STATe(void)
   ms->version = MALLOC_STATE_VERSION;
   ms->av[0] = 0;
   ms->av[1] = 0; /* used to be binblocks, now no longer used */
-  ms->av[2] = main_arena.top;
+  ms->av[2] = main_arena._md_top;
   ms->av[3] = 0; /* used to be undefined */
   for(i=1; i<NBINS; i++) {
     b = bin_at(&main_arena, i);
@@ -605,7 +605,7 @@ public_sET_STATe(Void_t* msptr)
     main_arena.fastbins[i] = 0;
   for (i=0; i<BINMAPSIZE; ++i)
     main_arena.binmap[i] = 0;
-  main_arena.top = ms->av[2];
+  main_arena._md_top = ms->av[2];
   main_arena.last_remainder = 0;
   for(i=1; i<NBINS; i++) {
     b = bin_at(&main_arena, i);
@@ -613,8 +613,8 @@ public_sET_STATe(Void_t* msptr)
       assert(ms->av[2*i+3] == 0);
       first(b) = last(b) = b;
     } else {
-      if(i<NSMALLBINS || (largebin_index(chunksize(ms->av[2*i+2]))==i &&
-			  largebin_index(chunksize(ms->av[2*i+3]))==i)) {
+      if(i<NSMALLBINS || (largebin_index(_md_chunksize(ms->av[2*i+2]))==i &&
+			  largebin_index(_md_chunksize(ms->av[2*i+3]))==i)) {
 	first(b) = ms->av[2*i+2];
 	last(b) = ms->av[2*i+3];
 	/* Make sure the links to the bins within the heap are correct.  */

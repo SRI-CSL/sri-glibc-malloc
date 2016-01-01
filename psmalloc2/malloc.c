@@ -2608,7 +2608,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       fprintf(stderr, "metadata and data do not match\n");
       return false;
     }
-    //iam: can get away with the cast as long as our metadata chunks **looks** like chunks
+    //iam: can get away with the cast as long as our metadata chunks **look** like chunks
     if(chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)){ 
       fprintf(stderr, "%p: is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n",
 	      chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
@@ -2620,7 +2620,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     }
-    //iam: can get away with the cast as long as our metadata chunks **looks** like chunks
+    //iam: can get away with the cast as long as our metadata chunks **look** like chunks
     if(prev_inuse((mchunkptr)ci) != prev_inuse(c)){  
       //iam : currently this fails a lot... not surprising given the circumstances
       //fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d\n", prev_inuse((mchunkptr)ci), prev_inuse(c));

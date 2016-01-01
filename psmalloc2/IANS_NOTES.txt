@@ -125,3 +125,9 @@ Fail: 0
       [x] _int_free
 
 
+16. Do we want to have the req slot in our chunkinfo struct? Might be
+simpler to leave it out at first. Especially given the unclear status
+of issue 1.
+
+17. Bins. Sigh. At least the bins get simpler. Not much change with
+the fastbins, though.

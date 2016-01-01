@@ -1538,7 +1538,7 @@ static Void_t*  chunkinfo2mem(chunkinfoptr _md_victim);
 chunkinfoptr    _int_malloc(mstate, size_t);
 void            _int_free(mstate, chunkinfoptr);
 chunkinfoptr    _int_realloc(mstate, chunkinfoptr, Void_t*, size_t);
-chunkinfoptr    _int_memalign(mstate, size_t, size_t);
+chunkinfoptr   _int_memalign(mstate, size_t, size_t);
 chunkinfoptr    _int_valloc(mstate, size_t);
 static chunkinfoptr  _int_pvalloc(mstate, size_t);
 static Void_t** _int_icalloc(mstate, size_t, size_t, Void_t**);
@@ -2822,34 +2822,36 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
   are not true, it's very likely that a user program has somehow
   trashed memory. (It's also possible that there is a coding error
   in malloc. In which case, please report it!)
+
+  iam: dnmalloc broke this; we should try very hard not to make the same mistake.
 */
 
 #if ! MALLOC_DEBUG
 
-#define check_chunk(A,P)
-#define check_free_chunk(A,P)
-#define check_inuse_chunk(A,P)
-#define check_remalloced_chunk(A,P,N)
-#define check_malloced_chunk(A,P,N)
+#define check_chunk(A,P,MD_P)
+#define check_free_chunk(A,P,MD_P)
+#define check_inuse_chunk(A,P,MD_P)
+#define check_remalloced_chunk(A,P,MD_P,N)
+#define check_malloced_chunk(A,P,MD_P,N)
 #define check_malloc_state(A)
 
 #else
 
-#define check_chunk(A,P)              do_check_chunk(A,P)
-#define check_free_chunk(A,P)         do_check_free_chunk(A,P)
-#define check_inuse_chunk(A,P)        do_check_inuse_chunk(A,P)
-#define check_remalloced_chunk(A,P,N) do_check_remalloced_chunk(A,P,N)
-#define check_malloced_chunk(A,P,N)   do_check_malloced_chunk(A,P,N)
-#define check_malloc_state(A)         do_check_malloc_state(A)
+#define check_chunk(A,P,MD_P)              do_check_chunk(A,P,MD_P)
+#define check_free_chunk(A,P,MD_P)         do_check_free_chunk(A,P,MD_P)
+#define check_inuse_chunk(A,P,MD_P)        do_check_inuse_chunk(A,P,MD_P)
+#define check_remalloced_chunk(A,P,MD_P,N) do_check_remalloced_chunk(A,P,MD_P,N)
+#define check_malloced_chunk(A,P,MD_P,N)   do_check_malloced_chunk(A,P,MD_P,N)
+#define check_malloc_state(A)              do_check_malloc_state(A)
 
 /*
   Properties of all chunks
 */
 
 #if __STD_C
-static void do_check_chunk(mstate av, mchunkptr p)
+static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-static void do_check_chunk(av, p) mstate av; mchunkptr p;
+static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   unsigned long sz = chunksize(p);
@@ -2872,7 +2874,7 @@ static void do_check_chunk(av, p) mstate av; mchunkptr p;
       /* top predecessor always marked inuse */
       assert(prev_inuse(p));
     }
-
+    
   }
   else {
 #if HAVE_MMAP
@@ -2896,15 +2898,15 @@ static void do_check_chunk(av, p) mstate av; mchunkptr p;
 */
 
 #if __STD_C
-static void do_check_free_chunk(mstate av, mchunkptr p)
+static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-static void do_check_free_chunk(av, p) mstate av; mchunkptr p;
+static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
   mchunkptr next = chunk_at_offset(p, sz);
 
-  do_check_chunk(av, p);
+  do_check_chunk(av, p, _md_p);
 
   /* Chunk must claim to be free ... */
   assert(!inuse(p));
@@ -2934,14 +2936,14 @@ static void do_check_free_chunk(av, p) mstate av; mchunkptr p;
 */
 
 #if __STD_C
-static void do_check_inuse_chunk(mstate av, mchunkptr p)
+static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-static void do_check_inuse_chunk(av, p) mstate av; mchunkptr p;
+static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   mchunkptr next;
 
-  do_check_chunk(av, p);
+  do_check_chunk(av, p, _md_p);
 
   if (chunk_is_mmapped(p))
     return; /* mmapped chunks have no next/prev */
@@ -2958,16 +2960,19 @@ static void do_check_inuse_chunk(av, p) mstate av; mchunkptr p;
   if (!prev_inuse(p))  {
     /* Note that we cannot even look at prev unless it is not inuse */
     mchunkptr prv = prev_chunk(p);
+    chunkinfoptr _md_prv = hashtable_lookup(av, prv);
     assert(next_chunk(prv) == p);
-    do_check_free_chunk(av, prv);
+    do_check_free_chunk(av, prv, _md_prv);
   }
 
   if (next == av->top) {
     assert(prev_inuse(next));
     assert(chunksize(next) >= MINSIZE);
   }
-  else if (!inuse(next))
-    do_check_free_chunk(av, next);
+  else if (!inuse(next)){
+    chunkinfoptr _md_next = hashtable_lookup(av, next);
+    do_check_free_chunk(av, next, _md_next);
+  }
 }
 
 /*
@@ -2975,10 +2980,10 @@ static void do_check_inuse_chunk(av, p) mstate av; mchunkptr p;
 */
 
 #if __STD_C
-static void do_check_remalloced_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T s)
+static void do_check_remalloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
 #else
-static void do_check_remalloced_chunk(av, p, s)
-mstate av; mchunkptr p; INTERNAL_SIZE_T s;
+static void do_check_remalloced_chunk(av, p, _md_p, s)
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
@@ -2991,7 +2996,7 @@ mstate av; mchunkptr p; INTERNAL_SIZE_T s;
       assert(av == &main_arena);
   }
 
-  do_check_inuse_chunk(av, p);
+  do_check_inuse_chunk(av, p, _md_p);
 
   /* Legal size ... */
   assert((sz & MALLOC_ALIGN_MASK) == 0);
@@ -3008,14 +3013,14 @@ mstate av; mchunkptr p; INTERNAL_SIZE_T s;
 */
 
 #if __STD_C
-static void do_check_malloced_chunk(mstate av, mchunkptr p, INTERNAL_SIZE_T s)
+static void do_check_malloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
 #else
-static void do_check_malloced_chunk(av, p, s)
-mstate av; mchunkptr p; INTERNAL_SIZE_T s;
+static void do_check_malloced_chunk(av, p, _md_p, s)
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 #endif
 {
   /* same as recycled case ... */
-  do_check_remalloced_chunk(av, p, s);
+  do_check_remalloced_chunk(av, p, _md_p, s);
 
   /*
     ... plus,  must obey implementation invariant that prev_inuse is
@@ -3089,7 +3094,8 @@ static void do_check_malloc_state(mstate av)
 
     while (p != 0) {
       /* each chunk claims to be inuse */
-      do_check_inuse_chunk(av, p);
+      chunkinfoptr _md_p = hashtable_lookup(av, p);  //iam: when bins are chunkinfos ...
+      do_check_inuse_chunk(av, p, _md_p);
       total += chunksize(p);
       /* chunk belongs in this bin */
       assert(fastbin_index(chunksize(p)) == i);
@@ -3118,7 +3124,8 @@ static void do_check_malloc_state(mstate av)
 
     for (p = last(b); p != b; p = p->bk) {
       /* each chunk claims to be free */
-      do_check_free_chunk(av, p);
+      chunkinfoptr _md_p = hashtable_lookup(av, p);  //iam: when bins are chunkinfos ...
+      do_check_free_chunk(av, p, _md_p);
       size = chunksize(p);
       total += size;
       if (i >= 2) {
@@ -3136,13 +3143,15 @@ static void do_check_malloc_state(mstate av)
       for (q = next_chunk(p);
            (q != av->top && inuse(q) &&
              (unsigned long)(chunksize(q)) >= MINSIZE);
-           q = next_chunk(q))
-        do_check_inuse_chunk(av, q);
+           q = next_chunk(q)){
+	chunkinfoptr _md_q = hashtable_lookup(av, q);  //iam: when bins are chunkinfos ...
+        do_check_inuse_chunk(av, q, _md_q);
+      }
     }
   }
 
   /* top chunk is OK */
-  check_chunk(av, av->top);
+  check_chunk(av, av->top, av->_md_top);
 
   /* sanity checks for statistics */
 
@@ -3282,7 +3291,7 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
           mp_.max_total_mem = sum;
 #endif
 
-        check_chunk(&main_arena, p);
+        check_chunk(&main_arena, p, _md_p);
 
 	(void)mutex_unlock(&main_arena.mutex);
 
@@ -3672,7 +3681,7 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
     //assert(hashtable_lookup(av, av->top) != NULL);
 
-    check_malloced_chunk(av, p, nb);
+    check_malloced_chunk(av, p, _md_p, nb);
     return _md_p;
   }
 
@@ -4445,10 +4454,10 @@ _int_malloc(mstate av, size_t bytes)
     fb = &(av->fastbins[(fastbin_index(nb))]);
     if ( (victim = *fb) != 0) {
       *fb = victim->fd;
-      check_remalloced_chunk(av, victim, nb);
       /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
       _md_victim = hashtable_lookup(av, victim);
       if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+      check_remalloced_chunk(av, victim, _md_victim, nb);
       return _md_victim;
     }
   }
@@ -4476,10 +4485,10 @@ _int_malloc(mstate av, size_t bytes)
 
         if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
-        check_malloced_chunk(av, victim, nb);
 	/* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
 	_md_victim = hashtable_lookup(av, victim);
  	if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+        check_malloced_chunk(av, victim, _md_victim, nb);
 	return _md_victim;
       }
     }
@@ -4565,7 +4574,7 @@ _int_malloc(mstate av, size_t bytes)
 	
 	
 	
-        check_malloced_chunk(av, victim, nb);
+        check_malloced_chunk(av, victim, _md_victim, nb);
 	/* iam: metadata done */
 
         return _md_victim;
@@ -4581,10 +4590,10 @@ _int_malloc(mstate av, size_t bytes)
         set_inuse_bit_at_offset(victim, size);
 	if (av != &main_arena)
 	  victim->size |= NON_MAIN_ARENA;
-        check_malloced_chunk(av, victim, nb);
 	/* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
 	_md_victim = hashtable_lookup(av, victim);
  	if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+        check_malloced_chunk(av, victim, _md_victim, nb);
 	return _md_victim;
       }
 
@@ -4651,10 +4660,10 @@ _int_malloc(mstate av, size_t bytes)
 	    set_inuse_bit_at_offset(victim, size);
 	    if (av != &main_arena)
 	      victim->size |= NON_MAIN_ARENA;
-	    check_malloced_chunk(av, victim, nb);
 	    /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
 	    _md_victim = hashtable_lookup(av, victim);
 	    if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+	    check_malloced_chunk(av, victim, _md_victim, nb);
 	    return _md_victim;
 	  }
 	  /* Split */
@@ -4681,7 +4690,7 @@ _int_malloc(mstate av, size_t bytes)
 	    twin(_md_victim, victim, false, __FILE__, __LINE__);
 	    
 	    
-	    check_malloced_chunk(av, victim, nb);
+	    check_malloced_chunk(av, victim, _md_victim, nb);
 	    /* iam: work to do here; victim needs updating and remainder needs metadata */
 	    return _md_victim;
 	  }
@@ -4754,10 +4763,10 @@ _int_malloc(mstate av, size_t bytes)
           set_inuse_bit_at_offset(victim, size);
 	  if (av != &main_arena)
 	    victim->size |= NON_MAIN_ARENA;
-          check_malloced_chunk(av, victim, nb);
 	  /* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
 	  _md_victim = hashtable_lookup(av, victim);
 	  if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+          check_malloced_chunk(av, victim, _md_victim, nb);
 	  return _md_victim;
         }
 
@@ -4788,7 +4797,7 @@ _int_malloc(mstate av, size_t bytes)
 	  set_head(victim, nb | PREV_INUSE | arena_bit(av));
 	  twin(_md_victim, victim, false, __FILE__, __LINE__);
 	  
-          check_malloced_chunk(av, victim, nb);
+          check_malloced_chunk(av, victim, _md_victim, nb);
 	  /* iam: metadata done */
           return _md_victim;
         }
@@ -4830,8 +4839,7 @@ _int_malloc(mstate av, size_t bytes)
       assert(chunkinfo2chunk(av->_md_top) == av->top);
 
 
-      check_malloced_chunk(av, victim, nb);
-      /* iam: done and dusted */
+      check_malloced_chunk(av, victim, _md_victim, nb);
       return _md_victim;
     }
 
@@ -4882,7 +4890,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
     p = chunkinfo2chunk(_md_p);
     size = chunksize(p);
 
-    check_inuse_chunk(av, p);
+    check_inuse_chunk(av, p, _md_p);
 
     /*
       If eligible, place chunk on a fastbin so it can be found
@@ -4978,7 +4986,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
         set_foot(p, size);
 	twin(_md_p, p, false, __FILE__, __LINE__);
 
-        check_free_chunk(av, p);
+        check_free_chunk(av, p, _md_p);
 
       } /* nextchunk != av->top */
 
@@ -4992,12 +5000,12 @@ _int_free(mstate av, chunkinfoptr _md_p)
 
 	/* iam: need to update p's metatdata to at some stage; should be able to add a new arg to coallese_chunk */
 
-	av->_md_top = coallese_chunk(av, NULL, p, size, nextchunk, nextsize); //iam: fix me!
+	av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize); //iam: fix me! check this after the checks_ compile
 	av->top = chunkinfo2chunk(av->_md_top);
 
 	assert(chunkinfo2chunk(av->_md_top) == av->top);
 
-        check_chunk(av, p);
+        check_chunk(av, p, _md_p);
 
       }
 
@@ -5162,13 +5170,13 @@ static void malloc_consolidate(av) mstate av;
         *fb = 0;
 
         do {
-          check_inuse_chunk(av, p);
           nextp = p->fd;
 	  _md_p = hashtable_lookup(av, p);
 
 	  if(_md_p == NULL){
 	    MISSING_METADATA(av, p);
 	  }
+          check_inuse_chunk(av, p, _md_p);
 	  
           /* Slightly streamlined version of consolidation code in free() */
           size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
@@ -5301,7 +5309,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   /* iam: this should be removable once we get our global act together */
   if(_md_oldp == NULL){ MISSING_METADATA(av, oldp); }
   
-  check_inuse_chunk(av, oldp);
+  check_inuse_chunk(av, oldp, _md_oldp);
 
   if (!chunk_is_mmapped(oldp)) {
 
@@ -5342,7 +5350,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 
 	assert(chunkinfo2chunk(av->_md_top) == av->top);
 	
-	check_inuse_chunk(av, oldp);
+	check_inuse_chunk(av, oldp, _md_oldp);
         return _md_oldp;
       }
 
@@ -5407,7 +5415,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
           }
 
           _int_free(av, _md_oldp);
-          check_inuse_chunk(av, newp);
+          check_inuse_chunk(av, newp, _md_newp);
           return _md_newp;
         }
 
@@ -5453,7 +5461,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
       
     }
     
-    check_inuse_chunk(av, newp);
+    check_inuse_chunk(av, newp, _md_newp);
 
     check_metadata_chunk(av, _md_newp, newp, __FILE__, __LINE__);
 
@@ -5663,7 +5671,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     }
   }
 
-  check_inuse_chunk(av, p);
+  check_inuse_chunk(av, p, _md_p);
   return _md_p;
 }
 
@@ -5728,6 +5736,7 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
   chunkinfoptr    _md_p;          /* metadata of corresponding chunk */
   INTERNAL_SIZE_T remainder_size; /* remaining bytes while splitting */
   Void_t**        marray;         /* either "chunks" or malloced ptr array */
+  chunkinfoptr    _md_marray;     /* metadata of marray */
   mchunkptr       array_chunk;    /* chunk for malloced ptr array */
   int             mmx;            /* to disable mmap */
   INTERNAL_SIZE_T size;
@@ -5742,6 +5751,7 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
     if (n_elements == 0)
       return chunks; /* nothing to do */
     marray = chunks;
+    _md_marray = hashtable_lookup(av, mem2chunk(marray));  //iam: could be NULL, not much we can do ...
     array_size = 0;
   }
   else {
@@ -5799,8 +5809,8 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
     array_chunk = chunk_at_offset(p, contents_size);
     marray = (Void_t**) (chunk2mem(array_chunk));
     set_head(array_chunk, (remainder_size - contents_size) | size_flags);
-    register_chunk(av, array_chunk, __FILE__, __LINE__);
-    
+    _md_marray = register_chunk(av, array_chunk, __FILE__, __LINE__);
+    unused_var(_md_marray);
     remainder_size = contents_size;
   }
 
@@ -5827,16 +5837,22 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
 
 #if MALLOC_DEBUG
   if (marray != chunks) {
+    _md_marray = hashtable_lookup(av, mem2chunk(marray));  //iam: could be NULL, not much we can do ...
     /* final element must have exactly exhausted chunk */
     if (element_size != 0)
       assert(remainder_size == element_size);
     else
       assert(remainder_size == request2size(sizes[i]));
-    check_inuse_chunk(av, mem2chunk(marray));
+    check_inuse_chunk(av, mem2chunk(marray), _md_marray);
+    unused_var(_md_marray);
   }
 
-  for (i = 0; i != n_elements; ++i)
-    check_inuse_chunk(av, mem2chunk(marray[i]));
+  for (i = 0; i != n_elements; ++i){
+    mchunkptr memi = mem2chunk(marray[i]);
+    chunkinfoptr _md_memi = hashtable_lookup(av, memi);
+    check_inuse_chunk(av, memi, _md_memi);
+
+  }
 #endif
 
   return marray;

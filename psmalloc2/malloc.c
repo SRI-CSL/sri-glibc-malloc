@@ -2235,8 +2235,9 @@ struct malloc_state {
   mfastbinptr      fastbins[NFASTBINS];
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
-  mchunkptr        top;
-  chunkinfoptr     _md_top;  // metadata for top
+  mchunkptr            top;
+  chunkinfoptr         _md_top;        // metadata for top
+  struct malloc_chunk  initial_top;    // temporary value of initial top while we are in transition.
 
   /* The remainder from the most recent split of a small request */
   mchunkptr        last_remainder;
@@ -2693,11 +2694,14 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
 
 
 static inline bool top_is_initial(mstate av){
-  return av->top == unsorted_chunks(av);
+  return av->top == &(av->initial_top);
 }
 
-static inline mchunkptr initial_top(mstate av){
-  return unsorted_chunks(av);
+static inline chunkinfoptr initial_md_top(mstate av){
+  mchunkptr top = &(av->initial_top);
+  set_head(top, 0 | PREV_INUSE);
+  clear_inuse(top);
+  return register_chunk(av, top, __FILE__, __LINE__);
 }
 
 /*
@@ -2741,9 +2745,9 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
-  av->top            = initial_top(av);
-  av->_md_top        = register_chunk(av, av->top, __FILE__, __LINE__);
-
+  av->_md_top        = initial_md_top(av);
+  av->top            = chunkinfo2chunk(av->_md_top);
+    
   assert(chunkinfo2chunk(av->_md_top) == av->top);
 
 }

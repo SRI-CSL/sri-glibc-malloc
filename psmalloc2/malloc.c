@@ -5764,10 +5764,10 @@ mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
   mmx = mp_.n_mmaps_max;   /* disable mmap */
   mp_.n_mmaps_max = 0;
   _md_p = _int_malloc(av, size);
+  mp_.n_mmaps_max = mmx;   /* reset mmap */
   if (_md_p == 0)
     return 0;
   mem = chunkinfo2mem(_md_p);
-  mp_.n_mmaps_max = mmx;   /* reset mmap */
 
   p = mem2chunk(mem);
   

@@ -2513,7 +2513,7 @@ static bool is_main_arena(mstate av)
 
 */
 
-static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const char* file, int lineno);
+static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno);
 
 //needed for malloc_stats which "conveniently" is in another file.
 void dump_hashtable(mstate av)
@@ -2604,7 +2604,7 @@ static void missing_metadata(mstate av, mchunkptr p, const char* file, int linen
 
 
 /* temporary hack for testing sanity */
-static bool check_metadata_chunk(mstate av, chunkinfoptr ci, mchunkptr c, const char* file, int lineno)
+static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
 
   if (ci != NULL){
@@ -2824,6 +2824,7 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
   in malloc. In which case, please report it!)
 
   iam: dnmalloc broke this; we should try very hard not to make the same mistake.
+  remove the check from the !  MALLOC_DEBUG case when we are finished.
 */
 
 #if ! MALLOC_DEBUG
@@ -2834,6 +2835,9 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
 #define check_remalloced_chunk(A,P,MD_P,N)
 #define check_malloced_chunk(A,P,MD_P,N)
 #define check_malloc_state(A)
+#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
+
+#warning "using do_check_metadata_chunk in ! MALLOC_DEBUG mode"
 
 #else
 
@@ -2843,7 +2847,7 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
 #define check_remalloced_chunk(A,P,MD_P,N) do_check_remalloced_chunk(A,P,MD_P,N)
 #define check_malloced_chunk(A,P,MD_P,N)   do_check_malloced_chunk(A,P,MD_P,N)
 #define check_malloc_state(A)              do_check_malloc_state(A)
-
+#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
 /*
   Properties of all chunks
 */
@@ -3956,7 +3960,7 @@ public_fREe(Void_t* mem)
     MISSING_METADATA(ar_ptr, p);
   } 
   
-  check_metadata_chunk(ar_ptr, _md_p, p, __FILE__, __LINE__);
+  check_metadata_chunk(ar_ptr, p, _md_p);
 
 
 #if THREAD_STATS
@@ -4062,7 +4066,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
     MISSING_METADATA(ar_ptr, oldp);
   } 
 
-  check_metadata_chunk(ar_ptr, _md_oldp, oldp, __FILE__, __LINE__);
+  check_metadata_chunk(ar_ptr, oldp, _md_oldp);
 
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))
@@ -5463,7 +5467,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     
     check_inuse_chunk(av, newp, _md_newp);
 
-    check_metadata_chunk(av, _md_newp, newp, __FILE__, __LINE__);
+    check_metadata_chunk(av, newp, _md_newp);
 
     return _md_newp;
   }

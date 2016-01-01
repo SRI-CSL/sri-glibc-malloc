@@ -1050,8 +1050,11 @@ struct malloc_state {
    * Flag: set true once the mstate is initialized
    * We use it instead of checking whether av->top == 0 to trigger initialization,
    * because we want to keep av->top to NULL until we really allocate it in sysmalloc.
+   *
+   * iam: 1/1/2016 replaced this with the av->max_fast == 0 test.
+   * int initialized;
+   *
    */
-  int initialized;
 
   /* pool memory for the metadata */
   memcxt_t memcxt;
@@ -1209,7 +1212,7 @@ static void malloc_init_state(av) mstate av;
 
   memcpy(av->guard_stored, dnmalloc_arc4random(), GUARD_SIZE);
 
-  av->initialized = true;
+  /* iam: poof  av->initialized = true; */
 
 
 #ifdef DNMALLOC_DEBUG
@@ -1493,7 +1496,7 @@ static bool metadata_is_consistent(void){
 #endif
 
   av = get_malloc_state();
-  if (av == NULL || ! av->initialized) {
+  if (av == NULL || (av->max_fast == 0)){
     return true;
   }
   return forall_metadata(&(av->htbl), metadata_chunk_ok, av->top); 
@@ -3576,7 +3579,7 @@ DL_STATIC struct mallinfo mALLINFo()
   int nfastblocks;
 
   /* Ensure initialization */
-  if (!av || !av->initialized) {
+  if (!av || (av->max_fast == 0)) {
     malloc_consolidate(av);
     av = get_malloc_state();
   }

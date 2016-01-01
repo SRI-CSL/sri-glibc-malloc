@@ -2136,7 +2136,7 @@ typedef struct malloc_chunk* mbinptr;
 */
 
 /* Conveniently, the unsorted bin can be used as dummy top on first call */
-#define initial_top(M)              (unsorted_chunks(M))
+#define ptmalloc_initial_top(M)              (unsorted_chunks(M))
 
 /*
   Binmap
@@ -2589,6 +2589,11 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
   return ( sz & ~(SIZE_BITS));
 }
 
+/* iam: will eventually replace all occurrences of chunksize */
+static inline INTERNAL_SIZE_T _md_chunksize(chunkinfoptr ci)
+{
+  return (ci->size & ~(SIZE_BITS));
+}
 
 static void missing_metadata(mstate av, mchunkptr p, const char* file, int lineno){
   fprintf(stderr, "No metadata for %p of size %zu @ %s line %d. main_arena %d. chunk_is_mmapped: %d\n", 
@@ -2684,6 +2689,15 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
   twin(_md_victim, victim, false, file, lineno);
 
   return _md_remainder;
+}
+
+
+static inline bool top_is_initial(mstate av){
+  return av->top == unsorted_chunks(av);
+}
+
+static inline mchunkptr initial_top(mstate av){
+  return unsorted_chunks(av);
 }
 
 /*
@@ -2863,7 +2877,7 @@ static void do_check_chunk(av, p) mstate av; mchunkptr p;
   else {
 #if HAVE_MMAP
     /* address is outside main heap  */
-    if (contiguous(av) && av->top != initial_top(av)) {
+    if (contiguous(av) && !top_is_initial(av)) {
       assert(((char*)p) < min_address || ((char*)p) > max_address);
     }
     /* chunk is page-aligned */
@@ -3048,7 +3062,7 @@ static void do_check_malloc_state(mstate av)
   assert((MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT-1)) == 0);
 
   /* cannot run remaining checks until fully initialized */
-  if (av->top == 0 || av->top == initial_top(av))
+  if (av->top == 0 || top_is_initial(av))
     return;
 
   /* pagesize is a power of 2 */
@@ -3297,7 +3311,7 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
      at least MINSIZE and to have prev_inuse set.
   */
 
-  assert((old_top == initial_top(av) && old_size == 0) ||
+  assert((top_is_initial(av) && old_size == 0) ||
          ((unsigned long) (old_size) >= MINSIZE &&
           prev_inuse(old_top) &&
 	  ((unsigned long)old_end & pagemask) == 0));
@@ -3341,9 +3355,9 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	max_total_mem = mmapped_mem + arena_mem + sbrked_mem;
 #endif
       /* Set up the new top. */                                                
-      top(av) = chunk_at_offset(heap, sizeof(*heap));
-      set_head(top(av), (heap->size - sizeof(*heap)) | PREV_INUSE);
-      _md_top(av) = register_chunk(av, top(av), __FILE__, __LINE__);
+      av->top = chunk_at_offset(heap, sizeof(*heap));
+      set_head(av->top, (heap->size - sizeof(*heap)) | PREV_INUSE);
+      av->_md_top = register_chunk(av, av->top, __FILE__, __LINE__);
   
       
       /* Setup fencepost and free the old top chunk. */
@@ -4198,8 +4212,8 @@ public_cALLOc(size_t n, size_t elem_size)
   /* Check if we hand out the top chunk, in which case there may be no
      need to clear. */
 #if MORECORE_CLEARS
-  oldtop = top(av);
-  oldtopsize = chunksize(top(av));
+  oldtop = av->top;
+  oldtopsize = chunksize(av->top);
 #if MORECORE_CLEARS < 2
   /* Only newly allocated memory is guaranteed to be cleared.  */
   if (av == &main_arena &&
@@ -5015,7 +5029,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
 #if  USE_ARENAS
 	  /* Always try heap_trim(), even if the top chunk is not
              large, because the corresponding heap might go away.  */
-	  heap_info *heap = heap_for_ptr(top(av));
+	  heap_info *heap = heap_for_ptr(av->top);
 
 	  assert(heap->ar_ptr == av);
 	  heap_trim(heap, mp_.top_pad);

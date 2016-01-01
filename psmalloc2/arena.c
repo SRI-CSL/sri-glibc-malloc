@@ -44,11 +44,6 @@
 
 /***************************************************************************/
 
-//iam: these should get the flick...
-#define top(ar_ptr) ((ar_ptr)->top)
-
-#define _md_top(ar_ptr) ((ar_ptr)->_md_top)
-
 /* A heap is a single contiguous memory region holding (coalesceable)
    malloc_chunks.  It is allocated with mmap() and always starts at an
    address aligned to HEAP_MAX_SIZE.  Not used unless compiling with
@@ -580,7 +575,7 @@ dump_heap(heap) heap_info *heap;
                   ~MALLOC_ALIGN_MASK);
   for(;;) {
     fprintf(stderr, "chunk %p size %10lx", p, (long)p->size);
-    if(p == top(heap->ar_ptr)) {
+    if(p == (heap->ar_ptr)->top) {
       fprintf(stderr, " (top)\n");
       break;
     } else if(p->size == (0|PREV_INUSE)) {
@@ -694,7 +689,7 @@ grow_heap(h, diff) heap_info *h; long diff;
  
 iam: this is the calling context of heap_trim in _int_free
 
-	  heap_info *heap = heap_for_ptr(top(av));
+	  heap_info *heap = heap_for_ptr(av->top);
 	  assert(heap->ar_ptr == av);
 	  heap_trim(heap, mp_.top_pad);
 
@@ -711,7 +706,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = mp_.pagesize;
-  mchunkptr top_chunk = top(ar_ptr);
+  mchunkptr top_chunk = ar_ptr->top;
 
   mchunkptr p;
   chunkinfoptr _md_p;
@@ -796,8 +791,8 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
 
     /* iam: we need to get metadata of so we can update it and store it */
-    top(ar_ptr) = top_chunk = p;
-    _md_top(ar_ptr) = _md_p;
+    ar_ptr->top = top_chunk = p;
+    ar_ptr->_md_top = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
     twin(_md_p, p, false, __FILE__, __LINE__);
     
@@ -924,9 +919,9 @@ _int_new_arena(size_t size)
   misalign = (unsigned long)chunk2mem(ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
-  top(a) = (mchunkptr)ptr;
-  set_head(top(a), (((char*)h + h->size) - ptr) | PREV_INUSE);
-  _md_top(a) = register_chunk(a, top(a), __FILE__, __LINE__);
+  a->top = (mchunkptr)ptr;
+  set_head(a->top, (((char*)h + h->size) - ptr) | PREV_INUSE);
+  a->_md_top = register_chunk(a, a->top, __FILE__, __LINE__);
 
   return a;
 }

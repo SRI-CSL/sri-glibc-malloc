@@ -135,4 +135,10 @@ simpler to leave it out at first. Especially given the unclear status
 of issue 1.
 
 17. Bins. Sigh. At least the bins get simpler. Not much change with
-the fastbins, though.
+the fastbins, though.  Things to pay attention to:
+
+    - ditch initial_top like we did in dsmalloc, this can be done
+      before the bins I suppose.
+
+
+    

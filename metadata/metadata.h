@@ -120,7 +120,7 @@ static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
   chunkinfoptr retval =  memcxt_allocate(htbl->cfg.memcxt, BUCKET, NULL, sizeof(bucket_t));
   retval->prev_size = 0; 
   retval->size = 0; 
-  retval->req = 0; 
+  /* retval->req = 0;  */
   retval->chunk = NULL; 
   retval->next_bucket = NULL; 
   return retval;

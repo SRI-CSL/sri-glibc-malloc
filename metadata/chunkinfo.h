@@ -21,7 +21,7 @@ typedef struct segment_pool_s segment_pool_t;
 typedef struct chunkinfo {
   INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes                 */
   INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead.        */
-  INTERNAL_SIZE_T   req;           /* Original request size, for guard.         */
+  /* INTERNAL_SIZE_T   req;           / * Original request size, for guard.     */
   struct chunkinfo*  fd;	   /* double links -- used only if free.        */
   struct chunkinfo*  bk;           /* double links -- used only if free.        */
   struct chunkinfo*  next_bucket;  /* next bucket in the bin                    */

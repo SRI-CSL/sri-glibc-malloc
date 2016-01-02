@@ -2851,7 +2851,7 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
 
   bool metadata_ok = check_metadata_chunk(av, p, _md_p);
 
-  assert(metadata_ok);  //iam: this causes problems.
+  assert(metadata_ok);
   
   if (!chunk_is_mmapped(p)) {
 
@@ -4041,7 +4041,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
     }
     /* Must alloc, copy, free. */
     newmem = public_mALLOc(bytes);
-    /* iam: malloc should have registered newmem */
+
     if (newmem == 0) return 0; /* propagate failure */
     MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
     munmap_chunk(oldp);
@@ -4194,7 +4194,6 @@ public_cALLOc(size_t n, size_t elem_size)
     }
   }
 
-  /* iam: not sure what to do here */
   if (hook != NULL) {
     sz = bytes;
     mem = (*hook)(sz, RETURN_ADDRESS (0));
@@ -4579,13 +4578,14 @@ _int_malloc(mstate av, size_t bytes)
       /* Take now instead of binning if exact fit */
 
       if (size == nb) {
+
         set_inuse_bit_at_offset(victim, size);
-	if (av != &main_arena)
+	if (av != &main_arena){
 	  victim->size |= NON_MAIN_ARENA;
-	/* iam: should have metadata already; who sets the IN_USE (i.e. the PREV_INUSE)? */
-	_md_victim = hashtable_lookup(av, victim);
- 	if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
+	}
+	twin(_md_victim, victim, false, __FILE__, __LINE__);  // iam: cost of duplication
         check_malloced_chunk(av, victim, _md_victim, nb);
+
 	//fprintf(stderr, "exact fit unsorted_chunks\n");
 	return _md_victim;
       }
@@ -4963,7 +4963,6 @@ _int_free(mstate av, chunkinfoptr _md_p)
 	  /* iam: nextchunk gets absorbed into p */
           ps_unlink(_md_nextchunk, &bck, &fwd);
 	  hashtable_remove(av, nextchunk);
-	  unused_var(_md_nextchunk); //iam: prolly need it at some stage.
           size += nextsize;                         
 	  
         } else {
@@ -5235,7 +5234,7 @@ static void malloc_consolidate(av) mstate av;
 
 	    /* iam: pass in p's metatdata to coallese_chunk  */
 
-	    av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize); //iam: fix me!
+	    av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize);
 	    av->top = chunkinfo2chunk(av->_md_top);
 
 	    assert(chunkinfo2chunk(av->_md_top) == av->top);

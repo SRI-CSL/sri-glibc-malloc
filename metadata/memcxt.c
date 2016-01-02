@@ -53,8 +53,8 @@ static void* pool_mmap(void* oldaddr, size_t size);
 
 static bool pool_munmap(void* memory, size_t size);
 
-
 bool init_memcxt(memcxt_t* memcxt){
+  uint32_t i;
 
   assert(memcxt != NULL);
   if(memcxt == NULL){
@@ -62,6 +62,11 @@ bool init_memcxt(memcxt_t* memcxt){
   }
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
+
+  for(i = 0; i < CACHE_LENGTH; i++){
+    memcxt->bcache[i] = NULL;
+  }
+  memcxt->bcache_count = 0;
 
   return memcxt->segments != NULL && memcxt->buckets != NULL;
 }
@@ -348,8 +353,16 @@ static bucket_t* alloc_bucket(memcxt_t* memcxt){
   bucket_pool_t* bpool_current;
   size_t scale;
   size_t index;
-  
+
   buckp = NULL;
+
+  /* if the cache is not empty; get one from there */
+  if(memcxt->bcache_count > 0){
+    memcxt->bcache_count--;
+    buckp = memcxt->bcache[memcxt->bcache_count];
+    return buckp;
+  }
+  
   
   for (bpool_current = memcxt->buckets; bpool_current != NULL; bpool_current = bpool_current->next_bucket_pool) {
 
@@ -410,6 +423,15 @@ static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp){
   
   assert(memcxt != NULL);
   assert(buckp != NULL);
+
+  /* add it to the cache if there is room */
+  if(memcxt->bcache_count <  CACHE_LENGTH){
+    memcxt->bcache[memcxt->bcache_count] = buckp;
+    memcxt->bcache_count++;
+    //for efficiency cache elements are left in use
+    return true;
+    
+  }
 
   /* get the bucket pool that we belong to */
   bpool = buckp->bucket_pool_ptr;

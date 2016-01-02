@@ -13,9 +13,13 @@
  *
  */
 
+#define CACHE_LENGTH 4
+
 typedef struct memcxt_s {
   segment_pool_t* segments;
   bucket_pool_t* buckets;
+  bucket_t* bcache[CACHE_LENGTH];
+  uint32_t bcache_count;
 } memcxt_t;
 
 

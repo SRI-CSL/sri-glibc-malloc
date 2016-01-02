@@ -25,6 +25,15 @@ one possibility that we mentioned in the designfest meeting was to
 retain some innocuous metadata such as this. though we then rely (a
 bit) on the application not trashing memory.
 
+N.B.: We need to investigate exactly what metadata leads to what attacks.
+
+      - fwd, and bck?
+      - size?
+      - prev_size?
+
+The examples I have seen use fwd and bck. But I didn't do an exhaustive
+search.
+
 
 2.  over the break I have two alternatives. work on the multi arena
 case that is complicated by the above problems. Or work on the single

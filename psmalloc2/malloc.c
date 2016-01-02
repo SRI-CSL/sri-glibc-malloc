@@ -1665,8 +1665,10 @@ struct malloc_chunk {
   INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
-  struct malloc_chunk* fd;         /* double links -- used only if free. */
+  /* these now live solely in the metadata 
+  struct malloc_chunk* fd;      
   struct malloc_chunk* bk;
+  */
 };
 
 
@@ -1708,24 +1710,6 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     Chunks always begin on even word boundries, so the mem portion
     (which is returned to the user) is also on an even word boundary, and
     thus at least double-word aligned.
-
-    Free chunks are stored in circular doubly-linked lists, and look like this:
-
-    chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |             Size of previous chunk                            |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    `head:' |             Size of chunk, in bytes                         |P|
-      mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |             Forward pointer to next chunk in list             |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |             Back pointer to previous chunk in list            |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            |             Unused space (may be 0 bytes long)                .
-            .                                                               .
-            .                                                               |
-nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    `foot:' |             Size of chunk, in bytes                           |
-            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
     The P (PREV_INUSE) bit, stored in the unused low-order bit of the
     chunk size (which is always a multiple of two words), is an in-use
@@ -2694,6 +2678,7 @@ static inline bool top_is_initial(mstate av){
 
 static inline chunkinfoptr initial_md_top(mstate av){
   mchunkptr top = &(av->initial_top);
+  top->prev_size = 0;
   set_head(top, 0 | PREV_INUSE);
   clear_inuse(top);
   return register_chunk(av, top, __FILE__, __LINE__);
@@ -2862,6 +2847,8 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
   char* max_address = (char*)(av->top) + chunksize(av->top);
   char* min_address = max_address - av->system_mem;
 
+  //assert(check_metadata_chunk(av, p, _md_p));  //iam: this causes problems.
+  
   if (!chunk_is_mmapped(p)) {
 
     /* Has legal address ... */
@@ -5184,11 +5171,15 @@ static void malloc_consolidate(av) mstate av;
           nextp = _md_p->fd;
 	  p = chunkinfo2chunk(_md_p);
 
+	  check_metadata_chunk(av, p, _md_p);
+	  
           check_inuse_chunk(av, p, _md_p);
 	  
           /* Slightly streamlined version of consolidation code in free() */
           size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
+
           nextchunk = chunk_at_offset(p, size);
+	  
 	  _md_nextchunk = hashtable_lookup(av, nextchunk);
 
 	  if(_md_nextchunk == NULL){
@@ -5402,7 +5393,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
           s = (INTERNAL_SIZE_T*)(oldmem);
           d = (INTERNAL_SIZE_T*)(newmem);
           ncopies = copysize / sizeof(INTERNAL_SIZE_T);
-          assert(ncopies >= 3);
+
+          assert(ncopies >= 1);  //iam: this was 3, now 1 because of the fwd and bck eliminations? 
 
           if (ncopies > 9)
             MALLOC_COPY(d, s, copysize);

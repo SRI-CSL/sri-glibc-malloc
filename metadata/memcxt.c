@@ -428,7 +428,8 @@ static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp){
   if(memcxt->bcache_count <  CACHE_LENGTH){
     memcxt->bcache[memcxt->bcache_count] = buckp;
     memcxt->bcache_count++;
-    //for efficiency cache elements are left in use
+    //for efficiency cached elements are left in use
+    //so they can immediately be thrown back into the action.
     return true;
     
   }

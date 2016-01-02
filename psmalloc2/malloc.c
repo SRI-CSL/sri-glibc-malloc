@@ -851,7 +851,7 @@ extern Void_t*     sbrk();
 
 /*
   malloc(size_t n)
-  Returns a pointer to a newly allocated chun<k of at least n bytes, or null
+  Returns a pointer to a newly allocated chunk of at least n bytes, or null
   if no space is available. Additionally, on failure, errno is
   set to ENOMEM on ANSI C systems.
 
@@ -1537,7 +1537,7 @@ static Void_t*  chunkinfo2mem(chunkinfoptr _md_victim);
 
 chunkinfoptr    _int_malloc(mstate, size_t);
 void            _int_free(mstate, chunkinfoptr);
-chunkinfoptr    _int_realloc(mstate, chunkinfoptr, Void_t*, size_t);
+chunkinfoptr    _int_realloc(mstate, chunkinfoptr, size_t);
 chunkinfoptr   _int_memalign(mstate, size_t, size_t);
 chunkinfoptr    _int_valloc(mstate, size_t);
 static chunkinfoptr  _int_pvalloc(mstate, size_t);
@@ -4077,7 +4077,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   tsd_setspecific(arena_key, (Void_t *)ar_ptr);
 #endif
 
-  _md_newp  = _int_realloc(ar_ptr, _md_oldp, oldmem, bytes);
+  _md_newp  = _int_realloc(ar_ptr, _md_oldp, bytes);
   newmem = chunkinfo2mem(_md_newp);
 
   (void)mutex_unlock(&ar_ptr->mutex);
@@ -5262,12 +5262,13 @@ static void malloc_consolidate(av) mstate av;
 */
 
 chunkinfoptr
-_int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
+_int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
 {
   INTERNAL_SIZE_T  nb;              /* padded request size */
 
-  mchunkptr        oldp;            /* chunk corresponding to oldmem */
+  mchunkptr        oldp;            /* chunk corresponding to _md_oldp */
   INTERNAL_SIZE_T  oldsize;         /* its size */
+  Void_t*          oldmem;          /* mem of oldp */
 
   mchunkptr        newp;            /* chunk to return */
   chunkinfoptr     _md_newp;        /* metadata of the chunk to return */
@@ -5297,14 +5298,12 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
   }
 #endif
 
-  /* realloc of null is supposed to be same as malloc */
-  if (oldmem == 0) return _int_malloc(av, bytes);
-
-  if ( !checked_request2size(bytes, &nb) ){
+  if ( !checked_request2size(bytes, &nb) || !_md_oldp){
     return 0;
   }
 
-  oldp    = mem2chunk(oldmem);
+  oldp    = chunkinfo2chunk(_md_oldp);
+  oldmem  = chunk2mem(oldp);
   oldsize = chunksize(oldp);
 
   /* iam: this should be removable once we get our global act together */

@@ -376,7 +376,7 @@ realloc_check(oldmem, bytes, caller)
   } else {
 #endif /* HAVE_MMAP */
     if (top_check() >= 0){
-      _md_newmem = _int_realloc(&main_arena, _md_oldp, oldmem, bytes+1); 
+      _md_newmem = _int_realloc(&main_arena, _md_oldp, bytes+1); 
       newmem = chunkinfo2mem(_md_newmem);
     }
 #if 0 /* Erase freed memory. */

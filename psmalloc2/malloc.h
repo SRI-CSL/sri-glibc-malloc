@@ -262,7 +262,7 @@ extern "C" {
   _int_free __MALLOC_P ((mstate __m, struct chunkinfo*  __md_ptr));
   
   extern struct chunkinfo*
-  _int_realloc __MALLOC_P ((mstate __m, struct chunkinfo*  __md_ptr, __malloc_ptr_t __ptr, size_t __size));
+  _int_realloc __MALLOC_P ((mstate __m, struct chunkinfo*  __md_ptr, size_t __size));
 
   extern struct chunkinfo*
   _int_memalign __MALLOC_P ((mstate __m, size_t __alignment, size_t __size));

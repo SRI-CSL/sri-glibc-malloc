@@ -13,7 +13,7 @@
  *
  */
 
-#define CACHE_LENGTH 4
+#define CACHE_LENGTH 2
 
 typedef struct memcxt_s {
   segment_pool_t* segments;

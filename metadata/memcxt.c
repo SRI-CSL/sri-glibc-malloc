@@ -348,6 +348,9 @@ static inline uint64_t clear_bit(uint64_t mask, uint32_t index) {
   return mask & ~(((uint64_t)1) << index); 
 }
 
+//static size_t yes = 0;
+//static size_t no = 0;
+
 static bucket_t* alloc_bucket(memcxt_t* memcxt){
   bucket_t *buckp;
   bucket_pool_t* bpool_current;
@@ -356,11 +359,16 @@ static bucket_t* alloc_bucket(memcxt_t* memcxt){
 
   buckp = NULL;
 
+  //fprintf(stderr, "yes = %zu  no = %zu\n", yes, no);
+  
   /* if the cache is not empty; get one from there */
   if(memcxt->bcache_count > 0){
     memcxt->bcache_count--;
     buckp = memcxt->bcache[memcxt->bcache_count];
+    //yes++;
     return buckp;
+  } else {
+    //no++;
   }
   
   

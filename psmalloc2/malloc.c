@@ -1666,9 +1666,9 @@ struct malloc_chunk {
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
   /* these should now live solely in the metadata  */
+  //struct malloc_chunk* fd;      
+  //struct malloc_chunk* bk;
 
-  struct malloc_chunk* fd;      
-  struct malloc_chunk* bk;
 };
 
 
@@ -1761,8 +1761,8 @@ static inline mchunkptr mem2chunk(void *mem)
   return (mchunkptr)((char*)mem - 2*SIZE_SZ);
 }
 
-/* The smallest possible chunk */
-#define MIN_CHUNK_SIZE        (sizeof(struct malloc_chunk))
+/* The smallest possible chunk. iam: Nota Bene the factor of 2 added after the removal of the metatdata */
+#define MIN_CHUNK_SIZE        (2 * sizeof(struct malloc_chunk))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
 

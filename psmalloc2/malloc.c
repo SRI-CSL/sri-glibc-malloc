@@ -1665,7 +1665,7 @@ struct malloc_chunk {
   INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
-  /* these should now live solely in the metadata  */
+  /* iam: these should now live solely in the metadata  */
   //struct malloc_chunk* fd;      
   //struct malloc_chunk* bk;
 

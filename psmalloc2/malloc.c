@@ -2709,12 +2709,6 @@ static void malloc_init_state(av) mstate av;
   for (i = 1; i < NBINS; ++i) {
     bin = bin_at(av,i);
     bin->fd = bin->bk = bin;
-    bin->size = 0;
-    bin->prev_size = 0;
-  }
-
-  for(i = 0; i < NFASTBINS; ++i){
-    av->fastbins[i] = NULL;
   }
 
 
@@ -5402,7 +5396,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
           d = (INTERNAL_SIZE_T*)(newmem);
           ncopies = copysize / sizeof(INTERNAL_SIZE_T);
 
-          assert(ncopies >= 1);  //iam: this was 3, now 1 because of the fwd and bck eliminations? 
+          assert(ncopies >= 3);
 
           if (ncopies > 9)
             MALLOC_COPY(d, s, copysize);
@@ -5489,6 +5483,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
 #if HAVE_MREMAP
     INTERNAL_SIZE_T offset = oldp->prev_size;
     size_t pagemask = mp_.pagesize - 1;
+    char *old_cp;
     char *cp;
     unsigned long sum;
 
@@ -5499,24 +5494,30 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, Void_t* oldmem, size_t bytes)
     if (oldsize == newsize - offset)
       return _md_oldp;
 
-
+    old_cp = (char*)oldp - offset;
     
 
-    cp = (char*)mremap((char*)oldp - offset, oldsize + offset, newsize, 1);
+    cp = (char*)mremap(old_cp, oldsize + offset, newsize, 1);
 
     if (cp != MAP_FAILED) {
 
-      /* iam: safer to assume here that we are being moved; optimizations later */
+      /* iam: maybe we moved; maybe we didn't */
+      if(cp == old_cp){
+	/* iam: we didn't move */
+	set_head(oldp, (newsize - offset)|IS_MMAPPED);
+	twin(_md_oldp, oldp, false, __FILE__, __LINE__);
+	newp = oldp;
+      } else {
+	/* iam: we moved; need to reregister */
+	hashtable_remove(av, oldp);
 
-      hashtable_remove(av, oldp);
+	newp = (mchunkptr)(cp + offset);
+	set_head(newp, (newsize - offset)|IS_MMAPPED);
 
-      newp = (mchunkptr)(cp + offset);
-      set_head(newp, (newsize - offset)|IS_MMAPPED);
-
-      /* iam: reregister it */
-      _md_oldp = register_chunk(av, newp, __FILE__, __LINE__);
+	/* iam: reregister it */
+	_md_oldp = register_chunk(av, newp, __FILE__, __LINE__);
+      }
       
-
       assert(aligned_OK(chunk2mem(newp)));
       assert((newp->prev_size == offset));
 

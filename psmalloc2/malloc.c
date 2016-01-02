@@ -4459,6 +4459,7 @@ _int_malloc(mstate av, size_t bytes)
       *fb = _md_victim->fd;
       victim = chunkinfo2chunk(_md_victim);
       check_remalloced_chunk(av, victim, _md_victim, nb);
+      //fprintf(stderr, "fastbin\n");
       return _md_victim;
     }
   }
@@ -4492,7 +4493,7 @@ _int_malloc(mstate av, size_t bytes)
 	twin(_md_victim, victim, false, __FILE__, __LINE__);  // iam: cost of duplication
 	  
         check_malloced_chunk(av, victim, _md_victim, nb);
-
+	//fprintf(stderr, "smallbin\n");
 	return _md_victim;
       }
     }
@@ -4574,8 +4575,7 @@ _int_malloc(mstate av, size_t bytes)
 	
 	
         check_malloced_chunk(av, victim, _md_victim, nb);
-	/* iam: metadata done */
-
+	//fprintf(stderr, "last_remainder\n");
         return _md_victim;
       }
 
@@ -4593,6 +4593,7 @@ _int_malloc(mstate av, size_t bytes)
 	_md_victim = hashtable_lookup(av, victim);
  	if(_md_victim == NULL){ MISSING_METADATA(av, victim); }
         check_malloced_chunk(av, victim, _md_victim, nb);
+	//fprintf(stderr, "exact fit unsorted_chunks\n");
 	return _md_victim;
       }
 
@@ -4666,7 +4667,7 @@ _int_malloc(mstate av, size_t bytes)
 	    twin(_md_victim, victim, false, __FILE__, __LINE__); //cost of duplication
 	    
 	    check_malloced_chunk(av, victim, _md_victim, nb);
-
+	    //fprintf(stderr, "Exhaust case. smallbin at index %u\n", idx);
 	    return _md_victim;
 	  }
 	  /* Split */
@@ -4694,7 +4695,8 @@ _int_malloc(mstate av, size_t bytes)
 	    
 	    
 	    check_malloced_chunk(av, victim, _md_victim, nb);
-	    /* iam: work to do here; victim needs updating and remainder needs metadata */
+
+	    //fprintf(stderr, "Split case. smallbin at index %u\n", idx);
 	    return _md_victim;
 	  }
 	}
@@ -4772,7 +4774,7 @@ _int_malloc(mstate av, size_t bytes)
 	  twin(_md_victim, victim, false, __FILE__, __LINE__);
 	  
           check_malloced_chunk(av, victim, _md_victim, nb);
-
+	  //fprintf(stderr, "Exhaust case. bin at index %u\n", idx);
 	  return _md_victim;
         }
 
@@ -4801,7 +4803,8 @@ _int_malloc(mstate av, size_t bytes)
 	  twin(_md_victim, victim, false, __FILE__, __LINE__);
 	  
           check_malloced_chunk(av, victim, _md_victim, nb);
-	  /* iam: metadata done */
+
+	  //fprintf(stderr, "Split case. bin at index %u\n", idx);
           return _md_victim;
         }
       }
@@ -4843,6 +4846,8 @@ _int_malloc(mstate av, size_t bytes)
 
 
       check_malloced_chunk(av, victim, _md_victim, nb);
+
+      //fprintf(stderr, "Using top\n");
       return _md_victim;
     }
 
@@ -4862,6 +4867,7 @@ _int_malloc(mstate av, size_t bytes)
        Otherwise, relay to handle system-dependent cases
     */
     else {
+      //fprintf(stderr, "Using sYSMALLOc\n");
       return sYSMALLOc(nb, av);
     }
   } /* for (;;) */

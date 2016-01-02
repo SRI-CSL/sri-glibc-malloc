@@ -1665,10 +1665,9 @@ struct malloc_chunk {
   INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
-  /* these now live solely in the metadata 
+  /* these should now live solely in the metadata  */
   struct malloc_chunk* fd;      
   struct malloc_chunk* bk;
-  */
 };
 
 
@@ -2704,12 +2703,19 @@ static void malloc_init_state(av) mstate av;
 {
   int     i;
   mbinptr bin;
-
+  
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i) {
     bin = bin_at(av,i);
     bin->fd = bin->bk = bin;
+    bin->size = 0;
+    bin->prev_size = 0;
   }
+
+  for(i = 0; i < NFASTBINS; ++i){
+    av->fastbins[i] = NULL;
+  }
+
 
 #if MORECORE_CONTIGUOUS
   if (av != &main_arena)
@@ -5182,7 +5188,7 @@ static void malloc_consolidate(av) mstate av;
           nextchunk = chunk_at_offset(p, size);
 	  
 	  _md_nextchunk = hashtable_lookup(av, nextchunk);
-
+	  
 	  if(_md_nextchunk == NULL){
 	    MISSING_METADATA(av, nextchunk);
 	  } 

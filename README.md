@@ -17,7 +17,9 @@ implementations.
 
 -  `dsreplay` for replaying the data obtained by using mhook (using a statically linked dsmalloc)
 
--  `ptmalloc2` our ptmalloc playground.
+-  `ptmalloc2` something to compare `psmalloc` to.
+
+-  `psmalloc2` our transformed version of `ptmalloc`.
 
 -  `glibc` our glibc (head of repo) version.
 

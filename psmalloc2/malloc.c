@@ -1635,9 +1635,6 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
 #else
 
 
-#define ptmalloc_MMAP(addr, size, prot, flags) \
- (mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS, -1, 0))
-
 static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 {
   return mmap(addr, length, prot, flags|MAP_ANONYMOUS, -1, 0);
@@ -1747,14 +1744,10 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* conversion from malloc headers to user pointers, and back */
 
-#define ptmalloc_chunk2mem(p)   ((Void_t*)((char*)(p) + 2*SIZE_SZ))
-
 static inline Void_t* chunk2mem(void *p)
 {
   return (Void_t*)((char*)p + 2*SIZE_SZ);
 }
-
-#define ptmalloc_mem2chunk(mem) ((mchunkptr)((char*)(mem) - 2*SIZE_SZ))
 
 static inline mchunkptr mem2chunk(void *mem)
 {
@@ -1770,8 +1763,6 @@ static inline mchunkptr mem2chunk(void *mem)
   (unsigned long)(((MIN_CHUNK_SIZE+MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK))
 
 /* Check if m has acceptable alignment */
-
-#define ptmalloc_aligned_OK(m)  (((unsigned long)((m)) & (MALLOC_ALIGN_MASK)) == 0)
 
 static inline bool aligned_OK(void * m)
 {
@@ -1797,13 +1788,6 @@ static inline bool aligned_OK(void * m)
 
 /*  Same, except also perform argument check */
 
-#define ptmalloc_checked_request2size(req, sz)                             \
-  if (REQUEST_OUT_OF_RANGE(req)) {                                \
-    MALLOC_FAILURE_ACTION;                                        \
-    return 0;                                                     \
-  }                                                               \
-  (sz) = request2size(req);
-
 static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz)
 {
   assert(sz != NULL);
@@ -1824,8 +1808,6 @@ static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz
 #define PREV_INUSE 0x1
 
 /* extract inuse bit of previous chunk */
-#define ptmalloc_prev_inuse(p)       ((p)->size & PREV_INUSE)
-
 static inline bool prev_inuse(mchunkptr p)
 {
   return (p->size & PREV_INUSE) == PREV_INUSE;
@@ -1836,8 +1818,6 @@ static inline bool prev_inuse(mchunkptr p)
 #define IS_MMAPPED 0x2
 
 /* check for mmap()'ed chunk */
-#define ptmalloc_chunk_is_mmapped(p) ((p)->size & IS_MMAPPED)
-
 static inline bool chunk_is_mmapped(mchunkptr p)
 {
   return (p->size & IS_MMAPPED)  == IS_MMAPPED;
@@ -1850,8 +1830,6 @@ static inline bool chunk_is_mmapped(mchunkptr p)
 #define NON_MAIN_ARENA 0x4
 
 /* check for chunk from non-main arena */
-#define ptmalloc_chunk_non_main_arena(p) ((p)->size & NON_MAIN_ARENA)
-
 static inline bool chunk_non_main_arena(mchunkptr p)
 {
   return (p->size & NON_MAIN_ARENA) == NON_MAIN_ARENA;
@@ -1868,16 +1846,12 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 #define SIZE_BITS (PREV_INUSE|IS_MMAPPED|NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
-#define ptmalloc_chunksize(p)         ((p)->size & ~(SIZE_BITS))
-
 static inline INTERNAL_SIZE_T chunksize(mchunkptr p)
 {
   return (p->size & ~(SIZE_BITS));
 }
 
 /* Ptr to next physical malloc_chunk. */
-#define ptmalloc_next_chunk(p) ((mchunkptr)( ((char*)(p)) + ((p)->size & ~SIZE_BITS) ))
-
 static inline mchunkptr next_chunk(mchunkptr p)
 {
   return ((mchunkptr)( ((char*)p) + (p->size & ~SIZE_BITS) ));
@@ -1885,16 +1859,12 @@ static inline mchunkptr next_chunk(mchunkptr p)
 
 
 /* Ptr to previous physical malloc_chunk */
-#define ptmalloc_prev_chunk(p) ((mchunkptr)( ((char*)(p)) - ((p)->prev_size) ))
-
 static inline mchunkptr prev_chunk(mchunkptr p)
 {
   return ((mchunkptr)( ((char*)p) - (p->prev_size) ));
 }
 
 /* Treat space at ptr + offset as a chunk */
-#define ptmalloc_chunk_at_offset(p, s)  ((mchunkptr)(((char*)(p)) + (s)))
-
 static inline mchunkptr chunk_at_offset(void* p, INTERNAL_SIZE_T s)
 {
   return ((mchunkptr)(((char*)p) + s));
@@ -1903,9 +1873,6 @@ static inline mchunkptr chunk_at_offset(void* p, INTERNAL_SIZE_T s)
 
 
 /* extract p's inuse bit */
-#define ptmalloc_inuse(p)\
-((((mchunkptr)(((char*)(p))+((p)->size & ~SIZE_BITS)))->size) & PREV_INUSE)
-
 static inline int inuse(mchunkptr p)
 {
   return ((((mchunkptr)(((char*)p)+(p->size & ~SIZE_BITS)))->size) & PREV_INUSE);
@@ -1913,16 +1880,10 @@ static inline int inuse(mchunkptr p)
 
 
 /* set/clear chunk as being inuse without otherwise disturbing */
-#define ptmalloc_set_inuse(p)\
-((mchunkptr)(((char*)(p)) + ((p)->size & ~SIZE_BITS)))->size |= PREV_INUSE
-
 static inline void set_inuse(mchunkptr p)
 {
   ((mchunkptr)(((char*)p) + (p->size & ~SIZE_BITS)))->size |= PREV_INUSE;
 }
-
-#define ptmalloc_clear_inuse(p)\
-((mchunkptr)(((char*)(p)) + ((p)->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE)
 
 static inline void clear_inuse(mchunkptr p)
 {
@@ -1931,26 +1892,15 @@ static inline void clear_inuse(mchunkptr p)
 
 
 /* check/set/clear inuse bits in known places */
-#define ptmalloc_inuse_bit_at_offset(p, s)\
- (((mchunkptr)(((char*)(p)) + (s)))->size & PREV_INUSE)
-
 static inline int inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
 {
   return (((mchunkptr)(((char*)p) + s))->size & PREV_INUSE);
 }
 
-#define ptmalloc_set_inuse_bit_at_offset(p, s)\
- (((mchunkptr)(((char*)(p)) + (s)))->size |= PREV_INUSE)
-
 static inline void set_inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
 {
   ((mchunkptr)(((char*)p) + s))->size |= PREV_INUSE;
 }
-
-
-
-#define ptmalloc_clear_inuse_bit_at_offset(p, s)\
- (((mchunkptr)(((char*)(p)) + (s)))->size &= ~(PREV_INUSE))
 
 static inline void clear_inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
 {
@@ -1958,8 +1908,6 @@ static inline void clear_inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
 }
 
 /* Set size at head, without disturbing its use bit */
-#define ptmalloc_set_head_size(p, s)  ((p)->size = (((p)->size & SIZE_BITS) | (s)))
-
 static inline void set_head_size(mchunkptr p, INTERNAL_SIZE_T s)
 {
   p->size = ((p->size & SIZE_BITS) | s);
@@ -1967,16 +1915,12 @@ static inline void set_head_size(mchunkptr p, INTERNAL_SIZE_T s)
 
 
 /* Set size/use field */
-#define ptmalloc_set_head(p, s)       ((p)->size = (s))
-
 static inline void set_head(mchunkptr p, INTERNAL_SIZE_T s)
 {
   p->size = s;
 }
 
 /* Set size at footer (only when chunk is not in use) */
-#define ptmalloc_set_foot(p, s)       (((mchunkptr)((char*)(p) + (s)))->prev_size = (s))
-
 static inline void set_foot(mchunkptr p, INTERNAL_SIZE_T s)
 {
   ((mchunkptr)((char*)p + s))->prev_size = s;
@@ -2119,14 +2063,10 @@ typedef struct chunkinfo* mbinptr;
 #define BITSPERMAP       (1U << BINMAPSHIFT)
 #define BINMAPSIZE       (NBINS / BITSPERMAP)
 
-#define ptmalloc_idx2block(i)     ((i) >> BINMAPSHIFT)
-
 static inline unsigned int idx2block(unsigned int i)
 {
   return (i >> BINMAPSHIFT);
 }
-
-#define ptmalloc_idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT)-1))))
 
 static inline unsigned int idx2bit(unsigned int i)
 {
@@ -2284,14 +2224,6 @@ static inline mbinptr bin_at(mstateptr m, int i)
 #define last(b)      ((b)->bk)
 
 /* Take a chunk off a bin list */
-#define ptmalloc_unlink(P, BK, FD) {                                   \
-  FD = P->fd;                                                          \
-  BK = P->bk;                                                          \
-  FD->bk = BK;                                                         \
-  BK->fd = FD;                                                         \
-}
-  
-
 static inline void ps_unlink(chunkinfoptr p, chunkinfoptr *bkp, chunkinfoptr *fdp)
 {
   assert(p != NULL);
@@ -2305,21 +2237,15 @@ static inline void ps_unlink(chunkinfoptr p, chunkinfoptr *bkp, chunkinfoptr *fd
 }
 
 			    
-#define ptmalloc_mark_bin(m,i)    ((m)->binmap[idx2block(i)] |=  idx2bit(i))
-
 static inline void mark_bin(mstateptr m, int i)
 {
   m->binmap[idx2block(i)] |=  idx2bit(i);
 }
 
-#define ptmalloc_unmark_bin(m,i)  ((m)->binmap[idx2block(i)] &= ~(idx2bit(i)))
-
 static inline void unmark_bin(mstateptr m, int i)
 {
   m->binmap[idx2block(i)] &= ~(idx2bit(i));
 }
-
-#define ptmalloc_get_binmap(m,i)  ((m)->binmap[idx2block(i)] &   idx2bit(i))
 
 static inline unsigned int get_binmap(mstateptr m, int i)
 {
@@ -2327,28 +2253,15 @@ static inline unsigned int get_binmap(mstateptr m, int i)
 }
 
 
-#define ptmalloc_in_smallbin_range(sz)			\
-  ((unsigned long)(sz) < (unsigned long)MIN_LARGE_SIZE)
-
 static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 {
   return ((unsigned long)sz < (unsigned long)MIN_LARGE_SIZE);
 }
 
-#define ptmalloc_smallbin_index(sz)     (((unsigned)(sz)) >> 3)
-
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 {
   return (((unsigned int)sz) >> 3);
 }
-
-#define ptmalloc_largebin_index(sz)                                          \
-(((((unsigned long)(sz)) >>  6) <= 32)?  56 + (((unsigned long)(sz)) >>  6): \
- ((((unsigned long)(sz)) >>  9) <= 20)?  91 + (((unsigned long)(sz)) >>  9): \
- ((((unsigned long)(sz)) >> 12) <= 10)? 110 + (((unsigned long)(sz)) >> 12): \
- ((((unsigned long)(sz)) >> 15) <=  4)? 119 + (((unsigned long)(sz)) >> 15): \
- ((((unsigned long)(sz)) >> 18) <=  2)? 124 + (((unsigned long)(sz)) >> 18): \
-                                        126)
 
 static unsigned int largebin_index(INTERNAL_SIZE_T sz)
 {
@@ -2380,21 +2293,15 @@ static unsigned int largebin_index(INTERNAL_SIZE_T sz)
 
 #define FASTCHUNKS_BIT        (1U)
 
-#define ptmalloc_have_fastchunks(M)     (((M)->max_fast &  FASTCHUNKS_BIT) == 0)
-
 static inline bool have_fastchunks(mstateptr m)
 {
   return ((m->max_fast & FASTCHUNKS_BIT) == 0);
 }
 
-#define ptmalloc_clear_fastchunks(M)    ((M)->max_fast |=  FASTCHUNKS_BIT)
-
 static inline void clear_fastchunks(mstateptr M)
 {
   M->max_fast |=  FASTCHUNKS_BIT;
 }
-
-#define ptmalloc_set_fastchunks(M)      ((M)->max_fast &= ~FASTCHUNKS_BIT)
 
 static inline void set_fastchunks(mstateptr M)
 {
@@ -2412,28 +2319,20 @@ static inline void set_fastchunks(mstateptr M)
 
 #define NONCONTIGUOUS_BIT     (2U)
 
-#define ptmalloc_contiguous(M)          (((M)->max_fast &  NONCONTIGUOUS_BIT) == 0)
-
 static inline bool contiguous(mstateptr M)
 {
   return ((M->max_fast &  NONCONTIGUOUS_BIT) == 0);
 }
-
-#define ptmalloc_noncontiguous(M)       (((M)->max_fast &  NONCONTIGUOUS_BIT) != 0)
 
 static inline bool noncontiguous(mstateptr M)
 {
   return ((M->max_fast &  NONCONTIGUOUS_BIT) != 0);
 }
 
-#define ptmalloc_set_noncontiguous(M)   ((M)->max_fast |=  NONCONTIGUOUS_BIT)
-
 static inline void set_noncontiguous(mstateptr M)
 {
   M->max_fast |=  NONCONTIGUOUS_BIT;
 }
-
-#define ptmalloc_set_contiguous(M)      ((M)->max_fast &= ~NONCONTIGUOUS_BIT)
 
 static inline void set_contiguous(mstateptr M)
 {
@@ -2446,12 +2345,6 @@ static inline void set_contiguous(mstateptr M)
    Precondition: there are no existing fastbin chunks.
    Setting the value clears fastchunk bit but preserves noncontiguous bit.
 */
-
-#define ptmalloc_set_max_fast(M, s) \
-  (M)->max_fast = (((s) == 0)? SMALLBIN_WIDTH: request2size(s)) |	\
-  FASTCHUNKS_BIT | \
-  ((M)->max_fast &  NONCONTIGUOUS_BIT)
-
 static inline void set_max_fast(mstateptr M, int s)
 {
   M->max_fast = ((s == 0)? SMALLBIN_WIDTH: request2size(s)) |

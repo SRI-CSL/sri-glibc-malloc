@@ -141,5 +141,6 @@ the fastbins, though.  Things to pay attention to:
     - [x] ditch initial_top like we did in dsmalloc, this can be done
       before the bins I suppose.
 
-
+18. First step in ditching the metadata in chunks is to ditch the fwd and
+bck pointers.
     

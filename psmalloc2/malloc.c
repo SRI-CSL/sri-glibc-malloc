@@ -2927,8 +2927,8 @@ static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfop
     assert (next == av->top || inuse(next));
 
     /* ... and has minimally sane links */
-    assert(p->fd->bk == p);
-    assert(p->bk->fd == p);
+    assert(_md_p->fd->bk == _md_p);
+    assert(_md_p->bk->fd == _md_p);
   }
   else /* markers are always of size SIZE_SZ */
     assert(sz == SIZE_SZ);
@@ -3053,6 +3053,8 @@ mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 static void do_check_malloc_state(mstate av)
 {
   int i;
+  chunkinfoptr _md_p;
+  chunkinfoptr _md_q;
   mchunkptr p;
   mchunkptr q;
   mbinptr b;
@@ -3089,20 +3091,20 @@ static void do_check_malloc_state(mstate av)
   max_fast_bin = fastbin_index(av->max_fast);
 
   for (i = 0; i < NFASTBINS; ++i) {
-    p = av->fastbins[i];
+    _md_p = av->fastbins[i];
 
     /* all bins past max_fast are empty */
     if (i > max_fast_bin)
-      assert(p == 0);
+      assert(_md_p == 0);
 
-    while (p != 0) {
+    while (_md_p != 0) {
+      p = chunkinfo2chunk(_md_p);
       /* each chunk claims to be inuse */
-      chunkinfoptr _md_p = hashtable_lookup(av, p);  //iam: when bins are chunkinfos ...
       do_check_inuse_chunk(av, p, _md_p);
       total += chunksize(p);
       /* chunk belongs in this bin */
       assert(fastbin_index(chunksize(p)) == i);
-      p = p->fd;
+      _md_p = _md_p->fd;
     }
   }
 
@@ -3125,9 +3127,9 @@ static void do_check_malloc_state(mstate av)
         assert(binbit);
     }
 
-    for (p = last(b); p != b; p = p->bk) {
+    for (_md_p = last(b); _md_p != b; _md_p = _md_p->bk) {
       /* each chunk claims to be free */
-      chunkinfoptr _md_p = hashtable_lookup(av, p);  //iam: when bins are chunkinfos ...
+      p = chunkinfo2chunk(_md_p);
       do_check_free_chunk(av, p, _md_p);
       size = chunksize(p);
       total += size;
@@ -3137,17 +3139,17 @@ static void do_check_malloc_state(mstate av)
         assert(idx == i);
         /* lists are sorted */
         if ((unsigned long) size >= (unsigned long)(FIRST_SORTED_BIN_SIZE)) {
-	  assert(p->bk == b ||
-		 (unsigned long)chunksize(p->bk) >=
-		 (unsigned long)chunksize(p));
+	  assert(_md_p->bk == b ||
+		 (unsigned long)_md_chunksize(_md_p->bk) >=
+		 (unsigned long)_md_chunksize(_md_p));
 	}
       }
       /* chunk is followed by a legal chain of inuse chunks */
       for (q = next_chunk(p);
            (q != av->top && inuse(q) &&
-             (unsigned long)(chunksize(q)) >= MINSIZE);
+	    (unsigned long)(chunksize(q)) >= MINSIZE);
            q = next_chunk(q)){
-	chunkinfoptr _md_q = hashtable_lookup(av, q);  //iam: when bins are chunkinfos ...
+	_md_q = hashtable_lookup(av, q);
         do_check_inuse_chunk(av, q, _md_q);
       }
     }

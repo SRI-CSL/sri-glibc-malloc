@@ -13,12 +13,12 @@
  *
  */
 
-#define CACHE_LENGTH 2
+#define MAX_CACHE_LENGTH 16
 
 typedef struct memcxt_s {
   segment_pool_t* segments;
   bucket_pool_t* buckets;
-  bucket_t* bcache[CACHE_LENGTH];
+  bucket_t* bcache;
   uint32_t bcache_count;
 } memcxt_t;
 

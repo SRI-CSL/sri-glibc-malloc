@@ -54,18 +54,14 @@ static void* pool_mmap(void* oldaddr, size_t size);
 static bool pool_munmap(void* memory, size_t size);
 
 bool init_memcxt(memcxt_t* memcxt){
-  uint32_t i;
-
   assert(memcxt != NULL);
   if(memcxt == NULL){
     return false;
   }
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
-
-  for(i = 0; i < CACHE_LENGTH; i++){
-    memcxt->bcache[i] = NULL;
-  }
+  /* we will use the idle chunk pointer to form a linked list of cached items */
+  memcxt->bcache = NULL;
   memcxt->bcache_count = 0;
 
   return memcxt->segments != NULL && memcxt->buckets != NULL;
@@ -359,13 +355,15 @@ static bucket_t* alloc_bucket(memcxt_t* memcxt){
 
   buckp = NULL;
 
-  //fprintf(stderr, "yes = %zu  no = %zu\n", yes, no);
   
   /* if the cache is not empty; get one from there */
   if(memcxt->bcache_count > 0){
     memcxt->bcache_count--;
-    buckp = memcxt->bcache[memcxt->bcache_count];
+    buckp = memcxt->bcache;
+    memcxt->bcache = (bucket_t *)(buckp->chunk);
+    buckp->chunk = NULL;
     //yes++;
+    //fprintf(stderr, "yes = %zu  no = %zu; cache_length = %u\n", yes, no, memcxt->bcache_count);
     return buckp;
   } else {
     //no++;
@@ -433,8 +431,9 @@ static bool free_bucket(memcxt_t* memcxt, bucket_t* buckp){
   assert(buckp != NULL);
 
   /* add it to the cache if there is room */
-  if(memcxt->bcache_count <  CACHE_LENGTH){
-    memcxt->bcache[memcxt->bcache_count] = buckp;
+  if(memcxt->bcache_count <  MAX_CACHE_LENGTH){
+    buckp->chunk = (void *)(memcxt->bcache);
+    memcxt->bcache = buckp;
     memcxt->bcache_count++;
     //for efficiency cached elements are left in use
     //so they can immediately be thrown back into the action.

@@ -219,17 +219,19 @@ top_check(void)
 top_check()
 #endif
 {
-  mchunkptr t = main_arena.top;
+  mchunkptr ot;
+  mchunkptr top;
   char* brk, * new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
   unsigned long pagesz = malloc_getpagesize;
-
+  ot = chunkinfo2chunk(main_arena._md_top);
+  
   if (top_is_initial(&main_arena) ||
-      (!chunk_is_mmapped(t) &&
-       chunksize(t)>=MINSIZE &&
-       prev_inuse(t) &&
+      (!chunk_is_mmapped(ot) &&
+       chunksize(ot)>=MINSIZE &&
+       prev_inuse(ot) &&
        (!contiguous(&main_arena) ||
-	(char*)t + chunksize(t) == mp_.sbrk_base + main_arena.system_mem)))
+	(char*)ot + chunksize(ot) == mp_.sbrk_base + main_arena.system_mem)))
     return 0;
 
   if(check_action & 1)
@@ -251,8 +253,9 @@ top_check()
     (*__after_morecore_hook) ();
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
 
-  main_arena.top = (mchunkptr)(brk + front_misalign);
-  set_head(main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
+  top = (mchunkptr)(brk + front_misalign);
+  set_head(top, (sbrk_size - front_misalign) | PREV_INUSE);
+  main_arena._md_top = register_chunk(&main_arena, top);
 
   return 0;
 }

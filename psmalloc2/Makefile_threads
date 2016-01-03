@@ -12,8 +12,9 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
-#	-DMALLOC_DEBUG=1                          \
+
 #	-DNDEBUG                                  \
+#	-DMALLOC_DEBUG=1                          \
 
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1

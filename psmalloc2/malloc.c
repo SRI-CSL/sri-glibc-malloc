@@ -2153,8 +2153,7 @@ struct malloc_state {
   mfastbinptr   fastbins[NFASTBINS];
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
-  mchunkptr            top;
-  chunkinfoptr         _md_top;        // metadata for top
+  chunkinfoptr         _md_top;        // metadata of top chunk
   struct malloc_chunk  initial_top;    // temporary value of initial top while we are in transition.
 
   /* The remainder from the most recent split of a small request */
@@ -2571,7 +2570,7 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
 
 static inline bool top_is_initial(mstate av)
 {
-  return av->top == &(av->initial_top);
+  return chunkinfo2chunk(av->_md_top) == &(av->initial_top);
 }
 
 static inline chunkinfoptr initial_md_top(mstate av)
@@ -2626,9 +2625,6 @@ static void malloc_init_state(av) mstate av;
   }
 
   av->_md_top        = initial_md_top(av);
-  av->top            = chunkinfo2chunk(av->_md_top);
-    
-  assert(chunkinfo2chunk(av->_md_top) == av->top);
 
 }
 
@@ -2744,7 +2740,8 @@ static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 {
   unsigned long sz = chunksize(p);
   /* min and max possible addresses assuming contiguous allocation */
-  char* max_address = (char*)(av->top) + chunksize(av->top);
+  mchunkptr top = chunkinfo2chunk(av->_md_top);
+  char* max_address = (char*)top + chunksize(top);
   char* min_address = max_address - av->system_mem;
 
   bool metadata_ok = check_metadata_chunk(av, p, _md_p);
@@ -2754,10 +2751,10 @@ static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
   if (!chunk_is_mmapped(p)) {
 
     /* Has legal address ... */
-    if (p != av->top) {
+    if (p != top) {
       if (contiguous(av)) {
         assert(((char*)p) >= min_address);
-        assert(((char*)p + sz) <= ((char*)(av->top)));
+        assert(((char*)p + sz) <= (char*)top);
       }
     }
     else {
@@ -2797,6 +2794,7 @@ static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
   mchunkptr next = chunk_at_offset(p, sz);
+  mchunkptr top = chunkinfo2chunk(av->_md_top);
 
   do_check_chunk(av, p, _md_p);
 
@@ -2813,7 +2811,7 @@ static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
       assert(next->prev_size == sz);
       /* ... and is fully consolidated */
       assert(prev_inuse(p));
-      assert (next == av->top || inuse(next));
+      assert (next == top || inuse(next));
 
       /* ... and has minimally sane links */
       assert(_md_p->fd->bk == _md_p);
@@ -2833,6 +2831,7 @@ static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
   static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
+  mchunkptr top = chunkinfo2chunk(av->_md_top);
   mchunkptr next;
 
   do_check_chunk(av, p, _md_p);
@@ -2857,7 +2856,7 @@ static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
     do_check_free_chunk(av, prv, _md_prv);
   }
 
-  if (next == av->top) {
+  if (next == top) {
     assert(prev_inuse(next));
     assert(chunksize(next) >= MINSIZE);
   }
@@ -2953,6 +2952,9 @@ static void do_check_malloc_state(mstate av)
   INTERNAL_SIZE_T size;
   unsigned long total = 0;
   int max_fast_bin;
+  mchunkptr top;
+
+  top = chunkinfo2chunk(av->_md_top);
 
   /* internal size_t must be no wider than pointer type */
   assert(sizeof(INTERNAL_SIZE_T) <= sizeof(char*));
@@ -2961,7 +2963,7 @@ static void do_check_malloc_state(mstate av)
   assert((MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT-1)) == 0);
 
   /* cannot run remaining checks until fully initialized */
-  if (av->top == 0 || top_is_initial(av))
+  if (top == 0 || top_is_initial(av))
     return;
 
   /* pagesize is a power of 2 */
@@ -2970,7 +2972,7 @@ static void do_check_malloc_state(mstate av)
   /* A contiguous main_arena is consistent with sbrk_base.  */
   if (av == &main_arena && contiguous(av))
     assert((char*)mp_.sbrk_base + av->system_mem ==
-           (char*)av->top + chunksize(av->top));
+           (char*)top + chunksize(top));
 
   /* properties of fastbins */
 
@@ -3035,7 +3037,7 @@ static void do_check_malloc_state(mstate av)
       }
       /* chunk is followed by a legal chain of inuse chunks */
       for (q = next_chunk(p);
-           (q != av->top && inuse(q) &&
+           (q != top && inuse(q) &&
             (unsigned long)(chunksize(q)) >= MINSIZE);
            q = next_chunk(q)) {
         _md_q = hashtable_lookup(av, q);
@@ -3045,7 +3047,7 @@ static void do_check_malloc_state(mstate av)
   }
 
   /* top chunk is OK */
-  check_chunk(av, av->top, av->_md_top);
+  check_chunk(av, top, av->_md_top);
 
   /* sanity checks for statistics */
 
@@ -3078,8 +3080,8 @@ static void do_check_malloc_state(mstate av)
 
 /*
   sysmalloc handles malloc cases requiring more memory from the system.
-  On entry, it is assumed that av->top does not have enough
-  space to service request for nb bytes, thus requiring that av->top
+  On entry, it is assumed that av->_md_top does not have enough
+  space to service request for nb bytes, thus requiring that av->_md_top
   be extended or replaced.
 */
 
@@ -3089,7 +3091,9 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
   static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 #endif
 {
-  mchunkptr       old_top;        /* incoming value of av->top */
+  mchunkptr       top;            /* for updating av->_md_top */
+
+  mchunkptr       old_top;        /* incoming value of av->_md_top's chunk */
   chunkinfoptr    _md_old_top;    /* incoming value of av->_md_top  */
   INTERNAL_SIZE_T old_size;       /* its size */
   char*           old_end;        /* its end address */
@@ -3199,10 +3203,8 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 
   /* Record incoming configuration of top */
 
-  old_top  = av->top;
+  old_top  = chunkinfo2chunk(av->_md_top);
   _md_old_top  = av->_md_top;
-
-  assert(chunkinfo2chunk(av->_md_top) == av->top);
 
   old_size = chunksize(old_top);
   old_end  = (char*)(chunk_at_offset(old_top, old_size));
@@ -3250,9 +3252,9 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
       av->system_mem += heap->size;
       arena_mem += heap->size;
       /* Set up the new top. */                                                
-      av->top = chunk_at_offset(heap, sizeof(*heap));
-      set_head(av->top, (heap->size - sizeof(*heap)) | PREV_INUSE);
-      av->_md_top = register_chunk(av, av->top);
+      top = chunk_at_offset(heap, sizeof(*heap));
+      set_head(top, (heap->size - sizeof(*heap)) | PREV_INUSE);
+      av->_md_top = register_chunk(av, top);
   
       
       /* Setup fencepost and free the old top chunk. */
@@ -3425,7 +3427,7 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
               Skip over some bytes to arrive at an aligned position.
               We don't need to specially mark these wasted front bytes.
               They will never be accessed anyway because
-              prev_inuse of av->top (and any chunk created from its start)
+              prev_inuse of av->_md_top (and any chunk created from its start)
               is always true after initialization.
             */
 
@@ -3480,17 +3482,14 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
         /* Adjust top based on results of second sbrk */
         if (snd_brk != (char*)(MORECORE_FAILURE)) {
 
-          av->top = (mchunkptr)aligned_brk;
-          set_head(av->top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
+          top = (mchunkptr)aligned_brk;
+          set_head(top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
 
           /* handle the metadata below */
 
-          av->_md_top = register_chunk(av, av->top);
-
-          assert(chunkinfo2chunk(av->_md_top) == av->top);
+          av->_md_top = register_chunk(av, top);
 
           /* iam: deal with old_top and the fenceposts.. */
-
 
           av->system_mem += correction;
 
@@ -3553,21 +3552,18 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
   check_malloc_state(av);
 
   /* finally, do the allocation */
-  p = av->top;
   _md_p = av->_md_top;
+  p = chunkinfo2chunk(_md_p);
+
   size = chunksize(p);
 
   /* check that one of the above allocation paths succeeded */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
 
     av->_md_top = split_chunk(av, _md_p, p, size, nb);
-    av->top  = chunkinfo2chunk(av->_md_top);
-
-    assert(chunkinfo2chunk(av->_md_top) == av->top);
-
-    //assert(hashtable_lookup(av, av->top) != NULL);
 
     check_malloced_chunk(av, p, _md_p, nb);
+
     return _md_p;
   }
 
@@ -3598,10 +3594,12 @@ static int sYSTRIm(size_t pad, mstate av)
   long  released;        /* Amount actually released */
   char* current_brk;     /* address returned by pre-check sbrk call */
   char* new_brk;         /* address returned by post-check sbrk call */
+  mchunkptr top;         /* _md_top's chunk */
   size_t pagesz;
 
+  top = chunkinfo2chunk(av->_md_top);
   pagesz = mp_.pagesize;
-  top_size = chunksize(av->top);
+  top_size = chunksize(top);
 
   /* Release in pagesize units, keeping at least one page */
   extra = ((top_size - pad - MINSIZE + (pagesz-1)) / pagesz - 1) * pagesz;
@@ -3613,7 +3611,7 @@ static int sYSTRIm(size_t pad, mstate av)
       This avoids problems if there were foreign sbrk calls.
     */
     current_brk = (char*)(MORECORE(0));
-    if (current_brk == (char*)(av->top) + top_size) {
+    if (current_brk == (char*)top + top_size) {
 
       /*
         Attempt to release memory. We ignore MORECORE return value,
@@ -3639,9 +3637,9 @@ static int sYSTRIm(size_t pad, mstate av)
 
           av->system_mem -= released;
 
-          /* update top and it's metadata */
-          set_head(av->top, (top_size - released) | PREV_INUSE);
-          update(av->_md_top, av->top);
+          /* update top's metadata */
+          set_head(top, (top_size - released) | PREV_INUSE);
+          update(av->_md_top, top);
 
 
           check_malloc_state(av);
@@ -4055,10 +4053,12 @@ Void_t*
 public_cALLOc(size_t n, size_t elem_size)
 {
   mstate av;
-  mchunkptr oldtop, p;
+  mchunkptr oldtop;
+  mchunkptr p;
   INTERNAL_SIZE_T bytes, sz, csz, oldtopsize;
   Void_t* mem;
   chunkinfoptr _md_mem;
+  mchunkptr cmem;
   unsigned long clearsize;
   unsigned long nclears;
   INTERNAL_SIZE_T* d;
@@ -4098,8 +4098,8 @@ public_cALLOc(size_t n, size_t elem_size)
   /* Check if we hand out the top chunk, in which case there may be no
      need to clear. */
 #if MORECORE_CLEARS
-  oldtop = av->top;
-  oldtopsize = chunksize(av->top);
+  oldtop = chunkinfo2chunk(av->_md_top);
+  oldtopsize = chunksize(oldtop);
 #if MORECORE_CLEARS < 2
   /* Only newly allocated memory is guaranteed to be cleared.  */
   if (av == &main_arena &&
@@ -4108,13 +4108,14 @@ public_cALLOc(size_t n, size_t elem_size)
 #endif
 #endif
   _md_mem = _int_malloc(av, sz);
-
+  cmem = chunkinfo2chunk(_md_mem);
+  
   /* Only clearing follows, so we can unlock early. */
   (void)mutex_unlock(&av->mutex);
 
-  assert(!_md_mem || chunk_is_mmapped(chunkinfo2chunk(_md_mem)) ||
-         av == arena_for_chunk(chunkinfo2mem(_md_mem)));
-
+  assert(!cmem || chunk_is_mmapped(cmem) || av == arena_for_chunk(cmem));
+  unused_var(cmem);
+  
   if (_md_mem == 0) {
     /* Maybe the failure is due to running out of mmapped areas. */
     if (av != &main_arena) {
@@ -4307,7 +4308,6 @@ _int_malloc(mstate av, size_t bytes)
 
   chunkinfoptr    fwd;              /* misc temp for linking */
   chunkinfoptr    bck;              /* misc temp for linking */
-
 
   /*
     Convert request size to internal form by adding SIZE_SZ bytes
@@ -4689,20 +4689,20 @@ _int_malloc(mstate av, size_t bytes)
   use_top:
     /*
       If large enough, split off the chunk bordering the end of memory
-      (held in av->top). Note that this is in accord with the best-fit
-      search rule.  In effect, av->top is treated as larger (and thus
+      (held in av->_md_top). Note that this is in accord with the best-fit
+      search rule.  In effect, av->_md_top is treated as larger (and thus
       less well fitting) than any other available chunk since it can
       be extended to be as large as necessary (up to system
       limitations).
 
-      We require that av->top always exists (i.e., has size >=
+      We require that av->_md_top always exists (i.e., has size >=
       MINSIZE) after initialization, so if it would otherwise be
       exhausted by current request, it is replenished. (The main
       reason for ensuring it exists is that we may need MINSIZE space
       to put in fenceposts in sysmalloc.)
     */
 
-    victim = av->top;
+    victim = chunkinfo2chunk(av->_md_top);
     size = chunksize(victim);
 
 
@@ -4711,16 +4711,8 @@ _int_malloc(mstate av, size_t bytes)
 
       _md_victim = av->_md_top;
 
-      assert(chunkinfo2chunk(av->_md_top) == av->top);
-      
-      assert(_md_victim != NULL);
-
       av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
-      av->top = chunkinfo2chunk(av->_md_top);
       
-      assert(chunkinfo2chunk(av->_md_top) == av->top);
-
-
       check_malloced_chunk(av, victim, _md_victim, nb);
 
       //fprintf(stderr, "Using top\n");
@@ -4789,7 +4781,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
           If TRIM_FASTBINS set, don't place chunks
           bordering top into fastbins
         */
-        && (chunk_at_offset(p, size) != av->top)
+        && (chunk_at_offset(p, size) != chunkinfo2chunk(av->_md_top))
 #endif
         ) {
 
@@ -4836,7 +4828,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
         ps_unlink(_md_p, &bck, &fwd);
       }
 
-      if (nextchunk != av->top) {
+      if (nextchunk != chunkinfo2chunk(av->_md_top)) {
 
         /* get and clear inuse bit */
         nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
@@ -4872,7 +4864,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
 
         check_free_chunk(av, p, _md_p);
 
-      } /* nextchunk != av->top */
+      } /* nextchunk != chunkinfo2chunk(av->_md_top) */
 
       /*
         If the chunk borders the current high end of memory,
@@ -4880,14 +4872,11 @@ _int_free(mstate av, chunkinfoptr _md_p)
       */
 
       else {
-        /* nextchunk == av->top */
+        /* nextchunk == chunkinfo2chunk(av->_md_top) */
 
         av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize); 
-        av->top = chunkinfo2chunk(av->_md_top);
 
-        assert(chunkinfo2chunk(av->_md_top) == av->top);
-
-        check_chunk(av, av->top, av->_md_top);
+        check_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top);
 
       }
 
@@ -4910,7 +4899,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
 
         if (av == &main_arena) {
 #ifndef MORECORE_CANNOT_TRIM
-          if ((unsigned long)(chunksize(av->top)) >=
+          if ((unsigned long)(chunksize(chunkinfo2chunk(av->_md_top))) >=
               (unsigned long)(mp_.trim_threshold))
             sYSTRIm(mp_.top_pad, av);
 #endif
@@ -4919,7 +4908,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
 #if  USE_ARENAS
           /* Always try heap_trim(), even if the top chunk is not
              large, because the corresponding heap might go away.  */
-          heap_info *heap = heap_for_ptr(av->top);
+          heap_info *heap = heap_for_ptr(chunkinfo2chunk(av->_md_top));
 
           assert(heap->ar_ptr == av);
           heap_trim(heap, mp_.top_pad);
@@ -4956,7 +4945,8 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
 {
   bool hsuccess;
   chunkinfoptr _md_top = av->_md_top;
-
+  mchunkptr top = chunkinfo2chunk(_md_top);
+  
   /*  need to blow away p's metadata */
   if ( _md_p != NULL) {
     assert(chunkinfo2chunk(_md_p) == p);
@@ -4965,14 +4955,14 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
     unused_var(hsuccess);
   }
 
-  assert(chunkinfo2chunk(_md_top) == nextchunk);
+  assert(top == nextchunk);
 
   if ( _md_top != NULL) {
-    hsuccess = hashtable_remove(av, av->top);
+    hsuccess = hashtable_remove(av, top);
     assert(hsuccess);
     unused_var(hsuccess);
   } else {
-    fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+    fprintf(stderr, "av->_md_top is NULL\n");
   }
 
   p_size += nextsize;
@@ -5087,7 +5077,7 @@ static void malloc_consolidate(mstate av)
             ps_unlink(_md_p, &bck, &fwd);
           }
 
-          if (nextchunk != av->top) {
+          if (nextchunk != chunkinfo2chunk(av->_md_top)) {
             nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
 
             if (!nextinuse) {
@@ -5113,15 +5103,11 @@ static void malloc_consolidate(mstate av)
           }
 
           else {
-            /* nextchunk == av->top */
+            /* nextchunk == chunkinfo2chunk(av->_md_top) */
 
             /* iam: pass in p's metatdata to coallese_chunk  */
 
             av->_md_top = coallese_chunk(av, _md_p, p, size, nextchunk, nextsize);
-            av->top = chunkinfo2chunk(av->_md_top);
-
-            assert(chunkinfo2chunk(av->_md_top) == av->top);
-
 
           }
           
@@ -5172,6 +5158,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
   INTERNAL_SIZE_T* s;               /* copy source */
   INTERNAL_SIZE_T* d;               /* copy destination */
 
+  chunkinfoptr _md_top; 
+  mchunkptr    top;
 
 #if REALLOC_ZERO_BYTES_FREES
   if (bytes == 0) {
@@ -5188,6 +5176,9 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
   oldmem  = chunk2mem(oldp);
   oldsize = chunksize(oldp);
 
+  _md_top = av->_md_top;
+  top = chunkinfo2chunk(_md_top);
+ 
   /* iam: this should be removable once we get our global act together */
   if (_md_oldp == NULL) { missing_metadata(av, oldp); }
   
@@ -5205,39 +5196,36 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
       next = chunk_at_offset(oldp, oldsize);
 
       /* Try to expand forward into top */
-      if (next == av->top &&
+      if (next == top &&
           (unsigned long)(newsize = oldsize + chunksize(next)) >=
           (unsigned long)(nb + MINSIZE)) {
 
         /* we are going to move top nb bytes along; so we'll need to provide new metatdata */
         bool hsuccess;
-        chunkinfoptr _md_top = av->_md_top; 
         if ( _md_top != NULL) {
-          hsuccess = hashtable_remove(av, av->top);
+          hsuccess = hashtable_remove(av, top);
           assert(hsuccess);
           unused_var(hsuccess);
         } else {
-          fprintf(stderr, "av->top %p  has no metatdada @ %d\n", av->top, __LINE__);
+          fprintf(stderr, "top %p  has no metatdada @ %d\n", top, __LINE__);
         }
 
         /* iam: need to update oldp's metatdata */
         set_head_size(oldp, nb | arena_bit(av));
         update(_md_oldp, oldp);
         
-        av->top = chunk_at_offset(oldp, nb);
-        set_head(av->top, (newsize - nb) | PREV_INUSE);
+        top = chunk_at_offset(oldp, nb);
+        set_head(top, (newsize - nb) | PREV_INUSE);
 
         /* removing invalidates; need to get a fresh one */
-        av->_md_top = register_chunk(av, av->top);
+        av->_md_top = register_chunk(av, top);
 
-        assert(chunkinfo2chunk(av->_md_top) == av->top);
-        
         check_inuse_chunk(av, oldp, _md_oldp);
         return _md_oldp;
       }
 
       /* Try to expand forward into next chunk;  split off remainder below */
-      else if (next != av->top &&
+      else if (next != top &&
                !inuse(next) &&
                (unsigned long)(newsize = oldsize + chunksize(next)) >=
                (unsigned long)(nb)) {
@@ -5850,7 +5838,7 @@ void _int_get_arena_info(mstate av, struct malloc_arena_info *mai)
   (void)mutex_lock(&av->mutex);
 
   /* Ensure initialization */
-  if (av->top == 0)  malloc_consolidate(av);
+  if (av->_md_top == 0)  malloc_consolidate(av);
 
   check_malloc_state(av);
 
@@ -5875,7 +5863,7 @@ void _int_get_arena_info(mstate av, struct malloc_arena_info *mai)
   mai->nbinblocks = nbinblocks;
   mai->fastavail = fastavail;
   mai->binavail = binavail;
-  mai->top_size = chunksize(av->top);
+  mai->top_size = chunksize(chunkinfo2chunk(av->_md_top));
   mai->system_mem = av->system_mem;
   mai->max_system_mem = av->max_system_mem;
   mai->stat_lock_direct = av->stat_lock_direct;

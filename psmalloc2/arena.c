@@ -565,6 +565,9 @@ dump_heap(heap) heap_info *heap;
 {
   char *ptr;
   mchunkptr p;                                                        
+  mchunkptr top;
+
+  top = chunkinfo2chunk((heap->ar_ptr)->_md_top);
 
   fprintf(stderr, "Heap %p, size %10lx:\n", heap, (long)heap->size);
   
@@ -575,7 +578,7 @@ dump_heap(heap) heap_info *heap;
                   ~MALLOC_ALIGN_MASK);
   for(;;) {
     fprintf(stderr, "chunk %p size %10lx", p, (long)p->size);
-    if(p == (heap->ar_ptr)->top) {
+    if(p == top) {
       fprintf(stderr, " (top)\n");
       break;
     } else if(p->size == (0|PREV_INUSE)) {
@@ -685,17 +688,6 @@ grow_heap(h, diff) heap_info *h; long diff;
 
 #define delete_heap(heap) munmap((char*)(heap), HEAP_MAX_SIZE)
 
-/* 
- 
-iam: this is the calling context of heap_trim in _int_free
-
-	  heap_info *heap = heap_for_ptr(av->top);
-	  assert(heap->ar_ptr == av);
-	  heap_trim(heap, mp_.top_pad);
-
-*/
-
-
 static int
 internal_function
 #if __STD_C
@@ -706,7 +698,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = mp_.pagesize;
-  mchunkptr top_chunk = ar_ptr->top;
+  mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
 
   mchunkptr p;
   chunkinfoptr _md_p;
@@ -793,7 +785,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
 
     /* iam: we need to get metadata of so we can update it and store it */
-    ar_ptr->top = top_chunk = p;
+    top_chunk = p;
     ar_ptr->_md_top = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
     update(_md_p, p);
@@ -894,7 +886,8 @@ _int_new_arena(size_t size)
   heap_info *h;
   char *ptr;
   unsigned long misalign;
-
+  mchunkptr top;
+  
   h = new_heap(size + (sizeof(*h) + sizeof(*a) + MALLOC_ALIGNMENT),
 	       mp_.top_pad);
   if(!h) {
@@ -921,9 +914,9 @@ _int_new_arena(size_t size)
   misalign = (unsigned long)chunk2mem(ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
-  a->top = (mchunkptr)ptr;
-  set_head(a->top, (((char*)h + h->size) - ptr) | PREV_INUSE);
-  a->_md_top = register_chunk(a, a->top);
+  top = (mchunkptr)ptr;
+  set_head(top, (((char*)h + h->size) - ptr) | PREV_INUSE);
+  a->_md_top = register_chunk(a, top);
 
   return a;
 }

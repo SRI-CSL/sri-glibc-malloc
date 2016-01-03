@@ -2735,7 +2735,7 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
 #if __STD_C
 static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-  static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   unsigned long sz = chunksize(p);
@@ -2789,7 +2789,7 @@ static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #if __STD_C
 static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-  static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
@@ -2828,7 +2828,7 @@ static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #if __STD_C
 static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #else
-  static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
 #endif
 {
   mchunkptr top = chunkinfo2chunk(av->_md_top);
@@ -2873,8 +2873,8 @@ static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
 #if __STD_C
 static void do_check_remalloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
 #else
-  static void do_check_remalloced_chunk(av, p, _md_p, s)
-     mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
+static void do_check_remalloced_chunk(av, p, _md_p, s)
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
@@ -2906,8 +2906,8 @@ static void do_check_remalloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p
 #if __STD_C
 static void do_check_malloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
 #else
-  static void do_check_malloced_chunk(av, p, _md_p, s)
-     mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
+static void do_check_malloced_chunk(av, p, _md_p, s)
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 #endif
 {
   /* same as recycled case ... */
@@ -3088,7 +3088,7 @@ static void do_check_malloc_state(mstate av)
 #if __STD_C
 static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 #else
-  static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
+static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 #endif
 {
   mchunkptr       top;            /* for updating av->_md_top */
@@ -3586,7 +3586,7 @@ static chunkinfoptr sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 #if __STD_C
 static int sYSTRIm(size_t pad, mstate av)
 #else
-  static int sYSTRIm(pad, av) size_t pad; mstate av;
+static int sYSTRIm(pad, av) size_t pad; mstate av;
 #endif
 {
   long  top_size;        /* Amount of top-most memory */
@@ -3658,7 +3658,7 @@ internal_function
 #if __STD_C
 munmap_chunk(mchunkptr p)
 #else
-  munmap_chunk(p) mchunkptr p;
+munmap_chunk(p) mchunkptr p;
 #endif
 {
   INTERNAL_SIZE_T size = chunksize(p);
@@ -3684,7 +3684,7 @@ internal_function
 #if __STD_C
 mremap_chunk(mchunkptr p, size_t new_size)
 #else
-  mremap_chunk(p, new_size) mchunkptr p; size_t new_size;
+mremap_chunk(p, new_size) mchunkptr p; size_t new_size;
 #endif
 {
   size_t page_mask = mp_.pagesize - 1;
@@ -4994,7 +4994,7 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
 #if __STD_C
 static void malloc_consolidate(mstate av)
 #else
-  static void malloc_consolidate(av) mstate av;
+static void malloc_consolidate(av) mstate av;
 #endif
 {
   mfastbinptr*    fb;                 /* current fastbin being consolidated */
@@ -5565,8 +5565,8 @@ Void_t**
 #if __STD_C
 _int_icalloc(mstate av, size_t n_elements, size_t elem_size, Void_t* chunks[])
 #else
-  _int_icalloc(av, n_elements, elem_size, chunks)
-     mstate av; size_t n_elements; size_t elem_size; Void_t* chunks[];
+_int_icalloc(av, n_elements, elem_size, chunks)
+mstate av; size_t n_elements; size_t elem_size; Void_t* chunks[];
 #endif
 {
   size_t sz = elem_size; /* serves as 1-element array */
@@ -5582,8 +5582,8 @@ Void_t**
 #if __STD_C
 _int_icomalloc(mstate av, size_t n_elements, size_t sizes[], Void_t* chunks[])
 #else
-  _int_icomalloc(av, n_elements, sizes, chunks)
-     mstate av; size_t n_elements; size_t sizes[]; Void_t* chunks[];
+_int_icomalloc(av, n_elements, sizes, chunks)
+mstate av; size_t n_elements; size_t sizes[]; Void_t* chunks[];
 #endif
 {
   return iALLOc(av, n_elements, sizes, 0, chunks);
@@ -5605,8 +5605,8 @@ static Void_t**
 #if __STD_C
 iALLOc(mstate av, size_t n_elements, size_t* sizes, int opts, Void_t* chunks[])
 #else
-  iALLOc(av, n_elements, sizes, opts, chunks)
-     mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
+iALLOc(av, n_elements, sizes, opts, chunks)
+mstate av; size_t n_elements; size_t* sizes; int opts; Void_t* chunks[];
 #endif
 {
   INTERNAL_SIZE_T element_size;   /* chunksize of each element, if all same */
@@ -5748,7 +5748,7 @@ chunkinfoptr
 #if __STD_C
 _int_valloc(mstate av, size_t bytes)
 #else
-  _int_valloc(av, bytes) mstate av; size_t bytes;
+_int_valloc(av, bytes) mstate av; size_t bytes;
 #endif
 {
   /* Ensure initialization/consolidation */
@@ -5765,7 +5765,7 @@ chunkinfoptr
 #if __STD_C
 _int_pvalloc(mstate av, size_t bytes)
 #else
-  _int_pvalloc(av, bytes) mstate av, size_t bytes;
+_int_pvalloc(av, bytes) mstate av, size_t bytes;
 #endif
 {
   size_t pagesz;
@@ -5784,7 +5784,7 @@ _int_pvalloc(mstate av, size_t bytes)
 #if __STD_C
 int mTRIm(size_t pad)
 #else
-  int mTRIm(pad) size_t pad;
+int mTRIm(pad) size_t pad;
 #endif
 {
   mstate av = &main_arena; /* already locked */
@@ -5807,7 +5807,7 @@ int mTRIm(size_t pad)
 #if __STD_C
 size_t mUSABLe(Void_t* mem)
 #else
-  size_t mUSABLe(mem) Void_t* mem;
+size_t mUSABLe(mem) Void_t* mem;
 #endif
 {
   mchunkptr p;
@@ -5901,7 +5901,7 @@ _int_get_global_info (struct malloc_global_info *mgi)
 #if __STD_C
 int mALLOPt(int param_number, int value)
 #else
-  int mALLOPt(param_number, value) int param_number; int value;
+int mALLOPt(param_number, value) int param_number; int value;
 #endif
 {
   mstate av = &main_arena;

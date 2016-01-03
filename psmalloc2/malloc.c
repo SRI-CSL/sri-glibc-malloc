@@ -1549,7 +1549,7 @@ static int      mALLOPt(int, int);
 
 static Void_t* internal_function mem2mem_check(Void_t *p, size_t sz);
 static int internal_function top_check(void);
-static bool internal_function munmap_chunk(mchunkptr p);
+static void internal_function munmap_chunk(mchunkptr p);
 #if HAVE_MREMAP
 static mchunkptr internal_function mremap_chunk(mchunkptr p, size_t new_size);
 #endif
@@ -3656,7 +3656,7 @@ static int sYSTRIm(size_t pad, mstate av)
 
 #ifdef HAVE_MMAP
 
-static bool
+static void
 internal_function
 #if __STD_C
 munmap_chunk(mchunkptr p)
@@ -3677,7 +3677,7 @@ munmap_chunk(mchunkptr p)
 
   /* munmap returns non-zero on failure */
   assert(ret == 0);
-  return ret == 0;
+  unused_var(ret);
 }
 
 #if HAVE_MREMAP

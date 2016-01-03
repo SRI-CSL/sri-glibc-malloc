@@ -606,7 +606,6 @@ public_sET_STATe(Void_t* msptr)
   for (i=0; i<BINMAPSIZE; ++i)
     main_arena.binmap[i] = 0;
   main_arena._md_top = ms->av[2];
-  main_arena.last_remainder = 0;
   main_arena._md_last_remainder = 0;
   for(i=1; i<NBINS; i++) {
     b = bin_at(&main_arena, i);

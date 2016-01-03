@@ -2158,8 +2158,7 @@ struct malloc_state {
   struct malloc_chunk  initial_top;    // temporary value of initial top while we are in transition.
 
   /* The remainder from the most recent split of a small request */
-  mchunkptr        last_remainder;
-  chunkinfoptr     _md_last_remainder; //metadata for last_remainder
+  chunkinfoptr     _md_last_remainder; 
 
   /* Normal bins packed as described above */
   struct chunkinfo bins[NBINS];
@@ -4309,6 +4308,7 @@ _int_malloc(mstate av, size_t bytes)
   chunkinfoptr    fwd;              /* misc temp for linking */
   chunkinfoptr    bck;              /* misc temp for linking */
 
+
   /*
     Convert request size to internal form by adding SIZE_SZ bytes
     overhead plus possibly more to obtain necessary alignment and/or
@@ -4404,6 +4404,8 @@ _int_malloc(mstate av, size_t bytes)
     otherwise need to expand memory to service a "small" request.
   */
 
+
+
   for(;;) {
 
     while ( (_md_victim = unsorted_chunks(av)->bk) != unsorted_chunks(av)) {
@@ -4421,7 +4423,7 @@ _int_malloc(mstate av, size_t bytes)
 
       if (in_smallbin_range(nb) &&
           bck == unsorted_chunks(av) &&
-          victim == av->last_remainder &&
+          _md_victim == av->_md_last_remainder &&
           (unsigned long)(size) > (unsigned long)(nb + MINSIZE)) {
 
         /* split and reattach remainder */
@@ -4439,7 +4441,6 @@ _int_malloc(mstate av, size_t bytes)
         _md_remainder->bk = _md_remainder->fd = unsorted_chunks(av);
         
         /* stash the remainder in av */
-        av->last_remainder = remainder;
         av->_md_last_remainder = _md_remainder;
         
         
@@ -4670,7 +4671,6 @@ _int_malloc(mstate av, size_t bytes)
           
           /* advertise as last remainder */
           if (in_smallbin_range(nb)) {
-            av->last_remainder = remainder;
             av->_md_last_remainder = _md_remainder;
           }
           

@@ -157,3 +157,12 @@ bck pointers.
 
 19. chunksize vs _md_chunksize etc. but this might want to wait till we have
 discussed 1. amongst ourselves.
+
+20. last_remainder and top should get the flick from malloc_state.
+
+21. should start checking with helgrind. though we will probably need to
+move over to pthread mutexes, rather than Gloger's hacks.
+
+valgrind --tool=helgrind
+
+

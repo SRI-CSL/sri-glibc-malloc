@@ -148,10 +148,12 @@ dnmalloc.
 the fastbins, though.  Things to pay attention to:
 
     - [x] ditch initial_top like we did in dsmalloc, this can be done
-      before the bins I suppose.
+      before the bins I suppose. Note that I took a slightly different
+      route from BD's version in dsmalloc. This was because I wanted
+      each arean to have a distinct top. Maybe unnecessary. Maybe not.
 
 18. [X] First step in ditching the metadata in chunks is to ditch the fwd and
 bck pointers.
 
 19. chunksize vs _md_chunksize etc. but this might want to wait till we have
-duscussed 1. amongst ourselves.
+discussed 1. amongst ourselves.

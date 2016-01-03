@@ -271,7 +271,7 @@ free_atfork(Void_t* mem, const Void_t *caller)
   _md_p = hashtable_lookup(ar_ptr, p);
 
   if(_md_p == NULL){
-    MISSING_METADATA(ar_ptr, p);
+    missing_metadata(ar_ptr, p);
   } 
 
   tsd_getspecific(arena_key, vptr);
@@ -748,7 +748,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     _md_p = hashtable_lookup(ar_ptr, p);
     
     if(_md_p == NULL){
-      MISSING_METADATA(ar_ptr, p);
+      missing_metadata(ar_ptr, p);
     } 
 
 
@@ -782,7 +782,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if(_md_p == NULL){
-	MISSING_METADATA(ar_ptr, p);
+	missing_metadata(ar_ptr, p);
       } 
       
       ps_unlink(_md_p, &bck, &fwd);

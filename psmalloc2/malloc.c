@@ -2477,8 +2477,6 @@ static void missing_metadata(mstate av, mchunkptr p)
   abort();
 }
 
-#define MISSING_METADATA(AV, P)  missing_metadata(AV, P)
-
 
 /* temporary hack for testing sanity */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci)
@@ -3810,7 +3808,7 @@ public_fREe(Void_t* mem)
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if (_md_p == NULL) {
-        MISSING_METADATA(ar_ptr, p);
+        missing_metadata(ar_ptr, p);
       } 
 
       hashtable_remove(ar_ptr, p);
@@ -3834,7 +3832,7 @@ public_fREe(Void_t* mem)
   _md_p = hashtable_lookup (ar_ptr, p);
 
   if (_md_p == NULL) {
-    MISSING_METADATA(ar_ptr, p);
+    missing_metadata(ar_ptr, p);
   } 
   
   check_metadata_chunk(ar_ptr, p, _md_p);
@@ -3904,7 +3902,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       _md_oldp = hashtable_lookup(ar_ptr, oldp);
 
       if (_md_oldp == NULL) {
-        MISSING_METADATA(ar_ptr, oldp);
+        missing_metadata(ar_ptr, oldp);
       } 
     
       hashtable_remove(ar_ptr, oldp);
@@ -3940,7 +3938,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   _md_oldp = hashtable_lookup (ar_ptr, oldp);
   
   if (_md_oldp == NULL) {
-    MISSING_METADATA(ar_ptr, oldp);
+    missing_metadata(ar_ptr, oldp);
   } 
 
   check_metadata_chunk(ar_ptr, oldp, _md_oldp);
@@ -4554,7 +4552,7 @@ _int_malloc(mstate av, size_t bytes)
             _md_victim = hashtable_lookup(av, victim);
 
             /* iam: this should be removable once we get our global act together */
-            if (_md_victim == NULL) { MISSING_METADATA(av, victim);  }
+            if (_md_victim == NULL) { missing_metadata(av, victim);  }
         
 
             /* configure remainder */
@@ -4811,7 +4809,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
       _md_nextchunk = hashtable_lookup(av, nextchunk);
 
       if (_md_nextchunk == NULL) {
-        MISSING_METADATA(av, nextchunk);
+        missing_metadata(av, nextchunk);
       }
 
       nextsize = chunksize(nextchunk);
@@ -4825,7 +4823,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
         _md_prevchunk = hashtable_lookup(av, prevchunk);
 
         if (_md_prevchunk == NULL) {
-          MISSING_METADATA(av, prevchunk);
+          missing_metadata(av, prevchunk);
         }
 
         
@@ -5069,7 +5067,7 @@ static void malloc_consolidate(mstate av)
           _md_nextchunk = hashtable_lookup(av, nextchunk);
           
           if (_md_nextchunk == NULL) {
-            MISSING_METADATA(av, nextchunk);
+            missing_metadata(av, nextchunk);
           } 
           nextsize = chunksize(nextchunk);
 
@@ -5080,7 +5078,7 @@ static void malloc_consolidate(mstate av)
             _md_prevchunk = hashtable_lookup(av, prevchunk);
 
             if (_md_prevchunk == NULL) {
-              MISSING_METADATA(av, prevchunk);
+              missing_metadata(av, prevchunk);
             }
 
             hashtable_remove(av, p);
@@ -5191,7 +5189,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
   oldsize = chunksize(oldp);
 
   /* iam: this should be removable once we get our global act together */
-  if (_md_oldp == NULL) { MISSING_METADATA(av, oldp); }
+  if (_md_oldp == NULL) { missing_metadata(av, oldp); }
   
   check_inuse_chunk(av, oldp, _md_oldp);
 
@@ -5245,7 +5243,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
                (unsigned long)(nb)) {
         newp = oldp;
         _md_next = hashtable_lookup(av, next);
-        if (_md_next == NULL) { MISSING_METADATA(av, next);} 
+        if (_md_next == NULL) { missing_metadata(av, next);} 
     
         ps_unlink(_md_next, &bck, &fwd);
       }

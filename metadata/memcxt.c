@@ -60,7 +60,7 @@ bool init_memcxt(memcxt_t* memcxt){
   }
   memcxt->segments = new_segments();
   memcxt->buckets = new_buckets();
-  /* we will use the idle chunk pointer to form a linked list of cached items */
+
   memcxt->bcache = NULL;
   memcxt->bcache_count = 0;
 

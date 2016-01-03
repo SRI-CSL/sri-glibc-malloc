@@ -18,6 +18,7 @@
 typedef struct memcxt_s {
   segment_pool_t* segments;
   bucket_pool_t* buckets;
+  /* we will use the idle chunk pointer to form a linked list of cached items */
   bucket_t* bcache;
   uint32_t bcache_count;
 } memcxt_t;

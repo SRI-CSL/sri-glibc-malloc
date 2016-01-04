@@ -261,7 +261,8 @@ free_atfork(Void_t* mem, const Void_t *caller)
 #if HAVE_MMAP
   if (chunk_is_mmapped(p))              /* release mmapped memory. */
   {
-    munmap_chunk(p);
+    _md_p = hashtable_lookup(&main_arena, p);  //iam: we should have the lock here, right c/f ptmalloc_lock_all.
+    munmap_chunk(_md_p);
     return;
   }
 #endif

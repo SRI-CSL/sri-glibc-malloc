@@ -1549,9 +1549,9 @@ static int      mALLOPt(int, int);
 
 static Void_t* internal_function mem2mem_check(Void_t *p, size_t sz);
 static int internal_function top_check(void);
-static void internal_function munmap_chunk(mchunkptr p);
+static void internal_function munmap_chunk(chunkinfoptr p);
 #if HAVE_MREMAP
-static mchunkptr internal_function mremap_chunk(mchunkptr p, size_t new_size);
+static mchunkptr internal_function mremap_chunk(chunkinfoptr p, size_t new_size);
 #endif
 
 static Void_t*   malloc_check(size_t sz, const Void_t *caller);
@@ -3666,12 +3666,13 @@ static int sYSTRIm(pad, av) size_t pad; mstate av;
 static void
 internal_function
 #if __STD_C
-munmap_chunk(mchunkptr p)
+munmap_chunk(chunkinfoptr _md_p)
 #else
-munmap_chunk(p) mchunkptr p;
+munmap_chunk(_md_p) chunkinfoptr _md_p;
 #endif
 {
-  INTERNAL_SIZE_T size = chunksize(p);   //iam: work needs doing...
+  mchunkptr p = chunkinfo2chunk(_md_p);
+  INTERNAL_SIZE_T size = _md_chunksize(_md_p);  
   int ret;
 
   assert (chunk_is_mmapped(p));
@@ -3692,14 +3693,15 @@ munmap_chunk(p) mchunkptr p;
 static mchunkptr
 internal_function
 #if __STD_C
-mremap_chunk(mchunkptr p, size_t new_size)
+mremap_chunk(chunkinfoptr _md_p, size_t new_size)
 #else
-mremap_chunk(p, new_size) mchunkptr p; size_t new_size;
+mremap_chunk(_md_p, new_size) chunkinfoptr _md_p; size_t new_size;
 #endif
 {
   size_t page_mask = mp_.pagesize - 1;
+  mchunkptr p = chunkinfo2chunk(_md_p);
   INTERNAL_SIZE_T offset = p->prev_size;
-  INTERNAL_SIZE_T size = chunksize(p);  //iam: work needs doing...
+  INTERNAL_SIZE_T size = _md_chunksize(_md_p);
   char *cp;
 
   assert (chunk_is_mmapped(p));
@@ -3818,11 +3820,12 @@ public_fREe(Void_t* mem)
         missing_metadata(ar_ptr, p);
       } 
 
+      munmap_chunk(_md_p);
+      
       hashtable_remove(ar_ptr, p);
       
       (void)mutex_unlock(&ar_ptr->mutex);
 
-      munmap_chunk(p);
       
       return;
     }
@@ -3911,16 +3914,19 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
         missing_metadata(ar_ptr, oldp);
       } 
     
-      hashtable_remove(ar_ptr, oldp);
     
 #if HAVE_MREMAP
-      newp = mremap_chunk(oldp, nb);
+      newp = mremap_chunk(_md_oldp, nb);
+      
       if (newp) {
+	hashtable_remove(ar_ptr, oldp);
         _md_newp = register_chunk(ar_ptr, newp);
         (void)mutex_unlock(&ar_ptr->mutex);
         return chunk2mem(newp);
       }
 #endif
+
+      hashtable_remove(ar_ptr, oldp);
 
       (void)mutex_unlock(&ar_ptr->mutex);
 
@@ -3935,7 +3941,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   
       if (newmem == 0) return 0; /* propagate failure */
       MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
-      munmap_chunk(oldp);
+      munmap_chunk(_md_oldp);
       return newmem;
     }
 #endif

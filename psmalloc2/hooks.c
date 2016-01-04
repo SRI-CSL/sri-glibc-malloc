@@ -309,7 +309,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
 #if HAVE_MMAP
   if (chunk_is_mmapped(p)) {
     (void)mutex_unlock(&main_arena.mutex);
-    munmap_chunk(p);
+    munmap_chunk(_md_p);
     return;
   }
 #endif
@@ -357,7 +357,7 @@ realloc_check(oldmem, bytes, caller)
 #if HAVE_MMAP
   if (chunk_is_mmapped(oldp)) {
 #if HAVE_MREMAP
-    mchunkptr newp = mremap_chunk(oldp, nb);
+    mchunkptr newp = mremap_chunk(_md_oldp, nb);
     if(newp)
       newmem = chunk2mem(newp);
     else
@@ -374,7 +374,7 @@ realloc_check(oldmem, bytes, caller)
 	}
         if (newmem) {
           MALLOC_COPY(BOUNDED_N(newmem, bytes+1), oldmem, oldsize - 2*SIZE_SZ);
-          munmap_chunk(oldp);
+          munmap_chunk(_md_oldp);
         }
       }
     }
@@ -480,7 +480,7 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
   }
 #if HAVE_MMAP
   if (chunk_is_mmapped(p)) {
-    munmap_chunk(p);
+    munmap_chunk(_md_p);
     return;
   }
 #endif

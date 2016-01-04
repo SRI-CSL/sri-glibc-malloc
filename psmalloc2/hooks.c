@@ -137,7 +137,7 @@ mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
   if (!ptr)
     return ptr;
   p = mem2chunk(ptr);
-  for(i = chunksize(p) - (chunk_is_mmapped(p) ? 2*SIZE_SZ+1 : SIZE_SZ+1);
+  for(i = chunksize(p) - (chunk_is_mmapped(p) ? 2*SIZE_SZ+1 : SIZE_SZ+1);  //iam: work needs doing
       i > sz;
       i -= 0xFF) {
     if(i-sz < 0x100) {
@@ -170,7 +170,7 @@ mem2chunk_check(mem) Void_t* mem;
   if (!chunk_is_mmapped(p)) {
     /* Must be a chunk in conventional heap memory. */
     int contig = contiguous(&main_arena);
-    sz = chunksize(p);
+    sz = chunksize(p);  //iam: work needs doing
     if((contig &&
 	((char*)p<mp_.sbrk_base ||
 	 ((char*)p + sz)>=(mp_.sbrk_base+main_arena.system_mem) )) ||
@@ -197,7 +197,7 @@ mem2chunk_check(mem) Void_t* mem;
         offset<0x2000) ||
        !chunk_is_mmapped(p) || (p->size & PREV_INUSE) ||
        ( (((unsigned long)p - p->prev_size) & page_mask) != 0 ) ||
-       ( (sz = chunksize(p)), ((p->prev_size + sz) & page_mask) != 0 ) )
+       ( (sz = chunksize(p)), ((p->prev_size + sz) & page_mask) != 0 ) )  //iam: work needs doing
       return NULL;
     magic = MAGICBYTE(p);
     for(sz -= 1; (c = ((unsigned char*)p)[sz]) != magic; sz -= c) {
@@ -221,17 +221,19 @@ top_check()
 {
   mchunkptr ot;
   mchunkptr top;
+  INTERNAL_SIZE_T ot_sz;
   char* brk, * new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
   unsigned long pagesz = malloc_getpagesize;
   ot = chunkinfo2chunk(main_arena._md_top);
+  ot_sz = _md_chunksize(main_arena._md_top);
   
   if (top_is_initial(&main_arena) ||
       (!chunk_is_mmapped(ot) &&
-       chunksize(ot)>=MINSIZE &&
+       ot_sz>=MINSIZE &&
        prev_inuse(ot) &&
        (!contiguous(&main_arena) ||
-	(char*)ot + chunksize(ot) == mp_.sbrk_base + main_arena.system_mem)))
+	(char*)ot + ot_sz == mp_.sbrk_base + main_arena.system_mem)))
     return 0;
 
   if(check_action & 1)
@@ -312,7 +314,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
   }
 #endif
 #if 0 /* Erase freed memory. */
-  memset(mem, 0, chunksize(p) - (SIZE_SZ+1));
+  memset(mem, 0, _md_chunksize(_md_p) - (SIZE_SZ+1));
 #endif
   _int_free(&main_arena, _md_p); 
   (void)mutex_unlock(&main_arena.mutex);
@@ -344,7 +346,7 @@ realloc_check(oldmem, bytes, caller)
       abort();
     return malloc_check(bytes, NULL);
   }
-  oldsize = chunksize(oldp);
+  oldsize = _md_chunksize(_md_oldp);
 
   if ( !checked_request2size(bytes+1, &nb) ){
     return 0;
@@ -382,18 +384,6 @@ realloc_check(oldmem, bytes, caller)
       _md_newmem = _int_realloc(&main_arena, _md_oldp, bytes+1); 
       newmem = chunkinfo2mem(_md_newmem);
     }
-#if 0 /* Erase freed memory. */
-    if(newmem)
-      newp = mem2chunk(newmem);
-    nb = chunksize(newp);
-    if(oldp<newp || oldp>=chunk_at_offset(newp, nb)) {
-      memset((char*)oldmem + 2*sizeof(mbinptr), 0,
-             oldsize - (2*sizeof(mbinptr)+2*SIZE_SZ+1));
-    } else if(nb > oldsize+SIZE_SZ) {
-      memset((char*)BOUNDED_N(chunk2mem(newp), bytes) + oldsize,
-	     0, nb - (oldsize+SIZE_SZ));
-    }
-#endif
 #if HAVE_MMAP
   }
 #endif
@@ -626,7 +616,7 @@ public_sET_STATe(Void_t* msptr)
 	/* Set bit in binblocks.  */
 	mark_bin(&main_arena, i);
       } else {
-	/* Oops, index computation from chunksize must have changed.
+	/* Oops, index computation from _md_chunksize must have changed.
            Link the whole list into unsorted_chunks.  */
 	first(b) = last(b) = b;
 	b = unsorted_chunks(&main_arena);

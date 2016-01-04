@@ -744,7 +744,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     } 
 
 
-    new_size = chunksize(p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
+    new_size = _md_chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
     assert(new_size>0 && new_size<(long)(2*MINSIZE));
 
@@ -794,7 +794,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 
   } /* while */
   
-  top_size = chunksize(top_chunk);
+  top_size = _md_chunksize(ar_ptr->_md_top);
   extra = ((top_size - pad - MINSIZE + (pagesz-1))/pagesz - 1) * pagesz;
   if(extra < (long)pagesz)
     return 0;

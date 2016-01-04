@@ -1879,14 +1879,6 @@ static inline int inuse(mchunkptr p)
   return ((((mchunkptr)(((char*)p)+(p->size & ~SIZE_BITS)))->size) & PREV_INUSE);
 }
 
-
-/* clear chunk as being inuse without otherwise disturbing */
-static inline void clear_inuse(mchunkptr p)
-{
-  ((mchunkptr)(((char*)p) + (p->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE);
-}
-
-
 /* check/set/clear inuse bits in known places */
 static inline int inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
 {
@@ -1912,12 +1904,10 @@ static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, INTERNAL_SIZE
 }
 
 
-//iam: this is only ever called with offset 0!
-static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
+static inline void clear_inuse_bit(mstate av, chunkinfoptr _md_p, mchunkptr p)
 {
-  assert(s == 0);
   assert(chunkinfo2chunk(_md_p) == p);
-  if((s == 0) && chunkinfo2chunk(_md_p) == p){
+  if(chunkinfo2chunk(_md_p) == p){
     _md_p->size  &= ~(PREV_INUSE);
     p->size &= ~(PREV_INUSE);
   }
@@ -2620,8 +2610,7 @@ static inline chunkinfoptr initial_md_top(mstate av)
 {
   mchunkptr top = &(av->initial_top);
   top->prev_size = 0;
-  set_head(top, 0 | PREV_INUSE);
-  clear_inuse(top); 
+  set_head(top, 0);
   return register_chunk(av, top);
 }
 
@@ -4898,7 +4887,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
           size += nextsize;                         
           
         } else {
-          clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
+          clear_inuse_bit(av, _md_nextchunk, nextchunk);
         }
         
         /*
@@ -5143,7 +5132,7 @@ static void malloc_consolidate(av) mstate av;
               hashtable_remove(av, nextchunk);
               ps_unlink(_md_nextchunk, &bck, &fwd);
             } else {
-              clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
+              clear_inuse_bit(av, _md_nextchunk, nextchunk);
             }
             
             first_unsorted = unsorted_bin->fd;

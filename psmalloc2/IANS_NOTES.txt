@@ -158,7 +158,11 @@ the fastbins, though.  Things to pay attention to:
 bck pointers.
 
 19. chunksize vs _md_chunksize etc. but this might want to wait till we have
-discussed 1. amongst ourselves.
+discussed 1. amongst ourselves. Also look for:
+
+//ian: work needs doing
+
+for some stragglers.
 
 20. [X] last_remainder and top should get the flick from malloc_state.
 
@@ -171,3 +175,6 @@ fine. Try it:
 make helgrind
 
 
+23.The training wheels should come off soon. Look for calls to:
+
+missing_metadata(...);

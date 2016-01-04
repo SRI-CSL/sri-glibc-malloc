@@ -164,9 +164,10 @@ discussed 1. amongst ourselves.
 
 21. [X] metadata and mchunkptr metadata are now at one with the universe :-)
 
-22. should start checking with helgrind. though we will probably need to
-move over to pthread mutexes, rather than Gloger's hacks.
+22. [X] should start checking with helgrind. though we will probably need to
+move over to pthread mutexes, rather than Gloger's hacks. Either works
+fine. Try it:
 
-valgrind --tool=helgrind
+make helgrind
 
 

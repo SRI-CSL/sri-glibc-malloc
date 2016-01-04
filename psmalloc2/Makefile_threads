@@ -5,16 +5,17 @@
 LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
-	-g -O0                                    \
+	-g -O                                     \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
 	-DNDEBUG                                  \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
-#	-g -O                                     \
 #	-DNDEBUG                                  \
 #	-DMALLOC_DEBUG=1                          \
+# to not use Gloger's spin locks:
+#	-DUSE_NO_SPINLOCKS                        \
 
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1
@@ -80,6 +81,8 @@ testreplay: replay
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
+helgrind: mtreplay
+	valgrind --tool=helgrind ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
 gmtestreplay: gmtreplay
 	./gmtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt

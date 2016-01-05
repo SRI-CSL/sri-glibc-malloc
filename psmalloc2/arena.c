@@ -806,7 +806,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   arena_mem -= extra;
 
   /* Success. Adjust top accordingly. */
-  set_head(top_chunk, (top_size - extra) | PREV_INUSE);
+  set_head(top_chunk, (top_size - extra) | PREV_INUSE);   //iam: work needs doing (SIGSEGV occassionaly)
   /*check_chunk(ar_ptr, top_chunk);*/
   return 1;
 }

@@ -278,6 +278,9 @@ free_atfork(Void_t* mem, const Void_t *caller)
   tsd_getspecific(arena_key, vptr);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_lock(&ar_ptr->mutex);
+
+  do_check_top(ar_ptr, __FILE__, __LINE__);
+
   _int_free(ar_ptr, _md_p);
   if(vptr != ATFORK_ARENA_PTR)
     (void)mutex_unlock(&ar_ptr->mutex);
@@ -679,7 +682,7 @@ grow_heap(h, diff) heap_info *h; long diff;
     if((char *)MMAP((char *)h + new_size, -diff, PROT_NONE,
                     MAP_PRIVATE|MAP_FIXED) == (char *) MAP_FAILED)
       return -2;
-    /*fprintf(stderr, "shrink %p %08lx\n", h, new_size);*/
+    /* fprintf(stderr, "shrink %p %08lx\n", h, new_size);  iam: hmmm looks like we are still debugging here? */
   }
   h->size = new_size;
   return 0;
@@ -687,6 +690,8 @@ grow_heap(h, diff) heap_info *h; long diff;
 
 /* Delete a heap. */
 
+bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci);
+  
 #define delete_heap(heap) munmap((char*)(heap), HEAP_MAX_SIZE)
 
 static int
@@ -708,6 +713,10 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
+  int iterations = 0;
+
+  do_check_top(ar_ptr, __FILE__, __LINE__);
+
   /* Can this heap go away completely? */
 
   /*
@@ -720,7 +729,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
    * this arena empty.
   */
   while(top_chunk == chunk_at_offset(heap, sizeof(*heap))) {    
-
+    iterations++;
     /* iam: note that we know prev_heap is not null, because we are in a non-first heap of this arena. */
     prev_heap = heap->prev;
 
@@ -730,7 +739,6 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     _md_p = hashtable_lookup(ar_ptr, p);
 
     if(_md_p == NULL){
-      fprintf(stderr, "heap_trim %p missing metadata. Not trimming\n", p);
       return 0;
     }
     
@@ -742,8 +750,8 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     
     if(_md_p == NULL){
       missing_metadata(ar_ptr, p);
+      return 0;
     } 
-
 
     new_size = _md_chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
@@ -754,14 +762,14 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     }
     assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
 
-    if(new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)  /* iam: ? */
-      break;
-
+    if(new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz){  /* iam: ? */
+      break;  //iam: are we in a sane state here?
+    }
     
     ar_ptr->system_mem -= heap->size;
     arena_mem -= heap->size;
 
-    /* iam: we should remove this heap's top from our hashtable  */
+    /* iam: we should remove this heap's top_chunk from our hashtable  */
     hashtable_remove(ar_ptr, top_chunk);
     delete_heap(heap);
     heap = prev_heap;
@@ -776,24 +784,29 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p);
+	return 0;
       } 
       
       ps_unlink(_md_p, &bck, &fwd);
-
       
     }
-    assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);
-    assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
 
+    
+    assert(((unsigned long)((char*)p + new_size) & (pagesz-1)) == 0);
+
+    assert( ((char*)p + new_size) == ((char*)heap + heap->size) );
+       
     /* iam: we need to get metadata of so we can update it and store it */
     top_chunk = p;
     ar_ptr->_md_top = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
     update(_md_p, p);
+    do_check_metadata_chunk(ar_ptr, p, _md_p);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
 
   } /* while */
+
   
   top_size = _md_chunksize(ar_ptr->_md_top);
   extra = ((top_size - pad - MINSIZE + (pagesz-1))/pagesz - 1) * pagesz;
@@ -804,11 +817,12 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     return 0;
   ar_ptr->system_mem -= extra;
   arena_mem -= extra;
-
   /* Success. Adjust top accordingly. */
-  set_head(top_chunk, (top_size - extra) | PREV_INUSE);   //iam: work needs doing (SIGSEGV occassionaly)
-  /*check_chunk(ar_ptr, top_chunk);*/
-  return 1;
+  set_head(top_chunk, (top_size - extra) | PREV_INUSE);   
+  update(ar_ptr->_md_top, top_chunk);
+
+  /*iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk);*/
+  return iterations++;
 }
 
 static mstate
@@ -918,6 +932,8 @@ _int_new_arena(size_t size)
   top = (mchunkptr)ptr;
   set_head(top, (((char*)h + h->size) - ptr) | PREV_INUSE);
   a->_md_top = register_chunk(a, top);
+
+  do_check_top(a, __FILE__, __LINE__);
 
   return a;
 }

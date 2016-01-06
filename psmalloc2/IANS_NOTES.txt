@@ -8,13 +8,16 @@
     We could unify these two problems in the following way.
     
     I addition to the main_arena we add the mmap_arena, which would
-    handle all the mmapped metatdata (it's top wold always be the
+    handle all the mmapped metatdata (it's top would always be the
     initial top). Thus we would need to:
 
-    Given a pointer determine (in a lock free fashion) xwhat arena it
+    Given a pointer determine (in a lock free fashion) what arena it
     belonged too.  It might be enough for this *determination* to be
     *usually* correct, and if it is not correct we have a lockish-fall
     back that is fool proof.
+    
+    Note that mmapped memory is relatively rare. non-main-arena-ness
+    in threaded applications could be plentiful.
 
 0. Locking. most of the locking is done by arena_get and arena_get2.
 

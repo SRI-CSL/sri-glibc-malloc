@@ -2492,12 +2492,15 @@ static inline INTERNAL_SIZE_T _md_chunksize(chunkinfoptr ci)
     return (ci->size & ~(SIZE_BITS));
 }
 
-static void missing_metadata(mstate av, mchunkptr p)
+#define missing_metadata(AV,P) report_missing_metadata(AV, P, __FILE__, __LINE__)
+
+static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
   fprintf(stderr, "No metadata for %p of size %zu. main_arena %d. chunk_is_mmapped: %d\n", 
           chunk2mem(p), chunksize(p), is_main_arena(av), chunk_is_mmapped(p));
   abort();
 }
+
 
 /* temporary hack for testing sanity */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)

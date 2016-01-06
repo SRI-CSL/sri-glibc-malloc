@@ -1,3 +1,9 @@
+-1. There is another issue related to 1 but buried a little deeper.
+
+To get the arena for a pointer a bit is used in the size field
+to indicate non-main-arena-ness. We would need to know the
+arena to get the metadata for the ptr ....
+
 0. Locking. most of the locking is done by arena_get and arena_get2.
 
 

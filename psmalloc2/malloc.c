@@ -2401,7 +2401,7 @@ static bool is_main_arena(mstate av)
 
 */
 
-static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci);
+static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno);
 
 //needed for malloc_stats which "conveniently" is in another file.
 void dump_hashtable(mstate av)
@@ -2500,34 +2500,35 @@ static void missing_metadata(mstate av, mchunkptr p)
 }
 
 /* temporary hack for testing sanity */
-static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci)
+static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
   if (ci != NULL) {
     //iam: start checking more details now...
     // an  uncommented print statement  means we pass this test currently.
     if (chunkinfo2chunk(ci) != c) {
-      fprintf(stderr, "metadata and data do not match\n");
+      fprintf(stderr, "metadata and data do not match @ %s line %d\n", file, lineno);
       return false;
     }
 
     //iam: can get away with the cast as long as our metadata chunks **look** like chunks
     if (chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)) { 
-      fprintf(stderr, "%p: is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d\n",
-              chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      fprintf(stderr, "%p: is_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d @ %s line %d\n",
+              chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), file, lineno);
       return false; 
     }
 
     if (size2chunksize(ci->size) != size2chunksize(c->size)) {
-      fprintf(stderr, "%p: ci->size = %zu  c->size = %zu main arena: %d\n",
-              chunk2mem(c), ci->size, c->size, is_main_arena(av));
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
+      fprintf(stderr, "%p: ci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
+              chunk2mem(c), ci->size, c->size, is_main_arena(av), file, lineno);
+      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n",
+	      chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
       return false; 
     }
 
     if(!prev_inuse(c)){
       if(ci->prev_size != c->prev_size){
-	  fprintf(stderr, "%p: ci->prev_size = %zu  c->prev_size = %zu main arena: %d\n",
-		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av));
+	  fprintf(stderr, "%p: ci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
+		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
 	  fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d\n", 
 		  chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c));
 	  return false;
@@ -2537,7 +2538,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci)
     //iam: can get away with the cast as long as our metadata chunks **look** like chunks
     if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
       //iam : currently this fails a lot... not surprising given the circumstances
-      fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d\n", prev_inuse((mchunkptr)ci), prev_inuse(c));
+      fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d @ %s line %d\n",
+	      prev_inuse((mchunkptr)ci), prev_inuse(c), file, lineno);
       return false;
     }
     
@@ -2722,19 +2724,6 @@ __MALLOC_PMT ((size_t __alignment, size_t __size, const __malloc_ptr_t))
   = memalign_hook_ini;
 void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
 
-static inline bool do_check_top(mstate av, const char* file, int lineno){
-  if(av->_md_top){
-    if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top)){
-      fprintf(stderr, "check top failed @ %s line %d\n", file, lineno);
-      return false;
-    }
-  }
-  return true;
-}
-
-/* ------------------- Support for multiple arenas -------------------- */
-#include "arena.c"
-
 
 /*
   Debugging support
@@ -2749,7 +2738,16 @@ static inline bool do_check_top(mstate av, const char* file, int lineno){
   remove the check from the !  MALLOC_DEBUG case when we are finished.
 */
 
-  
+static inline bool do_check_top(mstate av, const char* file, int lineno){
+  if(av->_md_top){
+    if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top)){
+      fprintf(stderr, "check top failed @ %s line %d\n", file, lineno);
+      return false;
+    }
+  }
+  return true;
+}
+ 
   
 #if ! MALLOC_DEBUG
 
@@ -2760,7 +2758,7 @@ static inline bool do_check_top(mstate av, const char* file, int lineno){
 #define check_remalloced_chunk(A,P,MD_P,N)
 #define check_malloced_chunk(A,P,MD_P,N)
 #define check_malloc_state(A)
-#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P)
+#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
 
 #warning "using do_check_metadata_chunk in ! MALLOC_DEBUG mode"
 
@@ -2773,11 +2771,14 @@ static inline bool do_check_top(mstate av, const char* file, int lineno){
 #define check_remalloced_chunk(A,P,MD_P,N) do_check_remalloced_chunk(A,P,MD_P,N)
 #define check_malloced_chunk(A,P,MD_P,N)   do_check_malloced_chunk(A,P,MD_P,N)
 #define check_malloc_state(A)              do_check_malloc_state(A)
-#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P)
+#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
 /*
   Properties of all chunks
 */
 
+/* ------------------- Support for multiple arenas -------------------- */
+
+#include "arena.c"
 
 
 #if __STD_C

@@ -2536,7 +2536,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 
     /* iam: can get away with the cast as long as our metadata chunks **look** like chunks */
     if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
-      fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c), main arena: %d @ %s line %d\n",
+      fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) = %d, main arena: %d @ %s line %d\n",
 	      chunk2mem(c), prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
       fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
 	      chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));

@@ -1,14 +1,27 @@
--1. There is another issue related to 1 but buried a little deeper.
+-1. There is another issue related to 1 but buried a little deeper
+    in the arena code.
 
-To get the arena for a pointer a bit is used in the size field
-to indicate non-main-arena-ness. We would need to know the
-arena to get the metadata for the ptr ....
+    To get the arena for a pointer a bit, NON_MAIN_ARENA, is used in
+    the size field to indicate non-main-arena-ness. We would need to
+    know the arena to get the metadata for the ptr ....
+
+    We could unify these two problems in the following way.
+    
+    I addition to the main_arena we add the mmap_arena, which would
+    handle all the mmapped metatdata (it's top wold always be the
+    initial top). Thus we would need to:
+
+    Given a pointer determine (in a lock free fashion) xwhat arena it
+    belonged too.  It might be enough for this *determination* to be
+    *usually* correct, and if it is not correct we have a lockish-fall
+    back that is fool proof.
 
 0. Locking. most of the locking is done by arena_get and arena_get2.
 
 
 1. In ptmalloc and glibc malloc mmapped memory is not associated with
-an arena, but we will need to put it's metadata somewhere... that
+an arena, but rather indicated by the use of a bit in the metadata,
+IS_MMAPPED. We will need to put it's metadata somewhere... that
 could make the lookup function a bit ugly... since given a chunk we do
 not really know if it is mmapped until we see it metadata, and to find
 it's metadata ....

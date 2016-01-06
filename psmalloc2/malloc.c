@@ -3993,9 +3993,10 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       if (newp) {
 	hashtable_remove(ar_ptr, oldp);
         _md_newp = register_chunk(ar_ptr, newp);
-        (void)mutex_unlock(&ar_ptr->mutex);
 
 	check_top(ar_ptr);
+
+	(void)mutex_unlock(&ar_ptr->mutex);
 
         return chunk2mem(newp);
       }

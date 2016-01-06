@@ -9,6 +9,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
 	-DNDEBUG                                  \
+	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 

@@ -76,6 +76,11 @@ int __malloc_initialized = -1;
 
 /**************************************************************************/
 
+static bool do_check_top(mstate av, const char* file, int lineno);
+
+static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno);
+  
+
 
 #if USE_ARENAS
 
@@ -690,8 +695,6 @@ grow_heap(h, diff) heap_info *h; long diff;
 
 /* Delete a heap. */
 
-bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci);
-  
 #define delete_heap(heap) munmap((char*)(heap), HEAP_MAX_SIZE)
 
 static int
@@ -801,7 +804,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     ar_ptr->_md_top = _md_p;
     set_head(top_chunk, new_size | PREV_INUSE);
     update(_md_p, p);
-    do_check_metadata_chunk(ar_ptr, p, _md_p);
+    do_check_metadata_chunk(ar_ptr, p, _md_p, __FILE__, __LINE__);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
 

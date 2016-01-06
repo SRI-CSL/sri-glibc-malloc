@@ -788,7 +788,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     /* iam: we need to get metadata of so we can update it and store it */
     top_chunk = p;
     ar_ptr->_md_top = _md_p;
-    set_head(top_chunk, new_size | PREV_INUSE);
+    set_head(top_chunk, new_size | PREV_INUSE);  
     update(_md_p, p);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */

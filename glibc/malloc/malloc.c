@@ -998,7 +998,7 @@ int      __posix_memalign(void **, size_t, size_t);
 #endif
 
 /*
-  M_MMAP_MAX is the maximum number of requests to simultaneously
+  DEFAULT_MMAP_MAX is the maximum number of requests to simultaneously
   service using mmap. This parameter exists because
   some systems have a limited number of internal tables for
   use by mmap, and using more than a few of them may degrade

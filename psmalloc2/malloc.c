@@ -2538,8 +2538,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     //iam: can get away with the cast as long as our metadata chunks **look** like chunks
     if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
       //iam : currently this fails a lot... not surprising given the circumstances
-      fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) %d @ %s line %d\n",
-	      prev_inuse((mchunkptr)ci), prev_inuse(c), file, lineno);
+      fprintf(stderr, "prev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c), main arena: %d %d @ %s line %d\n",
+	      prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
       return false;
     }
     
@@ -3810,6 +3810,7 @@ public_mALLOc(size_t bytes)
 
   _md_victim = _int_malloc(ar_ptr, bytes);
 
+
   if (!_md_victim) {
     /* Maybe the failure is due to running out of mmapped areas. */
     if (ar_ptr != &main_arena) {
@@ -3817,6 +3818,7 @@ public_mALLOc(size_t bytes)
       (void)mutex_lock(&main_arena.mutex);
 
       _md_victim = _int_malloc(&main_arena, bytes);
+      check_top(ar_ptr);
 
       (void)mutex_unlock(&main_arena.mutex);
     } else {
@@ -3827,17 +3829,20 @@ public_mALLOc(size_t bytes)
       if (ar_ptr) {
 
         _md_victim = _int_malloc(ar_ptr, bytes);
+	check_top(ar_ptr);
 
         (void)mutex_unlock(&ar_ptr->mutex);
       }
 #endif
     }
-  } else
-    (void)mutex_unlock(&ar_ptr->mutex);
-  assert(!_md_victim || chunk_is_mmapped(chunkinfo2chunk(_md_victim)) ||
-         ar_ptr == arena_for_chunk(chunkinfo2chunk(_md_victim)));
 
-  check_top(ar_ptr);
+  } else {
+    (void)mutex_unlock(&ar_ptr->mutex);
+    assert(!_md_victim || chunk_is_mmapped(chunkinfo2chunk(_md_victim)) ||
+	   ar_ptr == arena_for_chunk(chunkinfo2chunk(_md_victim)));
+    check_top(ar_ptr);
+  }
+
 
   return chunkinfo2mem(_md_victim);
 }

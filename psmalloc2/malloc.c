@@ -2745,6 +2745,11 @@ void weak_variable (*__after_morecore_hook) __MALLOC_P ((void)) = NULL;
 
   iam: dnmalloc broke this; we should try very hard not to make the same mistake.
   remove the check from the !  MALLOC_DEBUG case when we are finished.
+
+  iam: it is a drag that one cannot use these in arena.c and hooks.c.
+  We may have to fix that. For the time being I added prototypes 
+  explicitly, and call them not the #defines.
+  
 */
 
 static bool do_check_top(mstate av, const char* file, int lineno){
@@ -2759,36 +2764,38 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 
 #if ! MALLOC_DEBUG
 
-#define check_top(A)                       do_check_top(A, __FILE__, __LINE__)
-#define check_chunk(A,P,MD_P)
-#define check_free_chunk(A,P,MD_P)
-#define check_inuse_chunk(A,P,MD_P)
-#define check_remalloced_chunk(A,P,MD_P,N)
-#define check_malloced_chunk(A,P,MD_P,N)
-#define check_malloc_state(A)
-#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
+#define check_top(A)                         do_check_top(A,__FILE__,__LINE__)
+#define check_chunk(A,P,MD_P)                do_check_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_free_chunk(A,P,MD_P)           do_check_free_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_inuse_chunk(A,P,MD_P)          do_check_inuse_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_remalloced_chunk(A,P,MD_P,N)   do_check_remalloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
+#define check_malloced_chunk(A,P,MD_P,N)     do_check_malloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
+#define check_malloc_state(A)                do_check_malloc_state(A,__FILE__,__LINE__)
+#define check_metadata_chunk(A,P,MD_P)       do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
-#warning "using do_check_metadata_chunk in ! MALLOC_DEBUG mode"
+#warning "using do_check_* in ! MALLOC_DEBUG mode"
 
 #else
 
-#define check_top(A)                       do_check_top(A, __FILE__, __LINE__)
-#define check_chunk(A,P,MD_P)              do_check_chunk(A,P,MD_P)
-#define check_free_chunk(A,P,MD_P)         do_check_free_chunk(A,P,MD_P)
-#define check_inuse_chunk(A,P,MD_P)        do_check_inuse_chunk(A,P,MD_P)
-#define check_remalloced_chunk(A,P,MD_P,N) do_check_remalloced_chunk(A,P,MD_P,N)
-#define check_malloced_chunk(A,P,MD_P,N)   do_check_malloced_chunk(A,P,MD_P,N)
-#define check_malloc_state(A)              do_check_malloc_state(A)
-#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A, P, MD_P, __FILE__, __LINE__)
+#define check_top(A)                       do_check_top(A,__FILE__,__LINE__)
+#define check_chunk(A,P,MD_P)              do_check_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_free_chunk(A,P,MD_P)         do_check_free_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_inuse_chunk(A,P,MD_P)        do_check_inuse_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_remalloced_chunk(A,P,MD_P,N) do_check_remalloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
+#define check_malloced_chunk(A,P,MD_P,N)   do_check_malloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
+#define check_malloc_state(A)              do_check_malloc_state(A,__FILE__,__LINE__)
+#define check_metadata_chunk(A,P,MD_P)     do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 /*
   Properties of all chunks
 */
+#endif 
 
+//iam: Note Bene these are out in the open. Eventually should go back behind the MALLOC_DEBUG fence.
 
 #if __STD_C
-static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
+static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 #else
-static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p; const char* file; int lineno;
 #endif
 {
   unsigned long sz = _md_chunksize(_md_p);
@@ -2800,9 +2807,12 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
   
   check_top(av);
 
-  metadata_ok = check_metadata_chunk(av, p, _md_p);
+  metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
 
   assert(metadata_ok);
+  if(!metadata_ok){
+    fprintf(stderr,  "do_check_chunk: metadata_ok not\n");
+  }
   
   if (!chunk_is_mmapped(p)) {
 
@@ -2810,7 +2820,13 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
     if (p != top) {
       if (contiguous(av)) {
         assert(((char*)p) >= min_address);
+	if(((char*)p) < min_address){
+	  fprintf(stderr,  "do_check_chunk: ((char*)p) < min_address @ %s line %d\n", file, lineno);
+	}
         assert(((char*)p + sz) <= (char*)top);
+	if(((char*)p + sz) > (char*)top){
+	  fprintf(stderr,  "do_check_chunk: ((char*)p + sz) > (char*)top @ %s line %d\n", file, lineno);
+	}
       }
     }
     else {
@@ -2843,38 +2859,70 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
 */
 
 #if __STD_C
-static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
+static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 #else
-static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p; const char* file; int lineno;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
   mchunkptr next = chunk_at_offset(p, sz);
   mchunkptr top = chunkinfo2chunk(av->_md_top);
 
-  do_check_chunk(av, p, _md_p);
+  do_check_chunk(av, p, _md_p, file, lineno);
 
   /* Chunk must claim to be free ... */
   assert(!inuse(p));
+  if(inuse(p)){
+    fprintf(stderr,  "do_check_free_chunk:  inuse(p) @ %s line %d\n", file, lineno);
+  }
   assert (!chunk_is_mmapped(p));
-
+  if(chunk_is_mmapped(p)){
+    fprintf(stderr,  "do_check_free_chunk:  chunk_is_mmapped(p) @ %s line %d\n", file, lineno);
+  }
+  
   /* Unless a special marker, must have OK fields */
   if ((unsigned long)(sz) >= MINSIZE)
     {
       assert((sz & MALLOC_ALIGN_MASK) == 0);
+      if((sz & MALLOC_ALIGN_MASK) != 0){
+	fprintf(stderr,  "do_check_free_chunk:  (sz & MALLOC_ALIGN_MASK) != 0 @ %s line %d\n", file, lineno);
+      }
       assert(aligned_OK(chunk2mem(p)));
+      if(!aligned_OK(chunk2mem(p))){
+	fprintf(stderr,  "do_check_free_chunk:  !aligned_OK(chunk2mem(p)) @ %s line %d\n", file, lineno);
+      }
       /* ... matching footer field */
       assert(next->prev_size == sz);
+      if(next->prev_size != sz){
+	fprintf(stderr,  "do_check_free_chunk:  next->prev_size != sz @ %s line %d\n", file, lineno);
+      }
       /* ... and is fully consolidated */
       assert(prev_inuse(p));
+      if(!prev_inuse(p)){
+	fprintf(stderr,  "do_check_free_chunk:  !prev_inuse(p) @ %s line %d\n", file, lineno);
+      }
       assert (next == top || inuse(next));
-
+      if(!(next == top || inuse(next))){
+	fprintf(stderr,  "do_check_free_chunk:  !(next == top || inuse(next)) @ %s line %d\n", file, lineno);
+      }
+      
       /* ... and has minimally sane links */
       assert(_md_p->fd->bk == _md_p);
+      if(_md_p->fd->bk != _md_p){
+	fprintf(stderr,  "do_check_free_chunk:  _md_p->fd->bk != _md_p @ %s line %d\n", file, lineno);
+      }
       assert(_md_p->bk->fd == _md_p);
+      if(_md_p->bk->fd != _md_p){
+	fprintf(stderr,  "do_check_free_chunk:  _md_p->bk->fd != _md_p @ %s line %d\n", file, lineno);
+      }
     }
-  else /* markers are always of size SIZE_SZ */
+  else { 
+    /* markers are always of size SIZE_SZ */
     assert(sz == SIZE_SZ);
+    if(sz != SIZE_SZ){
+      fprintf(stderr,  "do_check_free_chunk:  sz != SIZE_SZ @ %s line %d\n", file, lineno);
+    }
+  }
 }
 
 /*
@@ -2882,9 +2930,9 @@ static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfop
 */
 
 #if __STD_C
-static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p)
+static void do_check_inuse_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 #else
-static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p;
+static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p; const char* file; int lineno;
 #endif
 {
   mchunkptr top = chunkinfo2chunk(av->_md_top);
@@ -2893,17 +2941,23 @@ static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfo
   mchunkptr prv;
   chunkinfoptr _md_prv;
   
-  do_check_chunk(av, p, _md_p);
+  do_check_chunk(av, p, _md_p, file, lineno);
   
   if (chunk_is_mmapped(p))
     return; /* mmapped chunks have no next/prev */
-
+  
   /* Check whether it claims to be in use ... */
   assert(inuse(p));
-
+  if(!inuse(p)){
+    fprintf(stderr,  "do_check_inuse_chunk: !inuse(p) @ %s line %d\n", file, lineno);
+  }
+  
   next = next_chunk(p);
   _md_next = hashtable_lookup(av, next);
   assert(_md_next != NULL);
+  if(_md_next == NULL){
+    fprintf(stderr,  "do_check_inuse_chunk:  _md_next == NULL @ %s line %d\n", file, lineno);
+  }
 
   /* ... and is surrounded by OK chunks.
      Since more things can be checked with free chunks than inuse ones,
@@ -2914,17 +2968,29 @@ static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfo
     prv = prev_chunk(p);
     _md_prv = hashtable_lookup(av, prv);
     assert(_md_prv != NULL);
+    if(_md_prv == NULL){
+      fprintf(stderr,  "do_check_inuse_chunk:  _md_prv == NULL @ %s line %d\n", file, lineno);
+    }
     assert(next_chunk(prv) == p);
-    do_check_free_chunk(av, prv, _md_prv);
+    if(next_chunk(prv) != p){
+      fprintf(stderr,  "do_check_inuse_chunk:  next_chunk(prv) != p @ %s line %d\n", file, lineno);
+    }
+    do_check_free_chunk(av, prv, _md_prv, file, lineno);
   }
-
+  
   if (next == top) {
     assert(prev_inuse(next));
+    if(!prev_inuse(next)){
+      fprintf(stderr,  "do_check_inuse_chunk:  !prev_inuse(next) @ %s line %d\n", file, lineno);
+    }
     assert(_md_chunksize(_md_next) >= MINSIZE);
+    if(_md_chunksize(_md_next) < MINSIZE){
+      fprintf(stderr,  "do_check_inuse_chunk:  _md_chunksize(_md_next) < MINSIZE @ %s line %d\n", file, lineno);
+    }
   }
   else if (!inuse(next)) {
     chunkinfoptr _md_next = hashtable_lookup(av, next);
-    do_check_free_chunk(av, next, _md_next);
+    do_check_free_chunk(av, next, _md_next, file, lineno);
   }
 }
 
@@ -2933,32 +2999,58 @@ static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfo
 */
 
 #if __STD_C
-static void do_check_remalloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
+static void do_check_remalloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s, const char* file, int lineno)
 #else
 static void do_check_remalloced_chunk(av, p, _md_p, s)
-mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s; const char* file; int lineno;
 #endif
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
 
   if (!chunk_is_mmapped(p)) {
     assert(av == arena_for_chunk(p));
-    if (chunk_non_main_arena(p))
+    if(av != arena_for_chunk(p)){
+      fprintf(stderr,  "do_check_remalloced_chunk:  av != arena_for_chunk(p) @ %s line %d\n", file, lineno);
+    }
+    if (chunk_non_main_arena(p)){
       assert(av != &main_arena);
-    else
+      if(av == &main_arena){
+	fprintf(stderr,  "do_check_remalloced_chunk:  av == &main_arena @ %s line %d\n", file, lineno);
+      }
+    }
+    else {
       assert(av == &main_arena);
+      if(av != &main_arena){
+	fprintf(stderr, "do_check_remalloced_chunk:  av != &main_arena @ %s line %d\n", file, lineno);
+      }
+    }
   }
-
-  do_check_inuse_chunk(av, p, _md_p);
-
+  
+  do_check_inuse_chunk(av, p, _md_p, file, lineno);
+  
   /* Legal size ... */
   assert((sz & MALLOC_ALIGN_MASK) == 0);
+  if((sz & MALLOC_ALIGN_MASK) != 0){
+    fprintf(stderr,  "do_check_remalloced_chunk:  (sz & MALLOC_ALIGN_MASK) != 0 @ %s line %d\n", file, lineno);
+  }
   assert((unsigned long)(sz) >= MINSIZE);
+  if((unsigned long)(sz) < MINSIZE){
+    fprintf(stderr,  "do_check_remalloced_chunk:  (unsigned long)(sz) < MINSIZE @ %s line %d\n", file, lineno);
+  }
   /* ... and alignment */
   assert(aligned_OK(chunk2mem(p)));
+  if(!aligned_OK(chunk2mem(p))){
+    fprintf(stderr,  "do_check_remalloced_chunk:  !aligned_OK(chunk2mem(p)) @ %s line %d\n", file, lineno);
+  }
   /* chunk is less than MINSIZE more than request */
   assert((long)(sz) - (long)(s) >= 0);
+  if((long)(sz) - (long)(s) < 0){
+    fprintf(stderr,  "do_check_remalloced_chunk:  (long)(sz) - (long)(s) < 0 @ %s line %d\n", file, lineno);
+  }
   assert((long)(sz) - (long)(s + MINSIZE) < 0);
+  if((long)(sz) - (long)(s + MINSIZE) >= 0){
+    fprintf(stderr,  "do_check_remalloced_chunk:  (long)(sz) - (long)(s + MINSIZE) >= 0 @ %s line %d\n", file, lineno);
+  }
 }
 
 /*
@@ -2966,15 +3058,15 @@ mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
 */
 
 #if __STD_C
-static void do_check_malloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
+static void do_check_malloced_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s, const char* file, int lineno)
 #else
 static void do_check_malloced_chunk(av, p, _md_p, s)
-mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
+mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s; const char* file; int lineno;
 #endif
 {
   /* same as recycled case ... */
-  do_check_remalloced_chunk(av, p, _md_p, s);
-
+  do_check_remalloced_chunk(av, p, _md_p, s, file, lineno);
+  
   /*
     ... plus,  must obey implementation invariant that prev_inuse is
     always true of any allocated chunk; i.e., that each allocated
@@ -2986,21 +3078,24 @@ mstate av; mchunkptr p; chunkinfoptr _md_p; INTERNAL_SIZE_T s;
   */
 
   assert(prev_inuse(p));
+  if(!prev_inuse(p)){
+    fprintf(stderr,  "do_check_malloced_chunk:  !prev_inuse(p) @ %s line %d\n", file, lineno);
+  }
 }
 
 
 /*
   Properties of malloc_state.
-
+  
   This may be useful for debugging malloc, as well as detecting user
   programmer errors that somehow write into malloc_state.
-
+  
   If you are extending or experimenting with this malloc, you can
   probably figure out how to hack this routine to print out or
   display chunk addresses, sizes, bins, and other instrumentation.
 */
-
-static void do_check_malloc_state(mstate av)
+//iam: no non-std c prototype?
+static void do_check_malloc_state(mstate av, const char* file, int lineno)
 {
   int i;
   chunkinfoptr _md_p;
@@ -3017,55 +3112,87 @@ static void do_check_malloc_state(mstate av)
   mchunkptr top;
 
   top = chunkinfo2chunk(av->_md_top);
-
+  
   /* internal size_t must be no wider than pointer type */
   assert(sizeof(INTERNAL_SIZE_T) <= sizeof(char*));
-
+  if(sizeof(INTERNAL_SIZE_T) > sizeof(char*)){
+    fprintf(stderr,  "do_check_malloc_state:  sizeof(INTERNAL_SIZE_T) > sizeof(char*) @ %s line %d\n", file, lineno);
+  }
+  
   /* alignment is a power of 2 */
   assert((MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT-1)) == 0);
-
+  if((MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT-1)) != 0){
+    fprintf(stderr,  "do_check_malloc_state:  (MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT-1)) != 0 @ %s line %d\n", file, lineno);
+  }
+  
   /* cannot run remaining checks until fully initialized */
   if (top == 0 || top_is_initial(av))
     return;
-
+  
   /* pagesize is a power of 2 */
   assert((mp_.pagesize & (mp_.pagesize-1)) == 0);
+  if((mp_.pagesize & (mp_.pagesize-1)) != 0){
+    fprintf(stderr,  "do_check_malloc_state: (mp_.pagesize & (mp_.pagesize-1)) != 0  @ %s line %d\n", file, lineno);
+  }
 
   /* A contiguous main_arena is consistent with sbrk_base.  */
-  if (av == &main_arena && contiguous(av))
+  if (av == &main_arena && contiguous(av)){
     assert((char*)mp_.sbrk_base + av->system_mem ==
            (char*)top + _md_chunksize(av->_md_top));
-
+    if((char*)mp_.sbrk_base + av->system_mem !=
+           (char*)top + _md_chunksize(av->_md_top)){
+      fprintf(stderr,  "do_check_malloc_state:   (char*)mp_.sbrk_base + av->system_mem != (char*)top + _md_chunksize(av->_md_top) @ %s line %d\n", file, lineno);
+    }
+  }    
+  
   /* properties of fastbins */
-
+  
   /* max_fast is in allowed range */
   assert((av->max_fast & ~1) <= request2size(MAX_FAST_SIZE));
-
+  if((av->max_fast & ~1) > request2size(MAX_FAST_SIZE)){
+    fprintf(stderr,  "do_check_malloc_state:  (av->max_fast & ~1) > request2size(MAX_FAST_SIZE) @ %s line %d\n", file, lineno);
+  }
+  
   max_fast_bin = fastbin_index(av->max_fast);
-
+  
   for (i = 0; i < NFASTBINS; ++i) {
     _md_p = av->fastbins[i];
-
+    
     /* all bins past max_fast are empty */
-    if (i > max_fast_bin)
+    if (i > max_fast_bin){
       assert(_md_p == 0);
+      if(_md_p != 0){
+	fprintf(stderr,  "do_check_malloc_state: _md_p != 0 @ %s line %d\n", file, lineno);
+      }
+    }
 
     while (_md_p != 0) {
       p = chunkinfo2chunk(_md_p);
       /* each chunk claims to be inuse */
-      do_check_inuse_chunk(av, p, _md_p);
+      do_check_inuse_chunk(av, p, _md_p, file, lineno);
       total += _md_chunksize(_md_p);
       /* chunk belongs in this bin */
       assert(fastbin_index(_md_chunksize(_md_p)) == i);
+      if(fastbin_index(_md_chunksize(_md_p)) != i){
+	fprintf(stderr,  "do_check_malloc_state:  fastbin_index(_md_chunksize(_md_p)) != i @ %s line %d\n", file, lineno);
+      }
       _md_p = _md_p->fd;
     }
   }
-
-  if (total != 0)
+  
+  if (total != 0){
     assert(have_fastchunks(av));
-  else if (!have_fastchunks(av))
+    if(!have_fastchunks(av)){
+      fprintf(stderr,  "do_check_malloc_state:  !have_fastchunks(av) @ %s line %d\n", file, lineno);
+    }
+  }
+  else if (!have_fastchunks(av)){
     assert(total == 0);
-
+    if(total != 0){
+      fprintf(stderr,  "do_check_malloc_state:  total != 0 @ %s line %d\n", file, lineno);
+    }
+  }
+  
   /* check normal bins */
   for (i = 1; i < NBINS; ++i) {
     b = bin_at(av,i);
@@ -3074,27 +3201,43 @@ static void do_check_malloc_state(mstate av)
     if (i >= 2) {
       binbit = get_binmap(av,i);
       empty = last(b) == b;
-      if (!binbit)
+      if (!binbit){
         assert(empty);
-      else if (!empty)
+	if(!empty){
+	  fprintf(stderr,  "do_check_malloc_state: !empty  @ %s line %d\n", file, lineno);
+	}
+      }
+      else if (!empty){
         assert(binbit);
+	if(!binbit){
+	  fprintf(stderr,  "do_check_malloc_state:  !binbit @ %s line %d\n", file, lineno);
+	}
+      }
     }
 
     for (_md_p = last(b); _md_p != b; _md_p = _md_p->bk) {
       /* each chunk claims to be free */
       p = chunkinfo2chunk(_md_p);
-      do_check_free_chunk(av, p, _md_p);
+      do_check_free_chunk(av, p, _md_p, file, lineno);
       size = _md_chunksize(_md_p);
       total += size;
       if (i >= 2) {
         /* chunk belongs in bin */
         idx = bin_index(size);
         assert(idx == i);
+	if(idx != i){
+	  fprintf(stderr,  "do_check_malloc_state:  idx != i @ %s line %d\n", file, lineno);
+	}
         /* lists are sorted */
         if ((unsigned long) size >= (unsigned long)(FIRST_SORTED_BIN_SIZE)) {
           assert(_md_p->bk == b ||
                  (unsigned long)_md_chunksize(_md_p->bk) >=
                  (unsigned long)_md_chunksize(_md_p));
+	  if(!(_md_p->bk == b ||
+                 (unsigned long)_md_chunksize(_md_p->bk) >=
+                 (unsigned long)_md_chunksize(_md_p))){
+	    fprintf(stderr,  "do_check_malloc_state:  !(_md_p->bk == b ...) @ %s line %d\n", file, lineno);
+	  }
         }
       }
       
@@ -3102,8 +3245,11 @@ static void do_check_malloc_state(mstate av)
       q = next_chunk(p);
       _md_q = hashtable_lookup(av, q);
       assert(_md_q != NULL);
+      if(_md_q == NULL){
+	fprintf(stderr,  "do_check_malloc_state:  _md_q == NULL @ %s line %d\n", file, lineno);
+      }
       while(q != top && inuse(q) && (unsigned long)(_md_chunksize(_md_q)) >= MINSIZE){
-	do_check_inuse_chunk(av, q, _md_q);
+	do_check_inuse_chunk(av, q, _md_q, file, lineno);
 	q = next_chunk(q);
 	_md_q = hashtable_lookup(av, q);
       }
@@ -3112,9 +3258,9 @@ static void do_check_malloc_state(mstate av)
   
   /* top chunk is OK */
   check_chunk(av, top, av->_md_top);
-
+  
   /* sanity checks for statistics */
-
+  
 #ifdef NO_THREADS
   assert(total <= (unsigned long)(mp_.max_total_mem));
   assert(mp_.n_mmaps >= 0);
@@ -3133,7 +3279,8 @@ static void do_check_malloc_state(mstate av)
          (unsigned long)(mp_.mmapped_mem) + (unsigned long)(av->system_mem));
 #endif
 }
-#endif
+
+//iam #endif MALLOC_DEBUG
 
 
 /* ----------------- Support for debugging hooks -------------------- */

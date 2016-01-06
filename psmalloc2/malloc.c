@@ -3904,15 +3904,6 @@ public_fREe(Void_t* mem)
 
   ar_ptr = arena_for_chunk(p);
 
-  /* good place to check our twinning */
-  _md_p = hashtable_lookup (ar_ptr, p);
-
-  if (_md_p == NULL) {
-    missing_metadata(ar_ptr, p);
-  } 
-  
-  check_metadata_chunk(ar_ptr, p, _md_p);
-
 
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))
@@ -3925,10 +3916,20 @@ public_fREe(Void_t* mem)
   (void)mutex_lock(&ar_ptr->mutex);
 #endif
 
+  /* good place to check our twinning */
+  _md_p = hashtable_lookup (ar_ptr, p);
+
+  if (_md_p == NULL) {
+    missing_metadata(ar_ptr, p);
+  } 
+  
+  check_metadata_chunk(ar_ptr, p, _md_p);
+  
+  
   _int_free(ar_ptr, _md_p);
-
+  
   check_top(ar_ptr);
-
+  
 
   (void)mutex_unlock(&ar_ptr->mutex);
 }
@@ -4023,14 +4024,6 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 
   ar_ptr = arena_for_chunk(oldp);
   
-  /* another good place to check our twinning */
-  _md_oldp = hashtable_lookup (ar_ptr, oldp);
-  
-  if (_md_oldp == NULL) {
-    missing_metadata(ar_ptr, oldp);
-  } 
-
-  check_metadata_chunk(ar_ptr, oldp, _md_oldp);
 
 #if THREAD_STATS
   if (!mutex_trylock(&ar_ptr->mutex))
@@ -4050,12 +4043,21 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
 
   check_top(ar_ptr);
 
+  /* another good place to check our twinning */
+  _md_oldp = hashtable_lookup (ar_ptr, oldp);
+  
+  if (_md_oldp == NULL) {
+    missing_metadata(ar_ptr, oldp);
+  } 
+  
+  check_metadata_chunk(ar_ptr, oldp, _md_oldp);
+  
   _md_newp  = _int_realloc(ar_ptr, _md_oldp, bytes);
-
+  
   check_top(ar_ptr);
-
+  
   newmem = chunkinfo2mem(_md_newp);
-
+  
   (void)mutex_unlock(&ar_ptr->mutex);
   assert(!newmem || chunk_is_mmapped(mem2chunk(newmem)) ||
          ar_ptr == arena_for_chunk(mem2chunk(newmem)));

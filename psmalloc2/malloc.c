@@ -2765,12 +2765,12 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 #if ! MALLOC_DEBUG
 
 #define check_top(A)                         do_check_top(A,__FILE__,__LINE__)
-#define check_chunk(A,P,MD_P)                do_check_chunk(A,P,MD_P,__FILE__,__LINE__)
-#define check_free_chunk(A,P,MD_P)           do_check_free_chunk(A,P,MD_P,__FILE__,__LINE__)
-#define check_inuse_chunk(A,P,MD_P)          do_check_inuse_chunk(A,P,MD_P,__FILE__,__LINE__)
-#define check_remalloced_chunk(A,P,MD_P,N)   do_check_remalloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
-#define check_malloced_chunk(A,P,MD_P,N)     do_check_malloced_chunk(A,P,MD_P,N,__FILE__,__LINE__)
-#define check_malloc_state(A)                do_check_malloc_state(A,__FILE__,__LINE__)
+#define check_chunk(A,P,MD_P)                
+#define check_free_chunk(A,P,MD_P)           
+#define check_inuse_chunk(A,P,MD_P)          
+#define check_remalloced_chunk(A,P,MD_P,N)   
+#define check_malloced_chunk(A,P,MD_P,N)     
+#define check_malloc_state(A)                
 #define check_metadata_chunk(A,P,MD_P)       do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
 #warning "using do_check_* in ! MALLOC_DEBUG mode"
@@ -2788,9 +2788,6 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 /*
   Properties of all chunks
 */
-#endif 
-
-//iam: Note Bene these are out in the open. Eventually should go back behind the MALLOC_DEBUG fence.
 
 #if __STD_C
 static void do_check_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
@@ -3280,7 +3277,7 @@ static void do_check_malloc_state(mstate av, const char* file, int lineno)
 #endif
 }
 
-//iam #endif MALLOC_DEBUG
+#endif 
 
 
 /* ----------------- Support for debugging hooks -------------------- */

@@ -2496,8 +2496,8 @@ static inline INTERNAL_SIZE_T _md_chunksize(chunkinfoptr ci)
 
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
-  fprintf(stderr, "No metadata for %p of size %zu. main_arena %d. chunk_is_mmapped: %d\n", 
-          chunk2mem(p), chunksize(p), is_main_arena(av), chunk_is_mmapped(p));
+  fprintf(stderr, "No metadata for %p of size %zu. main_arena %d. chunk_is_mmapped: %d @ %s line %d\n", 
+          chunk2mem(p), chunksize(p), is_main_arena(av), chunk_is_mmapped(p), file, lineno);
   abort();
 }
 

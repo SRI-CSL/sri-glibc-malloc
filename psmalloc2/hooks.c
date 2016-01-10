@@ -256,7 +256,7 @@ top_check()
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
 
   top = (mchunkptr)(brk + front_misalign);
-  set_head(top, (sbrk_size - front_misalign) | PREV_INUSE);
+  set_head(FIXME, top, (sbrk_size - front_misalign) | PREV_INUSE);
   main_arena._md_top = register_chunk(&main_arena, top);
 
   return 0;

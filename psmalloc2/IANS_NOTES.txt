@@ -197,6 +197,15 @@ fine. Try it:
 make helgrind
 
 
-23.The training wheels should come off soon. Look for calls to:
+23. The training wheels should come off soon. Look for calls to:
 
 missing_metadata(...);
+
+24. The next step is to eliminate the mchunkptr metadata as is, and
+then replace it with the arena_number. The removal of the metatdata
+should be another tag, since we may try other variants from that point.
+I.e. none at all, if we get the lock-free thingy up and running.
+
+
+
+

@@ -1527,6 +1527,8 @@ typedef struct malloc_chunk* mchunkptr;
 /* iam: just plonked down here for the time being; we should worry about !__STD_C at some stage. */
 static chunkinfoptr hashtable_lookup (mstate av, mchunkptr p);
 
+static chunkinfoptr create_metadata(mstate av, mchunkptr p);
+
 static chunkinfoptr register_chunk(mstate av, mchunkptr p);
 
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
@@ -1913,15 +1915,18 @@ static inline void clear_inuse_bit(mstate av, chunkinfoptr _md_p, mchunkptr p)
   }
 }
 
+//iam: something easy to search for...
+#define FIXME NULL
+
 /* Set size at head, without disturbing its use bit */
-static inline void set_head_size(mchunkptr p, INTERNAL_SIZE_T s)
+static inline void set_head_size(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
   p->size = ((p->size & SIZE_BITS) | s);
 }
 
 
 /* Set size/use field */
-static inline void set_head(mchunkptr p, INTERNAL_SIZE_T s)
+static inline void set_head(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
   p->size = s;
 }
@@ -2574,6 +2579,24 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p)
   chunkinfoptr _md_p = new_chunkinfoptr(av);
   twin(_md_p, p);
   hashtable_add(av, _md_p);
+  return _md_p;
+}
+
+static chunkinfoptr create_metadata(mstate av, mchunkptr p)
+{
+  chunkinfoptr _md_p;
+  bool retcode;
+
+  assert(p != NULL);
+
+  _md_p = new_chunkinfoptr(av);
+
+  assert(_md_p != NULL);
+  
+  _md_p->chunk = chunk2mem(p);
+  retcode = hashtable_add(av, _md_p);
+  assert(retcode);
+  unused_var(retcode);
   return _md_p;
 }
 

@@ -29,7 +29,7 @@ MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
-TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest0 stest1 stest2
+TESTS = stest0 stest0 stest1 stest2
 
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
@@ -115,13 +115,6 @@ gmtestreplay: gmtreplay
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay
 	rm -rf *.dSYM
-
-
-check: $(TESTS)
-	./t-test1
-	./t-test2
-	./tst-mallocstate || echo "Test mallocstate failed!"
-	./tst-mstats || echo "Test mstats failed!"
 
 
 # dependencies

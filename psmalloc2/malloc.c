@@ -1814,6 +1814,20 @@ static inline bool prev_inuse(mchunkptr p)
   return (p->size & PREV_INUSE) == PREV_INUSE;
 }
 
+/* extract inuse bit of previous chunk */
+static inline bool get_prev_inuse(chunkinfoptr _md_p, mchunkptr p)
+{
+  bool retval;
+
+  if(_md_p != NULL){
+    retval = ((_md_p->size & PREV_INUSE) == PREV_INUSE);
+  } else {
+    retval = ((p->size & PREV_INUSE) == PREV_INUSE);
+  }
+
+  return retval;
+}
+
 
 /* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */
 #define IS_MMAPPED 0x2
@@ -3647,7 +3661,7 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
       if (brk == old_end && snd_brk == (char*)(MORECORE_FAILURE)) {
         set_head(_md_old_top, old_top, (size + old_size) | PREV_INUSE);
-        update(_md_old_top, old_top); //iam: update the metadata too
+        update(_md_old_top, old_top); //cuidado 
       }
       else if (contiguous(av) && old_size && brk < old_end) {
         /* Oops!  Someone else killed our space..  Can't touch anything.  */
@@ -3989,13 +4003,16 @@ mremap_chunk(_md_p, new_size) mstate av; chunkinfoptr _md_p; size_t new_size;
     _md_newp = _md_p;
   } else {
     hashtable_remove(av, oldp);
-    _md_newp = create_metadata(av, newp);
+    _md_newp = create_metadata(av, newp); 
+    set_prev_size(_md_newp, newp, offset);  
   }
-
-  assert(aligned_OK(chunk2mem(newp)));
-  assert((newp->prev_size == offset));
-
   set_head(_md_newp, newp, (new_size - offset)|IS_MMAPPED);
+
+  
+  assert(aligned_OK(chunk2mem(newp)));
+  assert((get_prev_size(_md_newp, newp) == offset)); 
+
+
 
   mp_.mmapped_mem -= size + offset;
   mp_.mmapped_mem += new_size;
@@ -5091,7 +5108,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
   if (_md_p != 0) {
     p = chunkinfo2chunk(_md_p);
     size = _md_chunksize(_md_p);
-
+    
     check_inuse_chunk(av, p, _md_p);
 
     /*
@@ -5133,9 +5150,9 @@ _int_free(mstate av, chunkinfoptr _md_p)
       assert(nextsize > 0);
 
       /* consolidate backward */
-      if (!prev_inuse(p)) {
+      if (!get_prev_inuse(_md_p, p)) {
         /* iam: p gets absorbed into prevchunk */
-        prevsize = p->prev_size;
+        prevsize = get_prev_size(_md_p, p);
         prevchunk = chunk_at_offset(p, -((long) prevsize));
         _md_prevchunk = hashtable_lookup(av, prevchunk);
 
@@ -5265,7 +5282,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
     else {
 #if HAVE_MMAP
       int ret;
-      INTERNAL_SIZE_T offset = p->prev_size;
+      INTERNAL_SIZE_T offset = get_prev_size(_md_p, p);
       mp_.n_mmaps--;
       mp_.mmapped_mem -= (size + offset);
       ret = munmap((char*)p - offset, size + offset);
@@ -5396,8 +5413,8 @@ static void malloc_consolidate(av) mstate av;
           } 
           nextsize = _md_chunksize(_md_nextchunk);
 
-          if (!prev_inuse(p)) { //iam: keep this for the time being
-            prevsize = p->prev_size;
+          if (!get_prev_inuse(_md_p, p)) { 
+            prevsize = get_prev_size(_md_p, p);
             size += prevsize;
             prevchunk = chunk_at_offset(p, -((long) prevsize));
             _md_prevchunk = hashtable_lookup(av, prevchunk);
@@ -5693,7 +5710,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
 #if HAVE_MMAP
 
 #if HAVE_MREMAP
-    INTERNAL_SIZE_T offset = oldp->prev_size;
+    INTERNAL_SIZE_T offset = get_prev_size(_md_oldp, oldp);
     size_t pagemask = mp_.pagesize - 1;
     char *old_cp;
     char *cp;
@@ -5717,7 +5734,9 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
       if (cp == old_cp) {
         /* iam: we didn't move */
         set_head(_md_oldp, oldp, (newsize - offset)|IS_MMAPPED);
-        update(_md_oldp, oldp);
+
+        update(_md_oldp, oldp); //cuidado...
+
         newp = oldp;
       } else {
         /* iam: we moved; need to reregister */
@@ -5727,11 +5746,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         /* iam: reregister it */
         _md_oldp = create_metadata(av, newp);
         set_head(_md_oldp, newp, (newsize - offset)|IS_MMAPPED);
-
+	set_prev_size(_md_oldp, newp, offset);  
       }
       
       assert(aligned_OK(chunk2mem(newp)));
-      assert((newp->prev_size == offset));
+      assert((get_prev_size(_md_oldp, newp) == offset));
 
       /* update statistics */
       sum = mp_.mmapped_mem += newsize - oldsize;

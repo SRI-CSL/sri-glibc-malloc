@@ -1978,7 +1978,7 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
   if(_md_prev_chunk != NULL){
-    _md_prev_chunk->prev_size =  s;
+    _md_prev_chunk->prev_size = s;
   } else {
     fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
 	    prev_chunk,  s);
@@ -2504,8 +2504,10 @@ static void _update(chunkinfoptr ci, mchunkptr c, const char* file, int lineno)
     fprintf(stderr, "update sizes: %zu != %zu @ %s line %d\n", ci->size, c->size, file, lineno);
   }
 
-  if(ci->prev_size != c->prev_size){
-    fprintf(stderr, "update prev_sizes: %zu != %zu @ %s line %d\n", ci->prev_size, c->prev_size, file, lineno);
+  if(!prev_inuse(c)){
+    if(ci->prev_size != c->prev_size){
+      fprintf(stderr, "update prev_sizes: %zu != %zu @ %s line %d\n", ci->prev_size, c->prev_size, file, lineno);
+    }
   }
   */
   
@@ -3963,7 +3965,7 @@ mremap_chunk(_md_p, new_size) mstate av; chunkinfoptr _md_p; size_t new_size;
   page_mask = mp_.pagesize - 1;
   oldp = chunkinfo2chunk(_md_p);
   
-  offset = oldp->prev_size;
+  offset = get_prev_size(_md_p, oldp);
   size = _md_chunksize(_md_p);
 
   assert (chunk_is_mmapped(oldp));
@@ -5787,6 +5789,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
   mchunkptr       remainder;      /* spare room at end to split off */
   chunkinfoptr    _md_remainder;  /* metadata of the spare room at end */
   unsigned long   remainder_size; /* its size */
+  INTERNAL_SIZE_T prev_size;
   INTERNAL_SIZE_T size;
 
   /* If need less alignment than we give anyway, just relay to malloc */
@@ -5849,11 +5852,12 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     /* iam: not quite for us; we hash on the memory pointed too... */
     if (chunk_is_mmapped(p)) {
 
+      prev_size = get_prev_size(_md_p, p);
+      
       hashtable_remove(av, p);
 
       _md_newp = create_metadata(av, newp);
-      //set_prev_size(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
-      newp->prev_size = p->prev_size + leadsize; //cuidado
+      set_prev_size(_md_newp, newp, prev_size + leadsize);
       set_head(_md_newp, newp, newsize|IS_MMAPPED);
 
       return _md_newp;

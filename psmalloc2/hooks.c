@@ -256,8 +256,8 @@ top_check()
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
 
   top = (mchunkptr)(brk + front_misalign);
-  set_head(FIXME, top, (sbrk_size - front_misalign) | PREV_INUSE);
-  main_arena._md_top = register_chunk(&main_arena, top);
+  main_arena._md_top = create_metadata(&main_arena, top);
+  set_head(main_arena._md_top, top, (sbrk_size - front_misalign) | PREV_INUSE);
 
   return 0;
 }
@@ -357,9 +357,10 @@ realloc_check(oldmem, bytes, caller)
 #if HAVE_MMAP
   if (chunk_is_mmapped(oldp)) {
 #if HAVE_MREMAP
-    mchunkptr newp = mremap_chunk(_md_oldp, nb);
-    if(newp)
-      newmem = chunk2mem(newp);
+    _md_newmem = mremap_chunk(&main_arena, _md_oldp, nb);
+    if(_md_newmem){
+      newmem = chunk2mem(chunkinfo2chunk(_md_newmem));
+    }
     else
 #endif
     {

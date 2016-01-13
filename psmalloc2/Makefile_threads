@@ -5,7 +5,7 @@
 LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
-	-g -O                                     \
+	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
 	-DMALLOC_DEBUG=1                          \
@@ -31,7 +31,7 @@ MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
-TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest0 stest1 stest2
+TESTS = stest0 stest0 stest1 stest2
 
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
@@ -83,7 +83,7 @@ testreplay: replay
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
-INTERVAL = `seq 1 50`
+INTERVAL = `seq 1 10`
 
 mstress: mtreplay
 	for number in ${INTERVAL} ; do \
@@ -105,6 +105,26 @@ mstress16: mtreplay
 	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
 	done
 
+lfmstress: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      LD_PRELOAD=../../Alternatives/michael/libmichael.so ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for shaman
+lfmstress8: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for pascali
+lfmstress16: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
 
 helgrind: mtreplay
 	valgrind --tool=helgrind ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
@@ -117,13 +137,6 @@ gmtestreplay: gmtreplay
 clean:
 	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay
 	rm -rf *.dSYM
-
-
-check: $(TESTS)
-	./t-test1
-	./t-test2
-	./tst-mallocstate || echo "Test mallocstate failed!"
-	./tst-mstats || echo "Test mstats failed!"
 
 
 # dependencies

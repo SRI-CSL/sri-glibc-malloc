@@ -802,7 +802,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     /* iam: we need to get metadata of so we can update it and store it */
     top_chunk = p;
     ar_ptr->_md_top = _md_p;
-    set_head(top_chunk, new_size | PREV_INUSE);
+    set_head(_md_p, top_chunk, new_size | PREV_INUSE);  
     update(_md_p, p);
     do_check_metadata_chunk(ar_ptr, p, _md_p, __FILE__, __LINE__);
     
@@ -821,7 +821,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   ar_ptr->system_mem -= extra;
   arena_mem -= extra;
   /* Success. Adjust top accordingly. */
-  set_head(top_chunk, (top_size - extra) | PREV_INUSE);   
+  set_head(ar_ptr->_md_top, top_chunk, (top_size - extra) | PREV_INUSE);   
   update(ar_ptr->_md_top, top_chunk);
 
   /*iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk);*/
@@ -933,8 +933,9 @@ _int_new_arena(size_t size)
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
   top = (mchunkptr)ptr;
-  set_head(top, (((char*)h + h->size) - ptr) | PREV_INUSE);
-  a->_md_top = register_chunk(a, top);
+  a->_md_top = create_metadata(a, top);
+  set_head(a->_md_top, top, (((char*)h + h->size) - ptr) | PREV_INUSE);
+
 
   do_check_top(a, __FILE__, __LINE__);
 

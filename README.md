@@ -23,5 +23,7 @@ implementations.
 
 -  `glibc` our glibc (head of repo) version.
 
+-  `lfpa`  Maged Michael's lock free pool allocator.
+
 
 

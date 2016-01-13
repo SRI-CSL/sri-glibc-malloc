@@ -48,7 +48,7 @@ endif
 all:	libmichael.so replay mtreplay
 
 clean:
-	rm -f *.o *.so
+	rm -f *.o *.so  replay mtreplay
 
 michael.o:	michael.h michael.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
 		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c michael.c
@@ -60,25 +60,23 @@ libmichael.so:	michael.o
 MALLOCOBJ = michael.o
 
 lphash.o: ../lphash/lphash.c
-	$(CC) $(CFLAGS) -I../lphash ../lphash/lphash.c -c
+	$(CC) $(CFLAGS) $(OPT) -I../lphash ../lphash/lphash.c -c
 
 replaylib.o:  replaylib.c
-	$(CC) $(CFLAGS) -I../lphash -I../mhooks replaylib.c -c
+	$(CC) $(CFLAGS) $(OPT) -I../lphash -I../mhooks replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+	$(CC) $(CFLAGS) $(OPT) -I../lphash replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
-
+	$(CC) $(CFLAGS) $(OPT) -I../lphash mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 SMT2 = 2668e3c6 d6c91c1f da2ad2d3
 
 testreplay: replay
 	for smt in $(SMT2) ; do \
-	    echo "<running $$smt >" ; \
+	    echo "running $$smt" ; \
 	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
-	    echo "</running $$smt >" ; \
 	done
 
 mtestreplay: mtreplay

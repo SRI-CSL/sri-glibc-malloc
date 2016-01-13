@@ -135,7 +135,7 @@ gmtestreplay: gmtreplay
 
 
 clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay mtreplay gmtreplay
 	rm -rf *.dSYM
 
 

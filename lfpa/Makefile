@@ -76,6 +76,7 @@ SMT2 = 2668e3c6 d6c91c1f da2ad2d3
 testreplay: replay
 	for smt in $(SMT2) ; do \
 	    echo "running $$smt" ; \
+	    echo "./replay ../../analysis/data/yices_smt2_$$smt.txt" ; \
 	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
 	done
 

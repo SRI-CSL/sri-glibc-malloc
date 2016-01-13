@@ -59,7 +59,7 @@ typedef struct Procheap procheap;
  *	descriptor* DescAvail;
  */
 typedef struct {
-	unsigned long long 	DescAvail:46, tag:18;
+	unsigned long long 	DescAvail:48, tag:16;
 } descriptor_queue;
 
 /* Superblock descriptor structure. We bumped avail and count 

@@ -14,8 +14,8 @@ typedef struct {
 // the pointer for the implementation of a singly-linked
 // list. 
 struct queue_elem_t {
-	char 				*_dummy;
-	volatile struct queue_elem_t 	*next;
+  //char 				*_dummy;   BD&DD
+  volatile struct queue_elem_t 	*next;
 };
 
 typedef struct {

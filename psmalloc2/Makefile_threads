@@ -105,26 +105,6 @@ mstress16: mtreplay
 	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
 	done
 
-lfmstress: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      LD_PRELOAD=../../Alternatives/michael/libmichael.so ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done
-
-#for shaman
-lfmstress8: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      ./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done
-
-#for pascali
-lfmstress16: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done
-
 
 helgrind: mtreplay
 	valgrind --tool=helgrind ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt

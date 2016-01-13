@@ -33,9 +33,6 @@ GCC_OPT		= -O3 -ggdb #-DDEBUG
 CLANG_CFLAGS	= -Wall $(BITS) -fno-strict-aliasing $(FPIC)
 CLANG_OPT	= -O3 -ggdb #-DDEBUG
 
-ICC_CFLAGS	= -Wall -wd279 -wd981 -wd1418 -wd1469 -wd383 -wd869 -wd522 -wd810 -wd1684
-ICC_OPT		= -O3 -pipe -finline-functions -fomit-frame-pointer #-march=pentium4 -mcpu=pentium4 
-
 ifeq ($(CC), gcc)
 	OPT = $(GCC_OPT)
 	CFLAGS += $(GCC_CFLAGS)
@@ -46,14 +43,9 @@ ifeq ($(CC), clang)
 	CFLAGS += $(CLANG_CFLAGS)
 endif
 
-ifeq ($(CC), icc)
-	OPT = $(ICC_OPT)
-	CFLAGS += $(ICC_CFLAGS)
-endif
-
 # Rules
 
-all:	libmichael.so 
+all:	libmichael.so replay mtreplay
 
 clean:
 	rm -f *.o *.so
@@ -64,3 +56,52 @@ michael.o:	michael.h michael.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
 libmichael.so:	michael.o
 		$(CC) $(CFLAGS) $(OPT) michael.o -o libmichael.so $(CLFLAGS) -shared
 
+# Replay stuff
+MALLOCOBJ = michael.o
+
+lphash.o: ../lphash/lphash.c
+	$(CC) $(CFLAGS) -I../lphash ../lphash/lphash.c -c
+
+replaylib.o:  replaylib.c
+	$(CC) $(CFLAGS) -I../lphash -I../mhooks replaylib.c -c
+
+replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+
+mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+
+
+SMT2 = 2668e3c6 d6c91c1f da2ad2d3
+
+testreplay: replay
+	for smt in $(SMT2) ; do \
+	    echo "<running $$smt >" ; \
+	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
+	    echo "</running $$smt >" ; \
+	done
+
+mtestreplay: mtreplay
+	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+INTERVAL = `seq 1 10`
+
+mstress: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for shaman
+mstress8: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for pascali
+mstress16: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done

@@ -8,14 +8,16 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O                                     \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
-	-DNDEBUG                                  \
+	-DMALLOC_DEBUG=1                          \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
 #	-DNDEBUG                                  \
-#	-DMALLOC_DEBUG=1                          \
 # to not use Gloger's spin locks:
 #	-DUSE_NO_SPINLOCKS                        \
+# turns on sanity checky of the memory pools
+#       -DMEMCXT_SANITY_CHECK=1                   \
+
 
 # Flags for the test programs
 T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1

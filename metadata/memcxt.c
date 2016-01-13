@@ -6,9 +6,11 @@
 #include "memcxt.h"
 #include "utils.h"
 
-#ifndef NDEBUG
-#warning "sanity checking in memcxt is on; FIX: "assert" here is determined by NDEBUG"
+/* turn on to sanity check the pools during allocation */
+#ifndef MEMCXT_SANITY_CHECK
+#define MEMCXT_SANITY_CHECK 0
 #endif
+
 
 #define BITS_IN_MASK  64
 
@@ -166,8 +168,11 @@ void dump_memcxt(FILE* fp, memcxt_t* memcxt){
 
 
 
-#ifndef NDEBUG
+#if MEMCXT_SANITY_CHECK
 static bool sane_bucket_pool(bucket_pool_t* bpool);
+#warning "sanity checking in memcxt is on; EXPECT DELAYS!"
+#else
+#define  sane_bucket_pool(X)   true
 #endif
 
 /* for now we do not assume that the underlying memory has been mmapped (i.e zeroed) */
@@ -270,7 +275,7 @@ static void* new_buckets(void){
   return bptr;
 }
 
-#ifndef NDEBUG
+#if MEMCXT_SANITY_CHECK
 static bool sane_bucket_pool(bucket_pool_t* bpool){
   size_t free_count;
   size_t bit_free_count;

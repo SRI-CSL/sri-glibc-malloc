@@ -205,12 +205,12 @@ static void *_r_malloc(replay_stats_t* statsp, size_t size){
 
   rptr = malloc(size);
 
+  statsp->malloc_clock += clock() - start;
+  statsp->malloc_count++;
+
   if(track_allocations){
     fprintf(stderr, "malloc returned %p of requested size %zu\n", rptr, size);
   }
-
-  statsp->malloc_clock += clock() - start;
-  statsp->malloc_count++;
 
   return rptr; 
 }
@@ -223,13 +223,13 @@ static void *_r_realloc(replay_stats_t* statsp, void *ptr, size_t size){
 
   rptr  = realloc(ptr, size);
 
+  statsp->realloc_clock += clock() - start;
+  statsp->realloc_count++;
+  
   if(track_allocations){
     fprintf(stderr, "realloc returned %p of requested size %zu\n", rptr, size);
   }
 
-  statsp->realloc_clock += clock() - start;
-  statsp->realloc_count++;
-  
   return rptr;
 }
 
@@ -254,16 +254,18 @@ static void * _r_calloc(replay_stats_t* statsp, size_t count, size_t size){
 static void _r_free(replay_stats_t* statsp, void *ptr){
   clock_t start;
 
-  start = clock();
-
   if(track_allocations){
     fprintf(stderr, "freeing %p\n", ptr);
   }
+
+  start = clock();
+
   free(ptr);
   
   statsp->free_clock += clock() - start;
   statsp->free_count++;
   
+
 }
 
 

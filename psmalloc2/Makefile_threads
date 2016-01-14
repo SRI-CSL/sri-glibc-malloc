@@ -8,11 +8,11 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
-	-DMALLOC_DEBUG=1                          \
+	-DNDEBUG                                  \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
-#	-DNDEBUG                                  \
+
 # to not use Gloger's spin locks:
 #	-DUSE_NO_SPINLOCKS                        \
 # turns on sanity checky of the memory pools
@@ -36,7 +36,7 @@ TESTS = stest0 stest0 stest1 stest2
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay mtreplay gmtreplay
+all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay greplay mtreplay gmtreplay
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)
@@ -64,6 +64,9 @@ replaylib.o:  replaylib.c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+
+greplay: replay.c lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c lphash.o replaylib.o -lpthread  -o  $@
 
 mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
 	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@

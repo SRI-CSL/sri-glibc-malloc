@@ -1660,7 +1660,7 @@ static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 
 struct malloc_chunk {
 
-  INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
+  INTERNAL_SIZE_T      _prev_size;  /* Size of previous chunk (if free).  */
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
   /* iam: these should now live solely in the metadata  */
@@ -1874,10 +1874,13 @@ static inline mchunkptr next_chunk(mchunkptr p)
 
 
 /* Ptr to previous physical malloc_chunk */
-static inline mchunkptr prev_chunk(mchunkptr p)
+static inline mchunkptr prev_chunk(chunkinfoptr _md_p, mchunkptr p)
 {
-  return ((mchunkptr)( ((char*)p) - (p->prev_size) ));
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+  return ((mchunkptr)( ((char*)p) - (_md_p->prev_size) ));
 }
+
 
 /* Treat space at ptr + offset as a chunk */
 static inline mchunkptr chunk_at_offset(void* p, INTERNAL_SIZE_T s)
@@ -1898,72 +1901,96 @@ static inline int inuse_bit_at_offset(mchunkptr p, INTERNAL_SIZE_T s)
   return (((mchunkptr)(((char*)p) + s))->size & PREV_INUSE);
 }
 
+
 /* iam: might be an idea to pass in the metadata if we have it in hand */
 static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
+
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+
+  
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
   if(_md_prev_chunk != NULL){
     _md_prev_chunk->size |= PREV_INUSE;
   } else {
-    fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
-	    prev_chunk,  s);
+    fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", prev_chunk,  s);
   }
 
   prev_chunk->size |= PREV_INUSE;
+  
 }
 
 
 static inline void clear_inuse_bit(mstate av, chunkinfoptr _md_p, mchunkptr p)
 {
+  assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
-  if(chunkinfo2chunk(_md_p) == p){
+  
+  if(_md_p != NULL){
     _md_p->size  &= ~(PREV_INUSE);
-    p->size &= ~(PREV_INUSE);
   }
+
+  p->size  &= ~(PREV_INUSE);
+  
 }
 
 /* Set size at head, without disturbing its use bit */
 static inline void set_head_size(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
-  
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+
   if(_md_p != NULL){
     _md_p->size = ((_md_p->size & SIZE_BITS) | s);
   }
-  p->size = ((p->size & SIZE_BITS) | s);
+
+  p->size = ((_md_p->size & SIZE_BITS) | s);
 }
 
 
 /* Set size/use field */
 static inline void set_head(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+  
   if(_md_p != NULL){
     _md_p->size = s;
   }
+
   p->size = s;
+ 
 }
 
 /* Set prev_size field */
 static inline void set_prev_size(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
+
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+
   if(_md_p != NULL){
     _md_p->prev_size = s;
   }
-  p->prev_size = s;
 }
 
 /* Get prev_size field */
 static inline INTERNAL_SIZE_T get_prev_size(chunkinfoptr _md_p, mchunkptr p)
 {
   INTERNAL_SIZE_T retval;
-
+  
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+  
   if(_md_p != NULL){
     retval = _md_p->prev_size;
   } else {
-    retval = p->prev_size;
+    retval = 0;
   }
 
   return retval;
@@ -1972,9 +1999,14 @@ static inline INTERNAL_SIZE_T get_prev_size(chunkinfoptr _md_p, mchunkptr p)
 /* Set non-main arena */
 static inline void set_non_main_arena(chunkinfoptr _md_p, mchunkptr p)
 {
+
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+  
   if(_md_p != NULL){
     _md_p->size |= NON_MAIN_ARENA;
   }
+
   p->size |= NON_MAIN_ARENA;
 }
 
@@ -1986,19 +2018,19 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL
 {
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
-  //iam: fails in multithreaded mreplay
-  // assert(!inuse(p)); 
+
+  assert(_md_p != NULL);
+  assert(chunkinfo2chunk(_md_p) == p);
+  
   prev_chunk = (mchunkptr)((char*)p + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
   if(_md_prev_chunk != NULL){
     _md_prev_chunk->prev_size = s;
   } else {
-    fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
-	    prev_chunk,  s);
+    fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", prev_chunk,  s);
   }
 
-  prev_chunk->prev_size = s;
 }
 
 /*
@@ -2514,6 +2546,7 @@ static void _update(chunkinfoptr ci, mchunkptr c, const char* file, int lineno)
   assert(ci->chunk == chunk2mem(c));
 
   /*
+
   if(ci->size != c->size){
     fprintf(stderr, "update sizes: %zu != %zu @ %s line %d\n", ci->size, c->size, file, lineno);
   }
@@ -2523,10 +2556,12 @@ static void _update(chunkinfoptr ci, mchunkptr c, const char* file, int lineno)
       fprintf(stderr, "update prev_sizes: %zu != %zu @ %s line %d\n", ci->prev_size, c->prev_size, file, lineno);
     }
   }
-  */
   
   ci->size = c->size;
   ci->prev_size =  c->prev_size;
+
+  */
+
 }
 
 #define update(CI,C) _update(CI, C, __FILE__, __LINE__)
@@ -2559,6 +2594,7 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 /* temporary hack for testing sanity */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
+#if 0
   if (ci != NULL) {
     if (chunkinfo2chunk(ci) != c) {
       fprintf(stderr, "check_metadata_chunk of %p:\nmetadata and data do not match @ %s line %d\n",
@@ -2603,6 +2639,9 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     return true;
   } 
   return false;
+#else
+  return true;
+#endif
 }
 
 
@@ -3944,14 +3983,15 @@ munmap_chunk(_md_p) chunkinfoptr _md_p;
   mchunkptr p = chunkinfo2chunk(_md_p);
   INTERNAL_SIZE_T size = _md_chunksize(_md_p);  
   int ret;
+  INTERNAL_SIZE_T prev_size = get_prev_size(_md_p, p);
 
   assert (chunk_is_mmapped(p));
-  assert(((p->prev_size + size) & (mp_.pagesize-1)) == 0);
+  assert(((prev_size + size) & (mp_.pagesize-1)) == 0);
 
   mp_.n_mmaps--;
-  mp_.mmapped_mem -= (size + p->prev_size);
+  mp_.mmapped_mem -= (size + prev_size);
 
-  ret = munmap((char *)p - p->prev_size, size + p->prev_size);
+  ret = munmap((char *)p - prev_size, size + prev_size);
 
   /* munmap returns non-zero on failure */
   assert(ret == 0);
@@ -4204,7 +4244,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   /* realloc of null is supposed to be same as malloc */
   if (oldmem == 0) return public_mALLOc(bytes);
 
-  oldp    = mem2chunk(oldmem);
+  oldp  = mem2chunk(oldmem);
 
 
   if ( !checked_request2size(bytes, &nb) ) {

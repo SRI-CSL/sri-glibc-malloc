@@ -161,10 +161,10 @@ mem2chunk_check(Void_t* mem)
 mem2chunk_check(mem) Void_t* mem;
 #endif
 {
+#if 0  //iam: lots of head scratching here ...
   mchunkptr p;
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
-
   if(!aligned_OK(mem)) return NULL;
   p = mem2chunk(mem);
   if (!chunk_is_mmapped(p)) {
@@ -206,6 +206,9 @@ mem2chunk_check(mem) Void_t* mem;
     ((unsigned char*)p)[sz] ^= 0xFF;
   }
   return p;
+#else
+  return NULL;
+#endif
 }
 
 /* Check for corruption of the top chunk, and try to recover if

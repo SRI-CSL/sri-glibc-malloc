@@ -710,6 +710,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
 
   mchunkptr p;
+  mchunkptr prev;
   chunkinfoptr _md_p;
   
   chunkinfoptr bck, fwd;
@@ -747,8 +748,11 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     
     assert(p->size == (0|PREV_INUSE)); /* must be fencepost */
 
+    prev = prev_chunk(_md_p, p);
+    
     hashtable_remove(ar_ptr, p);
-    p = prev_chunk(p);
+
+    p = prev;
     _md_p = hashtable_lookup(ar_ptr, p);
     
     if(_md_p == NULL){
@@ -761,7 +765,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     assert(new_size>0 && new_size<(long)(2*MINSIZE));
 
     if(!prev_inuse(p)){
-      new_size += p->prev_size;   
+      new_size += get_prev_size(_md_p, p);   
     }
     assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
 
@@ -781,8 +785,9 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       /* consolidate backward  
        * iam: already done the size above
        */
+      prev = prev_chunk(_md_p, p);
       hashtable_remove(ar_ptr, p);   /* iam: 'nuther chunk bites the dust */
-      p = prev_chunk(p);
+      p = prev;
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if(_md_p == NULL){

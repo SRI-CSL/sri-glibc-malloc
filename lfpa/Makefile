@@ -35,29 +35,29 @@ CLANG_OPT	= -O3 -ggdb #-DDEBUG
 
 ifeq ($(CC), gcc)
 	OPT = $(GCC_OPT)
-	CFLAGS += $(GCC_CFLAGS)
+	CFLAGS += $(GCC_CFLAGS)  -Iinclude-$(ASM)
 endif
 
 ifeq ($(CC), clang)
 	OPT = $(CLANG_OPT)
-	CFLAGS += $(CLANG_CFLAGS)
+	CFLAGS += $(CLANG_CFLAGS)  -Iinclude-$(ASM)
 endif
 
 # Rules
 
-all:	libmichael.so replay mtreplay
+all:	liblfpa.so replay mtreplay
 
 clean:
 	rm -f *.o *.so  replay mtreplay
 
-michael.o:	michael.h michael.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
-		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c michael.c
+malloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
+		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c malloc.c
 
-libmichael.so:	michael.o
-		$(CC) $(CFLAGS) $(OPT) michael.o -o libmichael.so $(CLFLAGS) -shared
+liblfpa.so:	malloc.o
+		$(CC) $(CFLAGS) $(OPT) malloc.o -o liblfpa.so $(CLFLAGS) -shared
 
 # Replay stuff
-MALLOCOBJ = michael.o
+MALLOCOBJ = malloc.o
 
 lphash.o: ../lphash/lphash.c
 	$(CC) $(CFLAGS) $(OPT) -I../lphash ../lphash/lphash.c -c
@@ -66,10 +66,10 @@ replaylib.o:  replaylib.c
 	$(CC) $(CFLAGS) $(OPT) -I../lphash -I../mhooks replaylib.c -c
 
 replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) $(OPT) -I../lphash replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+	$(CC) $(CFLAGS) $(OPT) -I../lphash  replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) $(OPT) -I../lphash mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
+	$(CC) $(CFLAGS) $(OPT) -I../lphash  mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
 
 SMT2 = 2668e3c6 d6c91c1f da2ad2d3
 

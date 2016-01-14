@@ -16,7 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "michael.h"
+#include "malloc.h"
 
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
@@ -932,3 +932,8 @@ void *realloc(void *object, size_t size)
   return ret;
 }
 
+
+void malloc_stats(void){
+  fprintf(stderr, "malloc_stats coming soon(ish)\n");
+
+}

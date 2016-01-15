@@ -260,7 +260,7 @@ top_check()
 
   top = (mchunkptr)(brk + front_misalign);
   main_arena._md_top = create_metadata(&main_arena, top);
-  set_head(main_arena._md_top, top, (sbrk_size - front_misalign) | PREV_INUSE);
+  set_head(&main_arena, main_arena._md_top, top, (sbrk_size - front_misalign) | PREV_INUSE);
 
   return 0;
 }

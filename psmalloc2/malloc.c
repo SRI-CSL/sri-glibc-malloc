@@ -1660,8 +1660,10 @@ static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 
 struct malloc_chunk {
 
-  INTERNAL_SIZE_T      _prev_size;  /* Size of previous chunk (if free).  */
-  INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
+  /* INTERNAL_SIZE_T      _prev_size; Size of previous chunk (if free).  */
+
+  INTERNAL_SIZE_T     arena_index;      /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
+  INTERNAL_SIZE_T     size;             /* Size in bytes, including overhead. */
 
   /* iam: these should now live solely in the metadata  */
   //struct malloc_chunk* fd;      
@@ -1827,6 +1829,11 @@ static inline bool get_prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 
   return retval;
 }
+
+#define IS_MMAPPED_ARENA  0x0
+#define IS_MAIN_ARENA     0x1
+#define IS_NON_MAIN_ARENA 0x2
+
 
 
 /* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */

@@ -1839,9 +1839,6 @@ static inline void set_arena_index(mchunkptr p, INTERNAL_SIZE_T index){
 }
 
 
-/* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */
-#define IS_MMAPPED 0x2
-
 /* check for mmap()'ed chunk */
 static inline bool chunk_is_mmapped(mchunkptr p)
 {
@@ -1862,13 +1859,8 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 
 /*
   Bits to mask off when extracting size
-
-  Note: IS_MMAPPED is intentionally not masked off from size field in
-  macros for which mmapped chunks should never be seen. This should
-  cause helpful core dumps to occur if it is tried by accident by
-  people extending or adapting this malloc.
 */
-#define SIZE_BITS (PREV_INUSE|IS_MMAPPED|NON_MAIN_ARENA)
+#define SIZE_BITS (PREV_INUSE|NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
 static inline INTERNAL_SIZE_T chunksize(mchunkptr p)
@@ -4027,8 +4019,8 @@ mremap_chunk(_md_p, new_size) mstate av; chunkinfoptr _md_p; size_t new_size;
     _md_newp = create_metadata(av, newp); 
     set_prev_size(_md_newp, newp, offset);  
   }
-  set_head(_md_newp, newp, (new_size - offset)|IS_MMAPPED);
-
+  set_head(_md_newp, newp, (new_size - offset));
+  set_arena_index(newp, MMAPPED_ARENA_INDEX);
   
   assert(aligned_OK(chunk2mem(newp)));
   assert((get_prev_size(_md_newp, newp) == offset)); 
@@ -5754,8 +5746,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
       /* iam: maybe we moved; maybe we didn't */
       if (cp == old_cp) {
         /* iam: we didn't move */
-        set_head(_md_oldp, oldp, (newsize - offset)|IS_MMAPPED);
-
+        set_head(_md_oldp, oldp, (newsize - offset));
+	set_arena_index(oldp, MMAPPED_ARENA_INDEX);
         update(_md_oldp, oldp); //cuidado...
 
         newp = oldp;
@@ -5766,8 +5758,9 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         newp = (mchunkptr)(cp + offset);
         /* iam: reregister it */
         _md_oldp = create_metadata(av, newp);
-        set_head(_md_oldp, newp, (newsize - offset)|IS_MMAPPED);
+        set_head(_md_oldp, newp, (newsize - offset));
 	set_prev_size(_md_oldp, newp, offset);  
+	set_arena_index(newp, MMAPPED_ARENA_INDEX);
       }
       
       assert(aligned_OK(chunk2mem(newp)));
@@ -5898,8 +5891,8 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
 
       _md_newp = create_metadata(av, newp);
       set_prev_size(_md_newp, newp, prev_size + leadsize);
-      set_head(_md_newp, newp, newsize|IS_MMAPPED);
-
+      set_head(_md_newp, newp, newsize);
+      set_arena_index(newp, MMAPPED_ARENA_INDEX);
       return _md_newp;
     }
 

@@ -9,7 +9,7 @@ Our Code
 -  `lphash`  a stand alone amalgamation of linhash with a separate namespace. Used in the replay
 implementations.
 
--  `metadata` our metadata implementation (used in dsmalloc and ...)
+-  `metadata` our metadata implementation (used in dsmalloc, psmalloc, and ...)
 
 -  `mhooks`   for hooking and recording malloc calls in an binary application.
 

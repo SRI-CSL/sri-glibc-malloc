@@ -1735,9 +1735,8 @@ struct malloc_chunk {
   is forced to always exist.  If it would become less than
   MINSIZE bytes long, it is replenished.
 
-  2. Chunks allocated via mmap, which have the second-lowest-order
-  bit (IS_MMAPPED) set in their size fields.  Because they are
-  allocated one-by-one, each must contain its own trailing size field.
+  2. Chunks allocated via mmap, which have their arena_index field set to
+  zero.
 
 */
 
@@ -1830,10 +1829,14 @@ static inline bool get_prev_inuse(chunkinfoptr _md_p, mchunkptr p)
   return retval;
 }
 
-#define IS_MMAPPED_ARENA  0x0
-#define IS_MAIN_ARENA     0x1
-#define IS_NON_MAIN_ARENA 0x2
+#define MMAPPED_ARENA_INDEX  0x0
+#define MAIN_ARENA_INDEX     0x1
+#define NON_MAIN_ARENA_INDEX 0x2
 
+
+static inline void set_arena_index(mchunkptr p, INTERNAL_SIZE_T index){
+  p->arena_index = index;
+}
 
 
 /* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */
@@ -1842,7 +1845,7 @@ static inline bool get_prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 /* check for mmap()'ed chunk */
 static inline bool chunk_is_mmapped(mchunkptr p)
 {
-  return (p->size & IS_MMAPPED)  == IS_MMAPPED;
+  return  p->arena_index == MMAPPED_ARENA_INDEX;
 }
 
 
@@ -1854,7 +1857,7 @@ static inline bool chunk_is_mmapped(mchunkptr p)
 /* check for chunk from non-main arena */
 static inline bool chunk_non_main_arena(mchunkptr p)
 {
-  return (p->size & NON_MAIN_ARENA) == NON_MAIN_ARENA;
+  return p->arena_index >= NON_MAIN_ARENA_INDEX;
 }
 
 /*
@@ -2601,54 +2604,15 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 /* temporary hack for testing sanity */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
-#if 0
   if (ci != NULL) {
     if (chunkinfo2chunk(ci) != c) {
       fprintf(stderr, "check_metadata_chunk of %p:\nmetadata and data do not match @ %s line %d\n",
 	      chunk2mem(c), file, lineno);
       return false;
     }
-
-    /* iam: can get away with the cast as long as our metadata chunks **look** like chunks */
-    if (chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)) { 
-      fprintf(stderr, "check_metadata_chunk of %p:\nis_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d @ %s line %d\n",
-              chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), file, lineno);
-      return false; 
-    }
-
-    if (size2chunksize(ci->size) != size2chunksize(c->size)) {
-      fprintf(stderr, "check_metadata_chunk of %p:\nci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
-              chunk2mem(c), ci->size, c->size, is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-	      chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-      return false; 
-    }
-
-    if(!prev_inuse(c)){
-      if(ci->prev_size != c->prev_size){
-	  fprintf(stderr, "check_metadata_chunk of %p:\nci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
-		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
-	  fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-		  chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-	  return false;
-      }
-    }
-
-    /* iam: can get away with the cast as long as our metadata chunks **look** like chunks */
-    if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
-      fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) = %d, main arena: %d @ %s line %d\n",
-	      chunk2mem(c), prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-	      chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-      return false;
-    }
-    
     return true;
   } 
   return false;
-#else
-  return true;
-#endif
 }
 
 
@@ -2915,7 +2879,8 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
   char* max_address = (char*)top + _md_chunksize(av->_md_top);
   char* min_address = max_address - av->system_mem;
   bool metadata_ok;
-  
+  INTERNAL_SIZE_T prev_size;
+
   check_top(av);
 
   metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
@@ -2944,7 +2909,7 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
       /* top size is always at least MINSIZE */
       assert((unsigned long)(sz) >= MINSIZE);
       /* top predecessor always marked inuse */
-      assert(prev_inuse(p));
+      assert(get_prev_inuse(_md_p, p));
     }
     
   }
@@ -2955,7 +2920,8 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
       assert(((char*)p) < min_address || ((char*)p) > max_address);
     }
     /* chunk is page-aligned */
-    assert(((p->prev_size + sz) & (mp_.pagesize-1)) == 0);
+    prev_size = get_prev_size(_md_p, p);
+    assert(((prev_size + sz) & (mp_.pagesize-1)) == 0);
     /* mem is aligned */
     assert(aligned_OK(chunk2mem(p)));
 #else
@@ -2975,9 +2941,14 @@ static void do_check_free_chunk(mstate av, mchunkptr p, chunkinfoptr _md_p, cons
 static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _md_p; const char* file; int lineno;
 #endif
 {
-  INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
+  INTERNAL_SIZE_T sz = _md_chunksize(_md_p);
   mchunkptr next = chunk_at_offset(p, sz);
   mchunkptr top = chunkinfo2chunk(av->_md_top);
+  chunkinfoptr _md_next = hashtable_lookup(av, next);
+  INTERNAL_SIZE_T prev_size;
+
+  /* next is registered */
+  assert(_md_next != NULL);
 
   do_check_chunk(av, p, _md_p, file, lineno);
 
@@ -3003,8 +2974,9 @@ static void do_check_free_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfop
 	fprintf(stderr,  "do_check_free_chunk:  !aligned_OK(chunk2mem(p)) @ %s line %d\n", file, lineno);
       }
       /* ... matching footer field */
-      assert(next->prev_size == sz);
-      if(next->prev_size != sz){
+      prev_size = get_prev_size(_md_next, next);
+      assert(prev_size == sz);
+      if(prev_size != sz){
 	fprintf(stderr,  "do_check_free_chunk:  next->prev_size != sz @ %s line %d\n", file, lineno);
       }
       /* ... and is fully consolidated */
@@ -3076,7 +3048,7 @@ static void do_check_inuse_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfo
   */
   if (!prev_inuse(p))  {
     /* Note that we cannot even look at prev unless it is not inuse */
-    prv = prev_chunk(p);
+    prv = prev_chunk(_md_p, p);
     _md_prv = hashtable_lookup(av, prv);
     assert(_md_prv != NULL);
     if(_md_prv == NULL){
@@ -3489,13 +3461,15 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	  /* handle the metadata  */
 	  _md_p = create_metadata(&main_arena, p);
           set_prev_size(_md_p, p, correction);
-          set_head(_md_p, p, (size - correction) | IS_MMAPPED);
+          set_head(_md_p, p, (size - correction));
+	  set_arena_index(p, MMAPPED_ARENA_INDEX);
         }
         else {
           p = (mchunkptr)mm;
 	  /* handle the metadata  */
 	  _md_p = create_metadata(&main_arena, p);
-          set_head(_md_p, p, size|IS_MMAPPED);
+          set_head(_md_p, p, size);
+	  set_arena_index(p, MMAPPED_ARENA_INDEX);
         }
 
         /* update statistics */

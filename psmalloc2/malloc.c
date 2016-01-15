@@ -1960,6 +1960,9 @@ static inline void set_head(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
 {
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
+
+  //temporary hack
+  set_arena_index(p, MAIN_ARENA_INDEX);
   
   if(_md_p != NULL){
     _md_p->size = s;

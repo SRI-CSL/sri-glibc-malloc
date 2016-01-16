@@ -130,6 +130,8 @@ mem2mem_check(Void_t *ptr, size_t sz)
 mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
 #endif
 {
+  //iam: need help in hooks I think.
+#if 0
   mchunkptr p;
   unsigned char* m_ptr = (unsigned char*)BOUNDED_N(ptr, sz);
   size_t i;
@@ -148,6 +150,10 @@ mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
   }
   m_ptr[sz] = MAGICBYTE(p);
   return (Void_t*)m_ptr;
+#else
+  return NULL;
+#endif
+
 }
 
 /* Convert a pointer to be free()d or realloc()ed to a valid chunk
@@ -227,14 +233,19 @@ top_check()
   INTERNAL_SIZE_T ot_sz;
   char* brk, * new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
-  unsigned long pagesz = malloc_getpagesize;
-  ot = chunkinfo2chunk(main_arena._md_top);
-  ot_sz = _md_chunksize(main_arena._md_top);
+  unsigned long pagesz;
+  chunkinfoptr _md_ot;
+  
+  _md_ot = main_arena._md_top;
+  ot = chunkinfo2chunk(_md_ot);
+  ot_sz = chunksize(_md_ot);
+
+  pagesz = malloc_getpagesize;
   
   if (top_is_initial(&main_arena) ||
       (!chunk_is_mmapped(ot) &&
        ot_sz>=MINSIZE &&
-       prev_inuse(ot) &&
+       prev_inuse(_md_ot, ot) &&
        (!contiguous(&main_arena) ||
 	(char*)ot + ot_sz == mp_.sbrk_base + main_arena.system_mem)))
     return 0;
@@ -317,7 +328,7 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
   }
 #endif
 #if 0 /* Erase freed memory. */
-  memset(mem, 0, _md_chunksize(_md_p) - (SIZE_SZ+1));
+  memset(mem, 0, chunksize(_md_p) - (SIZE_SZ+1));
 #endif
   _int_free(&main_arena, _md_p); 
   (void)mutex_unlock(&main_arena.mutex);
@@ -349,7 +360,7 @@ realloc_check(oldmem, bytes, caller)
       abort();
     return malloc_check(bytes, NULL);
   }
-  oldsize = _md_chunksize(_md_oldp);
+  oldsize = chunksize(_md_oldp);
 
   if ( !checked_request2size(bytes+1, &nb) ){
     return 0;
@@ -610,8 +621,8 @@ public_sET_STATe(Void_t* msptr)
       assert(ms->av[2*i+3] == 0);
       first(b) = last(b) = b;
     } else {
-      if(i<NSMALLBINS || (largebin_index(_md_chunksize(ms->av[2*i+2]))==i &&
-			  largebin_index(_md_chunksize(ms->av[2*i+3]))==i)) {
+      if(i<NSMALLBINS || (largebin_index(chunksize(ms->av[2*i+2]))==i &&
+			  largebin_index(chunksize(ms->av[2*i+3]))==i)) {
 	first(b) = ms->av[2*i+2];
 	last(b) = ms->av[2*i+3];
 	/* Make sure the links to the bins within the heap are correct.  */
@@ -620,7 +631,7 @@ public_sET_STATe(Void_t* msptr)
 	/* Set bit in binblocks.  */
 	mark_bin(&main_arena, i);
       } else {
-	/* Oops, index computation from _md_chunksize must have changed.
+	/* Oops, index computation from chunksize must have changed.
            Link the whole list into unsorted_chunks.  */
 	first(b) = last(b) = b;
 	b = unsorted_chunks(&main_arena);

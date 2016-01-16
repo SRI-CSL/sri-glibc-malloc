@@ -4,7 +4,7 @@
 
 #include "replaylib.h"
 
-static const bool verbose = true;
+static const bool verbose = false;
 
 /*
  *  Parses the output from ../mhooks/mhook.c and replays it.

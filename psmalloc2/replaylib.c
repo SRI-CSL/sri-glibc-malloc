@@ -17,7 +17,9 @@
 #include "malloc.h"
 
 const bool silent_running = true;
+/* warns about realloc deviations */
 const bool deviation_warnings = false;
+/* prints allocations and frees */
 const bool track_allocations = false;
 
 const size_t BUFFERSZ = 1024;

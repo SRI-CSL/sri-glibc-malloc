@@ -746,7 +746,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       return 0;
     }
     
-    assert(p->size == (0|PREV_INUSE)); /* must be fencepost */
+    assert(_md_p->size == (0|PREV_INUSE)); /* must be fencepost */
 
     prev = prev_chunk(_md_p, p);
     
@@ -760,11 +760,11 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       return 0;
     } 
 
-    new_size = _md_chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
+    new_size = chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
     assert(new_size>0 && new_size<(long)(2*MINSIZE));
 
-    if(!prev_inuse(p)){
+    if(!prev_inuse(_md_p, p)){
       new_size += get_prev_size(_md_p, p);   
     }
     assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
@@ -781,7 +781,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     delete_heap(heap);
     heap = prev_heap;
     
-    if(!prev_inuse(p)) {
+    if(!prev_inuse(_md_p, p)) {
       /* consolidate backward  
        * iam: already done the size above
        */
@@ -808,7 +808,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     top_chunk = p;
     ar_ptr->_md_top = _md_p;
     set_head(ar_ptr, _md_p, top_chunk, new_size | PREV_INUSE);  
-    update(_md_p, p);
+
     do_check_metadata_chunk(ar_ptr, p, _md_p, __FILE__, __LINE__);
     
     /* iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk); */
@@ -816,7 +816,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   } /* while */
 
   
-  top_size = _md_chunksize(ar_ptr->_md_top);
+  top_size = chunksize(ar_ptr->_md_top);
   extra = ((top_size - pad - MINSIZE + (pagesz-1))/pagesz - 1) * pagesz;
   if(extra < (long)pagesz)
     return 0;
@@ -827,7 +827,6 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   arena_mem -= extra;
   /* Success. Adjust top accordingly. */
   set_head(ar_ptr, ar_ptr->_md_top, top_chunk, (top_size - extra) | PREV_INUSE);   
-  update(ar_ptr->_md_top, top_chunk);
 
   /*iam: wonder why this was commented out? check_chunk(ar_ptr, top_chunk);*/
   return iterations++;

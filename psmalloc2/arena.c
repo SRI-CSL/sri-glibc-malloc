@@ -888,8 +888,10 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   /* Add the new arena to the global list.  */
   (void)mutex_lock(&list_lock);
   a->next = main_arena.next;
+  main_arena.arena_count++;
   atomic_write_barrier ();
   main_arena.next = a;
+  a->arena_index = main_arena.arena_count;
   (void)mutex_unlock(&list_lock);
 
   if(err) /* locking failed; keep arena for further attempts later */
@@ -921,7 +923,7 @@ _int_new_arena(size_t size)
       return 0;
   }
   a = h->ar_ptr = (mstate)(h+1);
-  malloc_init_state(a);
+  malloc_init_state(a, false);
   /*a->next = NULL;*/
   a->system_mem = a->max_system_mem = h->size;
   arena_mem += h->size;

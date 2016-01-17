@@ -1825,7 +1825,9 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 
 static size_t get_arena_index(mstate av);
 
-static inline void set_arena_index(mchunkptr p, INTERNAL_SIZE_T index){
+static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index){
+  //size_t indx = ( index == MMAPPED_ARENA_INDEX) ?  MMAPPED_ARENA_INDEX : get_arena_index(av);
+  //p->arena_index = indx;
   p->arena_index = index;
 }
 
@@ -1841,12 +1843,6 @@ static inline bool chunk_is_mmapped(mchunkptr p)
 
 #define arena_is_sane(P)    _arena_is_sane(P, __FILE__, __LINE__)
 
-static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
-  if(p->arena_index > NON_MAIN_ARENA_INDEX){
-    fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
-  }
-  assert(p->arena_index <= NON_MAIN_ARENA_INDEX);
-}
 
 /* size field is or'ed with NON_MAIN_ARENA if the chunk was obtained
    from a non-main arena.  This is only set immediately before handing
@@ -1981,7 +1977,7 @@ static inline void set_head_size(mstate av, chunkinfoptr _md_p, mchunkptr p, INT
   assert(chunkinfo2chunk(_md_p) == p);
 
   //temporary hack
-  set_arena_index(p, get_arena_index(av));
+  set_arena_index(av, p, get_arena_index(av));
 
   if(_md_p != NULL){
     _md_p->size = ((_md_p->size & SIZE_BITS) | s);
@@ -2000,7 +1996,7 @@ static inline void set_head(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL
   assert(chunkinfo2chunk(_md_p) == p);
 
   //temporary hack
-  set_arena_index(p, get_arena_index(av));
+  set_arena_index(av, p, get_arena_index(av));
   
   if(_md_p != NULL){
     _md_p->size = s;
@@ -2046,7 +2042,7 @@ static inline void set_non_main_arena(mstate av, chunkinfoptr _md_p, mchunkptr p
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
 
-  set_arena_index(p, NON_MAIN_ARENA_INDEX);
+  set_arena_index(av, p, get_arena_index(av));
 
   /*
   if(_md_p != NULL){
@@ -2325,10 +2321,10 @@ struct malloc_state {
   struct malloc_state *next;
 
   /* this arena's index */
-  //size_t arena_index;
+  size_t arena_index;
 
   /* number of arenas:  arena_count  == ( next == NULL ? 1 : next.arena_index ) */
-  //size_t arena_count;
+  size_t arena_count;
 
   /* Memory allocated from the system in this arena.  */
   INTERNAL_SIZE_T system_mem;
@@ -2535,7 +2531,17 @@ static bool is_main_arena(mstate av)
 
 /* short term hack */
 static size_t get_arena_index(mstate av){
+  //return av->arena_index;
   return av == &main_arena ? MAIN_ARENA_INDEX : NON_MAIN_ARENA_INDEX;
+}
+
+static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
+#if 0
+  if(p->arena_index > main_arena.arena_count){
+    fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
+  }
+  assert(p->arena_index <= main_arena.arena_count);
+#endif
 }
 
 
@@ -2717,9 +2723,9 @@ static inline chunkinfoptr initial_md_top(mstate av)
 */
 
 #if __STD_C
-static void malloc_init_state(mstate av)
+static void malloc_init_state(mstate av, bool is_main)
 #else
-static void malloc_init_state(av) mstate av;
+static void malloc_init_state(av) mstate av; bool is_main;
 #endif
 {
   int     i;
@@ -2741,12 +2747,17 @@ static void malloc_init_state(av) mstate av;
 
   /* arena bookeeping; gets set to &main_arena in ptmalloc_init */
   //av->next = NULL;
-
   /* this arena's index */
-  //av->arena_index = 1;
+  if(is_main){
+    av->arena_index = 1;
+    av->arena_count = 1;
+  } else {
+    /* not used */
+    av->arena_index = 0;
+    av->arena_count = 0;
+  }
 
   /* number of arenas:  arena_count  == ( next == NULL ? 1 : next.arena_index ) */
-  //av->arena_count = 1;
 
   
   /* init the metadata pool */
@@ -3480,14 +3491,14 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 	  _md_p = create_metadata(&main_arena, p);
           set_prev_size(_md_p, p, correction);
           set_head(&main_arena, _md_p, p, (size - correction));
-	  set_arena_index(p, MMAPPED_ARENA_INDEX);
+	  set_arena_index(av, p, MMAPPED_ARENA_INDEX);
         }
         else {
           p = (mchunkptr)mm;
 	  /* handle the metadata  */
 	  _md_p = create_metadata(&main_arena, p);
           set_head(&main_arena, _md_p, p, size);
-	  set_arena_index(p, MMAPPED_ARENA_INDEX);
+	  set_arena_index(av, p, MMAPPED_ARENA_INDEX);
         }
 
         /* update statistics */
@@ -4037,7 +4048,7 @@ mremap_chunk(_md_p, new_size) mstate av; chunkinfoptr _md_p; size_t new_size;
     set_prev_size(_md_newp, newp, offset);  
   }
   set_head(av, _md_newp, newp, (new_size - offset));
-  set_arena_index(newp, MMAPPED_ARENA_INDEX);
+  set_arena_index(av, newp, MMAPPED_ARENA_INDEX);
   
   assert(aligned_OK(chunk2mem(newp)));
   assert((get_prev_size(_md_newp, newp) == offset)); 
@@ -4083,7 +4094,7 @@ public_mALLOc(size_t bytes)
 
 
   if (!_md_victim) {
-    /* Maybe the failure is due to running out of mmapped areas. */
+    /* Maybe the failure is due to running out of mmapped areas.  */
     if (ar_ptr != &main_arena) {
       (void)mutex_unlock(&ar_ptr->mutex);
       (void)mutex_lock(&main_arena.mutex);
@@ -5493,7 +5504,7 @@ static void malloc_consolidate(av) mstate av;
     } while (fb++ != maxfb);
   }
   else {
-    malloc_init_state(av);
+    malloc_init_state(av, true);
     check_malloc_state(av);
   }
 }
@@ -5754,7 +5765,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
       if (cp == old_cp) {
         /* iam: we didn't move */
         set_head(av, _md_oldp, oldp, (newsize - offset));
-	set_arena_index(oldp, MMAPPED_ARENA_INDEX);
+	set_arena_index(av, oldp, MMAPPED_ARENA_INDEX);
 
         newp = oldp;
       } else {
@@ -5766,7 +5777,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         _md_oldp = create_metadata(av, newp);
         set_head(av, _md_oldp, newp, (newsize - offset));
 	set_prev_size(_md_oldp, newp, offset);  
-	set_arena_index(newp, MMAPPED_ARENA_INDEX);
+	set_arena_index(av, newp, MMAPPED_ARENA_INDEX);
       }
       
       assert(aligned_OK(chunk2mem(newp)));
@@ -5898,7 +5909,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
       _md_newp = create_metadata(av, newp);
       set_prev_size(_md_newp, newp, prev_size + leadsize);
       set_head(av, _md_newp, newp, newsize);
-      set_arena_index(newp, MMAPPED_ARENA_INDEX);
+      set_arena_index(av, newp, MMAPPED_ARENA_INDEX);
       return _md_newp;
     }
 

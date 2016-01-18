@@ -8,7 +8,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
 	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
-	-DNDEBUG                                  \
+	-DMALLOC_DEBUG=1                          \
+	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
@@ -18,7 +19,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 # turns on sanity checky of the memory pools
 #       -DMEMCXT_SANITY_CHECK=1                   \
 # turns on debugging
-#       -DMMALLOC_DEBUG=1                         \
+#       -DMALLOC_DEBUG=1                           \
 # for production:
 #	-DNDEBUG                                  \
 

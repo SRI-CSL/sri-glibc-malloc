@@ -3383,6 +3383,10 @@ static void do_check_malloc_state(mstate av, const char* file, int lineno)
   assert((unsigned long)(av->system_mem) <=
          (unsigned long)(av->max_system_mem));
 
+  //iam: see if we can spot what is going wrong (shy bug)
+  if((unsigned long)(mp_.mmapped_mem) > (unsigned long)(mp_.max_mmapped_mem)){
+    fprintf(stderr, "mp_.mmapped_mem = %zu  mp_.max_mmapped_mem = %zu\n", mp_.mmapped_mem, mp_.max_mmapped_mem);
+  }
   assert((unsigned long)(mp_.mmapped_mem) <=
          (unsigned long)(mp_.max_mmapped_mem));
 

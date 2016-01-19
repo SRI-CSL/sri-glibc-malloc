@@ -24,6 +24,14 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 # for production:
 #	-DNDEBUG                                  \
 # see the README
+#
+# N.B. seems this hack doesn't work any more. 
+# (gdb) print threads
+# $4 = {140737345709824, 140737333634816, 0 <repeats 1022 times>}
+# (gdb) print threads[0] % 256
+# $5 = 0
+# (gdb) print threads[1] % 256
+# $6 = 0
 #	-DUSE_TSD_DATA_HACK                       \
 
 
@@ -95,6 +103,13 @@ mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
 INTERVAL = `seq 1 10`
+
+mloop: mtreplay
+	for number in  ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 2 ../../analysis/data/head.txt ;  \
+	done
+
 
 mstress: mtreplay
 	for number in ${INTERVAL} ; do \

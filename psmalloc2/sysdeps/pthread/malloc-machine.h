@@ -108,15 +108,18 @@ typedef pthread_mutex_t mutex_t;
    The hack only works when pthread_t can be converted to an integral
    type. */
 
-typedef void *tsd_key_t[256];
+#define KEYLENGTH 256
+//was 65536
+
+typedef void *tsd_key_t[KEYLENGTH];
 #define tsd_key_create(key, destr) do { \
   int i; \
-  for(i=0; i<256; i++) (*key)[i] = 0; \
+  for(i=0; i<KEYLENGTH; i++) (*key)[i] = 0; \
 } while(0)
 #define tsd_setspecific(key, data) \
- (key[(unsigned)pthread_self() % 256] = (data))
+ (key[(unsigned)pthread_self() % KEYLENGTH] = (data))
 #define tsd_getspecific(key, vptr) \
- (vptr = key[(unsigned)pthread_self() % 256])
+ (vptr = key[(unsigned)pthread_self() % KEYLENGTH])
 
 #else
 

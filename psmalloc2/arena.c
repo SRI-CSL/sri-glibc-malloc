@@ -854,6 +854,8 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 
 static int stepper;
 
+#define max(X,Y) (X < Y ? Y : X)
+
 static mstate
 internal_function
 #if __STD_C
@@ -865,7 +867,9 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   mstate a;
   int err;
 
-  stepper = 1;
+  Void_t *vptr = NULL;
+  
+  stepper = max(stepper, 1);
   
   if(!a_tsd) {
 
@@ -874,7 +878,7 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   else {
     a = a_tsd->next;
 
-    stepper = 2;
+    stepper =  max(stepper, 2);
     
 
     if(!a) {
@@ -889,7 +893,7 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   /* Check the global, circularly linked list for available arenas. */
  repeat:
 
-  stepper = 3;
+  stepper =  max(stepper, 3);
 
   
   do {
@@ -912,7 +916,7 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   }
   (void)mutex_unlock(&list_lock);
 
-  stepper = 4;
+  stepper =  max(stepper, 4);
 
   /* Nothing immediately available, so generate a new arena.  */
   a = _int_new_arena(size);
@@ -921,13 +925,17 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
 
   tsd_setspecific(arena_key, (Void_t *)a);
 
+  tsd_getspecific(arena_key, vptr); 
 
-  stepper = 5;
+  stepper =  max(stepper, 5);
 
   mutex_init(&a->mutex);
+  
+  stepper =  max(stepper, 6);
+  
   err = mutex_lock(&a->mutex); /* remember result */
 
-  stepper = 6;
+  stepper =  max(stepper, 7);
    
   /* Add the new arena to the global list.  */
   (void)mutex_lock(&list_lock);
@@ -944,11 +952,11 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   a->arena_index = arena_count + 1;
   (void)mutex_unlock(&list_lock);
 
-  stepper = 7;
+  stepper =  max(stepper, 8);
   if(err) /* locking failed; keep arena for further attempts later */
     return 0;
 
-  stepper = 8;
+  stepper =  max(stepper, 9);
   
   THREAD_STAT(++(a->stat_lock_loop));
   return a;

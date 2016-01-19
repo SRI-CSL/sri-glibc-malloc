@@ -925,7 +925,8 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
 
   tsd_setspecific(arena_key, (Void_t *)a);
 
-  tsd_getspecific(arena_key, vptr); 
+  tsd_getspecific(arena_key, vptr);
+  assert(a == vptr);
 
   stepper =  max(stepper, 5);
 
@@ -941,13 +942,16 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   (void)mutex_lock(&list_lock);
   a->next = main_arena.next;
   arena_count++;
-  if(last_arena != NULL){ last_arena->previous_arena = a; }
   atomic_write_barrier ();
   main_arena.next = a;
   if(arena_list == NULL){
     assert(last_arena == NULL);
     arena_list = a;
-  } 
+  } else {
+    if(last_arena != NULL){
+      last_arena->subsequent_arena = a;
+    }
+  }
   last_arena = a;
   a->arena_index = arena_count + 1;
   (void)mutex_unlock(&list_lock);

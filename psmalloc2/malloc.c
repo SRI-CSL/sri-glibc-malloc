@@ -2299,7 +2299,7 @@ struct malloc_state {
   size_t arena_index;
 
   /* used in the global arena list */
-  struct malloc_state *previous_arena;
+  struct malloc_state *subsequent_arena;
   
   
   /* Memory allocated from the system in this arena.  */

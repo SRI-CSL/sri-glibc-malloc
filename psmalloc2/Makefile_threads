@@ -117,6 +117,12 @@ mstress: mtreplay
 	      ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
 	done
 
+mstress4: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 4 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
 #for shaman
 mstress8: mtreplay
 	for number in ${INTERVAL} ; do \

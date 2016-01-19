@@ -935,18 +935,15 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   (void)mutex_unlock(&arena_count_lock);
 
   
-
-  tsd_setspecific(arena_key, (Void_t *)a);
-
-  tsd_getspecific(arena_key, vptr);
-  assert(a == vptr);
+  //old publish point
 
   stepper =  max(stepper, 5);
 
   mutex_init(&a->mutex);
   
   stepper =  max(stepper, 6);
-  
+
+  assert(&a->mutex != NULL);
   err = mutex_lock(&a->mutex); /* remember result */
 
   stepper =  max(stepper, 7);
@@ -974,6 +971,13 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   stepper =  max(stepper, 9);
   
   THREAD_STAT(++(a->stat_lock_loop));
+
+
+  tsd_setspecific(arena_key, (Void_t *)a);
+  
+  tsd_getspecific(arena_key, vptr);
+  assert(a == vptr);
+
   return a;
 }
 

@@ -63,6 +63,8 @@ static mutex_t list_lock;
 
 /* number of arenas:  arena_count (not including the main_arena) */
 static size_t arena_count;
+static mutex_t arena_count_lock;
+
 /* 
  * a linked list of arena's of length arena_count ordered from smallest arena_index to
  * largest arena index. new arenas are added on the end. the last_arena points to the last
@@ -382,6 +384,7 @@ ptmalloc_unlock_all2 __MALLOC_P((void))
     if(ar_ptr == &main_arena) break;
   }
   (void)mutex_init(&list_lock);
+  (void)mutex_init(&arena_count_lock);
 }
 
 #else
@@ -484,6 +487,7 @@ ptmalloc_init __MALLOC_P((void))
   main_arena.next = &main_arena;
 
   mutex_init(&list_lock);
+  mutex_init(&arena_count_lock);
   tsd_key_create(&arena_key, NULL);
   tsd_setspecific(arena_key, (Void_t *)&main_arena);
   thread_atfork(ptmalloc_lock_all, ptmalloc_unlock_all, ptmalloc_unlock_all2);
@@ -920,8 +924,17 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
 
   /* Nothing immediately available, so generate a new arena.  */
   a = _int_new_arena(size);
-  if(!a)
+  if(!a){
     return 0;
+  }
+
+  /* make sure "a" has a sane arena_index */
+  (void)mutex_lock(&arena_count_lock);
+  arena_count++;                        /* increment (non main arena) arena_count */
+  a->arena_index = arena_count + 1;     /* index is one more, since main_arena has index 1 */
+  (void)mutex_unlock(&arena_count_lock);
+
+  
 
   tsd_setspecific(arena_key, (Void_t *)a);
 
@@ -941,7 +954,6 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   /* Add the new arena to the global list.  */
   (void)mutex_lock(&list_lock);
   a->next = main_arena.next;
-  arena_count++;
   atomic_write_barrier ();
   main_arena.next = a;
   if(arena_list == NULL){
@@ -953,7 +965,6 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
     }
   }
   last_arena = a;
-  a->arena_index = arena_count + 1;
   (void)mutex_unlock(&list_lock);
 
   stepper =  max(stepper, 8);

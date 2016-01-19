@@ -102,7 +102,7 @@ testreplay: replay
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
-INTERVAL = `seq 1 10`
+INTERVAL = `seq 1 1024`
 
 mloop: mtreplay
 	for number in  ${INTERVAL} ; do \

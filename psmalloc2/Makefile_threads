@@ -7,7 +7,8 @@ LDFLAGS = -shared -fPIC -lpthread
 CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
-	-DUSE_TSD_DATA_HACK -D_REENTRANT          \
+	-D_REENTRANT                              \
+	-DUSE_TSD_DATA_HACK                       \
 	-DMALLOC_DEBUG=1                          \
 	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
@@ -22,6 +23,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 #       -DMALLOC_DEBUG=1                           \
 # for production:
 #	-DNDEBUG                                  \
+# see the README
+#	-DUSE_TSD_DATA_HACK                       \
 
 
 # Flags for the test programs

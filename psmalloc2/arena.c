@@ -61,6 +61,26 @@ typedef struct _heap_info {
 static tsd_key_t arena_key;
 static mutex_t list_lock;
 
+/* number of arenas:  arena_count (not including the main_arena) */
+static size_t arena_count;
+/* 
+ * a linked list of arena's of length arena_count ordered from smallest arena_index to
+ * largest arena index. new arenas are added on the end. the last_arena points to the last
+ * arena added. Note Bene: the main_arena has arena_index 1; thus the first arena in this
+ * list has arena_index 2.
+ */
+static struct malloc_state *arena_list;
+static struct malloc_state *last_arena;
+
+
+static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
+  if(p->arena_index > arena_count + 1){
+    fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
+  }
+  assert(p->arena_index <= arena_count + 1);
+}
+
+
 #if THREAD_STATS
 static int stat_n_heaps;
 #define THREAD_STAT(x) x
@@ -832,6 +852,8 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   return iterations++;
 }
 
+static int stepper;
+
 static mstate
 internal_function
 #if __STD_C
@@ -843,10 +865,18 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   mstate a;
   int err;
 
-  if(!a_tsd)
+  stepper = 1;
+  
+  if(!a_tsd) {
+
     a = a_tsd = &main_arena;
+  }
   else {
     a = a_tsd->next;
+
+    stepper = 2;
+    
+
     if(!a) {
       /* This can only happen while initializing the new arena. */
       (void)mutex_lock(&main_arena.mutex);
@@ -855,8 +885,13 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
     }
   }
 
+  
   /* Check the global, circularly linked list for available arenas. */
  repeat:
+
+  stepper = 3;
+
+  
   do {
     if(!mutex_trylock(&a->mutex)) {
       THREAD_STAT(++(a->stat_lock_loop));
@@ -865,6 +900,7 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
     }
     a = a->next;
   } while(a != a_tsd);
+  
 
   /* If not even the list_lock can be obtained, try again.  This can
      happen during `atfork', or for example on systems where thread
@@ -876,27 +912,44 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   }
   (void)mutex_unlock(&list_lock);
 
+  stepper = 4;
+
   /* Nothing immediately available, so generate a new arena.  */
   a = _int_new_arena(size);
   if(!a)
     return 0;
 
   tsd_setspecific(arena_key, (Void_t *)a);
+
+
+  stepper = 5;
+
   mutex_init(&a->mutex);
   err = mutex_lock(&a->mutex); /* remember result */
 
+  stepper = 6;
+   
   /* Add the new arena to the global list.  */
   (void)mutex_lock(&list_lock);
   a->next = main_arena.next;
-  main_arena.arena_count++;
+  arena_count++;
+  if(last_arena != NULL){ last_arena->previous_arena = a; }
   atomic_write_barrier ();
   main_arena.next = a;
-  a->arena_index = main_arena.arena_count;
+  if(arena_list == NULL){
+    assert(last_arena == NULL);
+    arena_list = a;
+  } 
+  last_arena = a;
+  a->arena_index = arena_count + 1;
   (void)mutex_unlock(&list_lock);
 
+  stepper = 7;
   if(err) /* locking failed; keep arena for further attempts later */
     return 0;
 
+  stepper = 8;
+  
   THREAD_STAT(++(a->stat_lock_loop));
   return a;
 }

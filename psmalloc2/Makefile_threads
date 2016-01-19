@@ -8,7 +8,6 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
 	-D_REENTRANT                              \
-	-DUSE_TSD_DATA_HACK                       \
 	-DMALLOC_DEBUG=1                          \
 	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
@@ -25,6 +24,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 #	-DNDEBUG                                  \
 # see the README
 #
+#	-DUSE_TSD_DATA_HACK                       \
+#
 # N.B. seems this hack doesn't work any more. 
 # (gdb) print threads
 # $4 = {140737345709824, 140737333634816, 0 <repeats 1022 times>}
@@ -32,7 +33,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 # $5 = 0
 # (gdb) print threads[1] % 256
 # $6 = 0
-#	-DUSE_TSD_DATA_HACK                       \
+
 
 
 # Flags for the test programs
@@ -102,10 +103,12 @@ testreplay: replay
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
-INTERVAL = `seq 1 1024`
+KINTERVAL = `seq 1 1024`
+
+INTERVAL = `seq 1 10`
 
 mloop: mtreplay
-	for number in  ${INTERVAL} ; do \
+	for number in  ${KINTERVAL} ; do \
 	      echo "Run $$number" ; \
 	      ./mtreplay 2 ../../analysis/data/head.txt ;  \
 	done

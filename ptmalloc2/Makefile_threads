@@ -16,6 +16,8 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 M_FLAGS   = -DTHREAD_STATS=1 
 #-DMALLOC_DEBUG=1
 
+TESTS = replay mtreplay
+
 MALLOCOBJ = malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
@@ -23,7 +25,7 @@ LIB_MALLOC = libmalloc.a
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: malloc.so $(LIB_MALLOC) replay mtreplay
+all: malloc.so $(LIB_MALLOC) $(TESTS)
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)
@@ -35,7 +37,7 @@ malloc.so: $(MALLOCOBJ) malloc.h
 	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
 
 clean:
-	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS)
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) *.o
 
 
 lphash.o:
@@ -55,6 +57,37 @@ testreplay: replay
 
 mtestreplay: mtreplay
 	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+INTERVAL = `seq 1 10`
+
+mstress: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+mstress4: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 4 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for shaman
+mstress8: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+#for pascali
+mstress16: mtreplay
+	for number in ${INTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+helgrind: mtreplay
+	valgrind --tool=helgrind ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
 
 
 # dependencies

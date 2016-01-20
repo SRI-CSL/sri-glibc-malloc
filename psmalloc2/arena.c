@@ -762,11 +762,13 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     prev_heap = heap->prev;
 
     /* iam: we are going to delete this heap and consolidate the tail of the previous heap */
-    
+
+    /* get the fencepost at the end */
     p = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
     _md_p = hashtable_lookup(ar_ptr, p);
 
     if(_md_p == NULL){
+      assert(false);
       return 0;
     }
     

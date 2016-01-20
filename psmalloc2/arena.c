@@ -774,7 +774,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 
     prev = prev_chunk(_md_p, p);
     
-    hashtable_remove(ar_ptr, p);
+    hashtable_remove(ar_ptr, p, 8);
 
     p = prev;
     _md_p = hashtable_lookup(ar_ptr, p);
@@ -801,7 +801,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     arena_mem -= heap->size;
 
     /* iam: we should remove this heap's top_chunk from our hashtable  */
-    hashtable_remove(ar_ptr, top_chunk);
+    hashtable_remove(ar_ptr, top_chunk, 9);
     delete_heap(heap);
     heap = prev_heap;
     
@@ -810,7 +810,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
        * iam: already done the size above
        */
       prev = prev_chunk(_md_p, p);
-      hashtable_remove(ar_ptr, p);   /* iam: 'nuther chunk bites the dust */
+      hashtable_remove(ar_ptr, p, 10);   /* iam: 'nuther chunk bites the dust */
       p = prev;
       _md_p = hashtable_lookup(ar_ptr, p);
 

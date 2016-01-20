@@ -2552,12 +2552,17 @@ hashtable_add (mstate av, chunkinfoptr ci)
 
 }
 
-/* Remove the metadata from the hashtable */
+/* Remove the metadata from the hashtable; tag temp feature, if true we tag the chunk */
 static bool
-hashtable_remove (mstate av, mchunkptr p) 
+hashtable_remove (mstate av, mchunkptr p, int tag) 
 {
   assert(av != NULL);
   assert(p != NULL);
+
+  if(tag){
+    p->__dummy = tag;
+  }
+
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
 
@@ -2622,6 +2627,10 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
   assert(_md_p != NULL);
   
   _md_p->chunk = chunk2mem(p);
+
+  //iam: workzone (drew's suggestion)
+  p->__dummy = 1234567890;
+  
   retcode = hashtable_add(av, _md_p);
   assert(retcode);
   unused_var(retcode);
@@ -4007,7 +4016,7 @@ mremap_chunk(_md_p, new_size) mstate av; chunkinfoptr _md_p; size_t new_size;
   if(newp == oldp){
     _md_newp = _md_p;
   } else {
-    hashtable_remove(av, oldp);
+    hashtable_remove(av, oldp, false);
     _md_newp = create_metadata(av, newp); 
     set_prev_size(_md_newp, newp, offset);  
   }
@@ -4149,7 +4158,7 @@ public_fREe(Void_t* mem)
 
       munmap_chunk(_md_p);
       
-      hashtable_remove(ar_ptr, p);
+      hashtable_remove(ar_ptr, p, false);
       
       (void)mutex_unlock(&ar_ptr->mutex);
 
@@ -4258,7 +4267,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       }
 #endif
 
-      hashtable_remove(ar_ptr, oldp);
+      hashtable_remove(ar_ptr, oldp, false);
 
       (void)mutex_unlock(&ar_ptr->mutex);
 
@@ -5168,7 +5177,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
         }
 
         
-        hashtable_remove(av, p);
+        hashtable_remove(av, p, 1);
         
         size += prevsize;
         p = prevchunk;
@@ -5186,7 +5195,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
         if (!nextinuse) {
           /* iam: nextchunk gets absorbed into p */
           ps_unlink(_md_nextchunk, &bck, &fwd);
-          hashtable_remove(av, nextchunk);
+          hashtable_remove(av, nextchunk, 2);
           size += nextsize;                         
           
         } else {
@@ -5291,7 +5300,7 @@ _int_free(mstate av, chunkinfoptr _md_p)
       mp_.n_mmaps--;
       mp_.mmapped_mem -= (size + offset);
       ret = munmap((char*)p - offset, size + offset);
-      hashtable_remove(av, p);
+      hashtable_remove(av, p, false);
       /* munmap returns non-zero on failure */
       assert(ret == 0);
       unused_var(ret);
@@ -5309,7 +5318,7 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
   /*  need to blow away p's metadata */
   if ( _md_p != NULL) {
     assert(chunkinfo2chunk(_md_p) == p);
-    hsuccess = hashtable_remove(av, p);
+    hsuccess = hashtable_remove(av, p, 3);
     assert(hsuccess);
     unused_var(hsuccess);
   }
@@ -5317,7 +5326,7 @@ static chunkinfoptr coallese_chunk(mstate av, chunkinfoptr _md_p, mchunkptr p, I
   assert(top == nextchunk);
 
   if ( _md_top != NULL) {
-    hsuccess = hashtable_remove(av, top);
+    hsuccess = hashtable_remove(av, top, 4);
     assert(hsuccess);
     unused_var(hsuccess);
   } else {
@@ -5428,7 +5437,7 @@ static void malloc_consolidate(av) mstate av;
               missing_metadata(av, prevchunk);
             }
 
-            hashtable_remove(av, p);
+            hashtable_remove(av, p, 5);
             p = prevchunk;
             _md_p =  _md_prevchunk;
             ps_unlink(_md_p, &bck, &fwd);
@@ -5440,7 +5449,7 @@ static void malloc_consolidate(av) mstate av;
             if (!nextinuse) {
               /* iam: nextchunk gets absorbed into p */
               size += nextsize;
-              hashtable_remove(av, nextchunk);
+              hashtable_remove(av, nextchunk, 6);
               ps_unlink(_md_nextchunk, &bck, &fwd);
             } else {
               clear_inuse_bit(av, _md_nextchunk, nextchunk);
@@ -5565,7 +5574,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         /* we are going to move top nb bytes along; so we'll need to provide new metatdata */
         bool hsuccess;
         if ( _md_top != NULL) {
-          hsuccess = hashtable_remove(av, top);
+          hsuccess = hashtable_remove(av, top, 7);
           assert(hsuccess);
           unused_var(hsuccess);
         } else {
@@ -5739,7 +5748,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         newp = oldp;
       } else {
         /* iam: we moved; need to reregister */
-        hashtable_remove(av, oldp);
+        hashtable_remove(av, oldp, false);
 
         newp = (mchunkptr)(cp + offset);
         /* iam: reregister it */
@@ -5873,7 +5882,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
 
       prev_size = get_prev_size(_md_p, p);
       
-      hashtable_remove(av, p);
+      hashtable_remove(av, p, false);
 
       _md_newp = create_metadata(av, newp);
       set_prev_size(_md_newp, newp, prev_size + leadsize);

@@ -736,6 +736,10 @@ heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
     mchunkptr fencepost;            /* fenceposts */
     chunkinfoptr _md_fencepost;     /* metadata of the fenceposts */
 
+    /* the min-ish sized chunk */
+    mchunkptr minpost;
+    chunkinfoptr _md_minpost;
+
     /* Record incoming configuration of top */
 
     old_top  = chunkinfo2chunk(av->_md_top);
@@ -769,17 +773,18 @@ heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
          become the top chunk again later.  Note that a footer is set
          up, too, although the chunk is marked in use. */
       old_size -= MINSIZE;
+
       fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
       _md_fencepost = create_metadata(av, fencepost);
       set_head(av, _md_fencepost, fencepost, 0|PREV_INUSE);
 
       if (old_size >= MINSIZE) {
 
-        fencepost = chunk_at_offset(old_top, old_size);
-	_md_fencepost = create_metadata(av, fencepost);
+        minpost = chunk_at_offset(old_top, old_size);
+	_md_minpost = create_metadata(av, minpost);
 
-        set_head(av, _md_fencepost, fencepost, (2*SIZE_SZ)|PREV_INUSE);
-        set_foot(av, _md_fencepost, fencepost, (2*SIZE_SZ));
+        set_head(av, _md_minpost, minpost, (2*SIZE_SZ)|PREV_INUSE);
+        set_foot(av, _md_minpost, minpost, (2*SIZE_SZ));
         
         set_head(av, _md_old_top, old_top, old_size|PREV_INUSE);
 

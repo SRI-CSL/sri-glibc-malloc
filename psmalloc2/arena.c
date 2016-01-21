@@ -734,19 +734,24 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
   mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
 
   mchunkptr p;
-  mchunkptr prev;
   chunkinfoptr _md_p;
-
-  mchunkptr fencepost;
-  chunkinfoptr _md_fencepost;
-
-
   
   chunkinfoptr bck, fwd;
   heap_info *prev_heap;
   long new_size, top_size, extra;
 
   int iterations = 0;
+
+  /* a full heap ends in a fencepost; and a min-ish sized chunk */
+
+  /* the fencepost */
+  mchunkptr fencepost;
+  chunkinfoptr _md_fencepost;
+
+  /* the min-ish sized chunk */
+  mchunkptr minpost;
+  chunkinfoptr _md_minpost;
+
 
   do_check_top(ar_ptr, __FILE__, __LINE__);
 
@@ -772,56 +777,49 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     fencepost = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
     _md_fencepost = hashtable_lookup(ar_ptr, fencepost);
     
-    p = fencepost;
-    _md_p = _md_fencepost;
-
-    if(_md_p == NULL){
-      missing_metadata(ar_ptr, p);
+    if(_md_fencepost == NULL){
+      missing_metadata(ar_ptr, fencepost);
       return 0;
     }
     
-    assert(_md_p->size == (0|PREV_INUSE)); /* must be fencepost */
+    assert(_md_fencepost->size == (0|PREV_INUSE)); /* must be fencepost */
 
-    prev = prev_chunk(_md_p, p);
+    minpost = prev_chunk(_md_fencepost, fencepost);
     
-    hashtable_remove(ar_ptr, p, 8);      /* iam: we should not remove this until we are sure it is being coallessed */
-
-    p = prev;
-    _md_p = hashtable_lookup(ar_ptr, p);
+    _md_minpost = hashtable_lookup(ar_ptr, minpost);
     
-    if(_md_p == NULL){
-      missing_metadata(ar_ptr, p);
+    if(_md_minpost == NULL){
+      missing_metadata(ar_ptr, minpost);
       return 0;
     } 
 
-    new_size = chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
+    new_size = chunksize(_md_minpost) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
-    assert(new_size>0 && new_size<(long)(2*MINSIZE));  /*   i think we are missing another fencepost here    */
+    assert(new_size>0 && new_size<(long)(2*MINSIZE));  /* must be minpost */ 
 
-    if(!prev_inuse(_md_p, p)){
-      new_size += get_prev_size(_md_p, p);   
+    if(!prev_inuse(_md_minpost, minpost)){
+      new_size += get_prev_size(_md_minpost, minpost);   
     }
     assert(new_size>0 && new_size<HEAP_MAX_SIZE);    
 
     if(new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz){  /* iam: ? */
-      break;  //iam: are we in a sane state here?
+      break; 
     }
-    
+
+    hashtable_remove(ar_ptr, fencepost, 8);      /* iam: out comes the fencepost  */
+
     ar_ptr->system_mem -= heap->size;
     arena_mem -= heap->size;
 
     /* iam: we should remove this heap's top_chunk from our hashtable  */
-    hashtable_remove(ar_ptr, top_chunk, 9);
+    hashtable_remove(ar_ptr, top_chunk, 10);
     delete_heap(heap);
     heap = prev_heap;
     
-    if(!prev_inuse(_md_p, p)) {
-      /* consolidate backward  
-       * iam: already done the size above
-       */
-      prev = prev_chunk(_md_p, p);
-      hashtable_remove(ar_ptr, p, 10);   /* iam: 'nuther chunk bites the dust */
-      p = prev;
+    if(!prev_inuse(_md_minpost, minpost)) {
+      /* consolidate backward  */
+      p = prev_chunk(_md_minpost, minpost);
+      hashtable_remove(ar_ptr, minpost, 9);      /* iam: out comes the minpost  */
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if(_md_p == NULL){
@@ -831,6 +829,9 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       
       ps_unlink(_md_p, &bck, &fwd);
       
+    } else {
+      p = minpost;
+      _md_p = _md_minpost;
     }
 
     

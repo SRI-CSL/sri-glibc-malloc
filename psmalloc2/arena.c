@@ -716,6 +716,83 @@ grow_heap(h, diff) heap_info *h; long diff;
   h->size = new_size;
   return 0;
 }
+static void
+internal_function
+#if __STD_C
+heap_sysmalloc(INTERNAL_SIZE_T nb, mstate av)
+#else
+heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
+#endif
+{
+    heap_info *old_heap, *heap;
+    size_t old_heap_size;
+
+    mchunkptr       top;            /* for updating av->_md_top */
+    
+    mchunkptr       old_top;        /* incoming value of av->_md_top's chunk */
+    chunkinfoptr    _md_old_top;    /* incoming value of av->_md_top  */
+    INTERNAL_SIZE_T old_size;       /* its size */
+   
+    mchunkptr fencepost;            /* fenceposts */
+    chunkinfoptr _md_fencepost;     /* metadata of the fenceposts */
+
+    /* Record incoming configuration of top */
+
+    old_top  = chunkinfo2chunk(av->_md_top);
+    _md_old_top  = av->_md_top;
+
+    old_size = chunksize(_md_old_top);
+    
+    /* First try to extend the current heap. */
+    old_heap = heap_for_ptr(old_top);
+    old_heap_size = old_heap->size;
+    if (grow_heap(old_heap, MINSIZE + nb - old_size) == 0) {
+      av->system_mem += old_heap->size - old_heap_size;
+      arena_mem += old_heap->size - old_heap_size;
+      set_head(av, _md_old_top, old_top, (((char *)old_heap + old_heap->size) - (char *)old_top)  | PREV_INUSE);
+    }
+    else if ((heap = new_heap(nb + (MINSIZE + sizeof(*heap)), mp_.top_pad))) {
+      /* Use a newly allocated heap.  */
+      heap->ar_ptr = av;
+      heap->prev = old_heap;                                                    
+      av->system_mem += heap->size;
+      arena_mem += heap->size;
+
+      /* Set up the new top. */                                                
+      top = chunk_at_offset(heap, sizeof(*heap));
+      av->_md_top = create_metadata(av, top);
+      set_head(av, av->_md_top, top, (heap->size - sizeof(*heap)) | PREV_INUSE);
+
+
+      /* Setup fencepost and free the old top chunk. */
+      /* The fencepost takes at least MINSIZE bytes, because it might
+         become the top chunk again later.  Note that a footer is set
+         up, too, although the chunk is marked in use. */
+      old_size -= MINSIZE;
+      fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
+      _md_fencepost = create_metadata(av, fencepost);
+      set_head(av, _md_fencepost, fencepost, 0|PREV_INUSE);
+
+      if (old_size >= MINSIZE) {
+
+        fencepost = chunk_at_offset(old_top, old_size);
+	_md_fencepost = create_metadata(av, fencepost);
+
+        set_head(av, _md_fencepost, fencepost, (2*SIZE_SZ)|PREV_INUSE);
+        set_foot(av, _md_fencepost, fencepost, (2*SIZE_SZ));
+        
+        set_head(av, _md_old_top, old_top, old_size|PREV_INUSE);
+
+        _int_free(av, _md_old_top);
+
+      } else {
+
+        set_head(av, _md_old_top, old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
+        set_foot(av, _md_old_top, old_top, (old_size + 2*SIZE_SZ));
+
+      }
+    }
+}
 
 /* Delete a heap. */
 
@@ -812,14 +889,14 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     arena_mem -= heap->size;
 
     /* iam: we should remove this heap's top_chunk from our hashtable  */
-    hashtable_remove(ar_ptr, top_chunk, 10);
+    hashtable_remove(ar_ptr, top_chunk, 9);
     delete_heap(heap);
     heap = prev_heap;
     
     if(!prev_inuse(_md_minpost, minpost)) {
       /* consolidate backward  */
       p = prev_chunk(_md_minpost, minpost);
-      hashtable_remove(ar_ptr, minpost, 9);      /* iam: out comes the minpost  */
+      hashtable_remove(ar_ptr, minpost, 10);      /* iam: out comes the minpost  */
       _md_p = hashtable_lookup(ar_ptr, p);
 
       if(_md_p == NULL){

@@ -788,7 +788,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
 
     new_size = chunksize(_md_p) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
     
-    assert(new_size>0 && new_size<(long)(2*MINSIZE));
+    assert(new_size>0 && new_size<(long)(2*MINSIZE));  /*   i think we are missing another fencepost here    */
 
     if(!prev_inuse(_md_p, p)){
       new_size += get_prev_size(_md_p, p);   

@@ -1799,9 +1799,17 @@ static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz
   --------------- Physical chunk operations ---------------
 */
 
+#define missing_metadata(AV,P) report_missing_metadata(AV, P, __FILE__, __LINE__)
+
+static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno);
+
 
 /* size field is or'ed with PREV_INUSE when previous adjacent chunk in use */
 #define PREV_INUSE 0x1
+
+/* size field is or'ed when the chunk is in use */
+#define INUSE 0x2
+
 
 /* extract inuse bit of previous chunk */
 static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
@@ -1822,6 +1830,15 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
   return retval;
 }
 
+/* arena index constants. The index is stored in the 
+ * arena_index field of the malloc_chunk. It indicates
+ * ownership of the chunk.
+ *
+ *  0    means the chunk is mmapped (currently the main_arena has jurisdiction).
+ *  1    means the chunk belongs to the main arena's heap
+ *  N+1  means the chunk belongs to the Nth arena.
+ *
+ */
 #define MMAPPED_ARENA_INDEX  0x0
 #define MAIN_ARENA_INDEX     0x1
 #define NON_MAIN_ARENA_INDEX 0x2
@@ -1830,6 +1847,7 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 static size_t get_arena_index(mstate av);
 
 static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index){
+  assert(p != NULL);
   p->arena_index = index;
 }
 
@@ -1852,7 +1870,7 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 /*
   Bits to mask off when extracting size
 */
-#define SIZE_BITS (PREV_INUSE)
+#define SIZE_BITS (PREV_INUSE|INUSE)
 
 /* Get size, ignoring use bits  */
 static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci)
@@ -1919,6 +1937,10 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
   next =  chunk_at_offset(p, s);
   _md_next = hashtable_lookup(av, next);
 
+  if(_md_next == NULL){
+    missing_metadata(av, next);
+  } 
+
   return prev_inuse(_md_next, next);
 }
 
@@ -1936,14 +1958,13 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunk
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
+  if(_md_prev_chunk == NULL){
+    missing_metadata(av, prev_chunk);
+  } 
+  
   if(_md_prev_chunk != NULL){
     _md_prev_chunk->size |= PREV_INUSE;
-  } else {
-    fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", prev_chunk,  s);
   }
-
-  //prev_chunk->size |= PREV_INUSE;
-  
 }
 
 
@@ -1956,25 +1977,6 @@ static inline void clear_inuse_bit(mstate av, chunkinfoptr _md_p, mchunkptr p)
     _md_p->size  &= ~(PREV_INUSE);
   }
 
-  //p->size  &= ~(PREV_INUSE);
-  
-}
-
-/* Set size at head, without disturbing its use bit */
-static inline void set_head_size(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
-{
-  assert(_md_p != NULL);
-  assert(chunkinfo2chunk(_md_p) == p);
-
-  //temporary hack
-  set_arena_index(av, p, get_arena_index(av));
-
-  if(_md_p != NULL){
-    _md_p->size = ((_md_p->size & SIZE_BITS) | s);
-  }
-
-  //p->size = ((_md_p->size & SIZE_BITS) | s);
-  
 }
 
 
@@ -1992,9 +1994,14 @@ static inline void set_head(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL
     _md_p->size = s;
   }
 
-  //p->size = s;
- 
 }
+
+/* Set size at head, without disturbing its bits */
+static inline void set_head_size(mstate av, chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
+{
+  set_head(av, _md_p, p, (_md_p->size & SIZE_BITS) | s);
+}
+
 
 /* Set prev_size field */
 static inline void set_prev_size(chunkinfoptr _md_p, mchunkptr p, INTERNAL_SIZE_T s)
@@ -2028,8 +2035,6 @@ static inline void set_non_main_arena(mstate av, chunkinfoptr _md_p, mchunkptr p
   set_arena_index(av, p, get_arena_index(av));
 
 }
-
-
 
 
 /* Set size at footer (only when chunk is not in use) */

@@ -171,9 +171,9 @@ static inline mstate _arena_for_chunk(mchunkptr ptr){
 
   count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
   
-  assert(index <= count);
-
   index--;
+
+  assert(index <= count);
   
   arena = main_arena.subsequent_arena;
 

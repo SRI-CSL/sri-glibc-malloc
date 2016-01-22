@@ -146,17 +146,17 @@ static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
 
 /* find the heap and corresponding arena for a given ptr */
 
-#define heap_for_ptr(ptr) \
+#define deprecated_heap_for_ptr(ptr) \
   ((heap_info *)((unsigned long)(ptr) & ~(HEAP_MAX_SIZE-1)))
 
-static inline heap_info* sri_heap_for_ptr(void *ptr){
+static inline heap_info* heap_for_ptr(void *ptr){
   return (heap_info *)((unsigned long)ptr & ~(HEAP_MAX_SIZE-1));
 }
 
-#define arena_for_chunk(ptr) \
+#define deprecated_arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)
 
-static inline mstate _arena_for_chunk(mchunkptr ptr){
+static inline mstate arena_for_chunk(mchunkptr ptr){
   INTERNAL_SIZE_T index;
   mstate arena;
   size_t count;
@@ -174,14 +174,17 @@ static inline mstate _arena_for_chunk(mchunkptr ptr){
   index--;
 
   assert(index <= count);
+
+  assert(arena_list != NULL);
   
-  arena = main_arena.subsequent_arena;
+  arena = arena_list;
 
   while(index > 1){
     arena = arena->subsequent_arena;
     index--;
   }
-  
+
+  /* unsafe; but just a sanity check */
   assert(heap_for_ptr(ptr)->ar_ptr == arena);
 
   return arena;
@@ -238,9 +241,9 @@ static inline void sri_arena_get(mstate *aptr, INTERNAL_SIZE_T size){
 
 #endif
 
-#define arena_for_chunk(ptr) (&main_arena)
+//#define arena_for_chunk(ptr) (&main_arena)
 
-static inline mstate sri_arena_for_chunk(void* ptr){
+static inline mstate arena_for_chunk(mchunkptr ptr){
   return &main_arena;
 }
 
@@ -1078,6 +1081,8 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   } else {
     if(last_arena != NULL){
       last_arena->subsequent_arena = a;
+    } else {
+      main_arena.subsequent_arena = a;
     }
   }
   last_arena = a;

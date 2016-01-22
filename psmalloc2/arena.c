@@ -153,8 +153,34 @@ static inline heap_info* sri_heap_for_ptr(void *ptr){
 #define arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)
 
-static inline mstate sri_arena_for_chunk(void* ptr){
-  return chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena;
+static inline mstate _arena_for_chunk(mchunkptr ptr){
+  INTERNAL_SIZE_T index;
+  mstate arena;
+  
+  assert(ptr != NULL);
+
+  index = arena_index(ptr);
+
+  if(index < NON_MAIN_ARENA_INDEX){
+    return &main_arena;
+  }
+
+  /* race condition here, need an atomic read (without a lock) */
+  assert(index < arena_count);
+
+  index--;
+
+  
+  arena = main_arena.subsequent_arena;
+
+  while(index > 1){
+    arena = arena->subsequent_arena;
+    index--;
+  }
+  
+  assert(heap_for_ptr(ptr)->ar_ptr == arena);
+
+  return arena;
 }
 
 #else /* !USE_ARENAS */

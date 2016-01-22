@@ -1844,9 +1844,17 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 #define NON_MAIN_ARENA_INDEX 0x2
 
 
+INTERNAL_SIZE_T arena_index(mchunkptr p)
+{
+  assert(p != NULL);
+  return p->arena_index;
+}
+  
+
 static size_t get_arena_index(mstate av);
 
-static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index){
+static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index)
+{
   assert(p != NULL);
   p->arena_index = index;
 }

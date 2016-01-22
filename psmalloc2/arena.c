@@ -63,7 +63,6 @@ static mutex_t list_lock;
 
 /* number of arenas:  arena_count (not including the main_arena) */
 static size_t arena_count;
-static mutex_t arena_count_lock;
 
 /* 
  * a linked list of arena's of length arena_count ordered from smallest arena_index to
@@ -76,10 +75,14 @@ static struct malloc_state *last_arena;
 
 
 static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
-  if(p->arena_index > arena_count + 1){
+  size_t count;
+  
+  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+
+  if(p->arena_index > count + 1){
     fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
   }
-  assert(p->arena_index <= arena_count + 1);
+  assert(p->arena_index <= count + 1);
 }
 
 
@@ -156,6 +159,7 @@ static inline heap_info* sri_heap_for_ptr(void *ptr){
 static inline mstate _arena_for_chunk(mchunkptr ptr){
   INTERNAL_SIZE_T index;
   mstate arena;
+  size_t count;
   
   assert(ptr != NULL);
 
@@ -165,11 +169,11 @@ static inline mstate _arena_for_chunk(mchunkptr ptr){
     return &main_arena;
   }
 
-  /* race condition here, need an atomic read (without a lock) */
-  assert(index < arena_count);
+  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+  
+  assert(index <= count);
 
   index--;
-
   
   arena = main_arena.subsequent_arena;
 
@@ -410,7 +414,6 @@ ptmalloc_unlock_all2 __MALLOC_P((void))
     if(ar_ptr == &main_arena) break;
   }
   (void)mutex_init(&list_lock);
-  (void)mutex_init(&arena_count_lock);
 }
 
 #else
@@ -513,7 +516,6 @@ ptmalloc_init __MALLOC_P((void))
   main_arena.next = &main_arena;
 
   mutex_init(&list_lock);
-  mutex_init(&arena_count_lock);
   tsd_key_create(&arena_key, NULL);
   tsd_setspecific(arena_key, (Void_t *)&main_arena);
   thread_atfork(ptmalloc_lock_all, ptmalloc_unlock_all, ptmalloc_unlock_all2);
@@ -989,7 +991,8 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
 {
   mstate a;
   int err;
-
+  size_t count;
+  
   Void_t *vptr = NULL;
   
   stepper = max(stepper, 1);
@@ -1048,13 +1051,10 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   }
 
   /* make sure "a" has a sane arena_index */
-  (void)mutex_lock(&arena_count_lock);
-  arena_count++;                        /* increment (non main arena) arena_count */
-  a->arena_index = arena_count + 1;     /* index is one more, since main_arena has index 1 */
-  (void)mutex_unlock(&arena_count_lock);
-
-  
-  //old publish point
+  /* increment (non main arena) arena_count */
+  count = __atomic_add_fetch(&arena_count, 1, __ATOMIC_SEQ_CST);
+  /* index is one more, since main_arena has index 1 */
+  a->arena_index = count + 1;    
 
   stepper =  max(stepper, 5);
 

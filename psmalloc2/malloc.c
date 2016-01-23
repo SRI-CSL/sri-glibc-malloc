@@ -2504,6 +2504,7 @@ static inline void set_max_fast(mstateptr M, int s)
 static struct malloc_state main_arena;
 
 /* There is only one instance of the malloc parameters.  */
+/* iam: and it is not protected by a mutex and theis causes assertion failures on my 16 and 32 core machines! */
 
 static struct malloc_par mp_;
 
@@ -2926,12 +2927,6 @@ static void do_check_chunk(av, p, _md_p) mstate av; mchunkptr p; chunkinfoptr _m
     /* chunk is page-aligned */
     prev_size = get_prev_size(_md_p, p);
 
-    //iam: not sure why this is failing sz = 32 which is too small to be mmapped I think. (unless it got realloced down).
-    //    0x7ffff6101de0 prev_size = 0 sz = 32 pagesize = 4096 arena_index = 0
-    if(((prev_size + sz) & (mp_.pagesize-1)) != 0){
-      fprintf(stderr, "%p prev_size = %zu sz = %zu pagesize = %u arena_index = %zu\n", p, prev_size, sz, mp_.pagesize, p->arena_index);
-    }
-    
     assert(((prev_size + sz) & (mp_.pagesize-1)) == 0);
     /* mem is aligned */
     assert(aligned_OK(chunk2mem(p)));
@@ -3365,7 +3360,7 @@ static void do_check_malloc_state(mstate av, const char* file, int lineno)
   assert((unsigned long)(av->system_mem) <=
          (unsigned long)(av->max_system_mem));
 
-  //iam: see if we can spot what is going wrong (shy bug)
+  //iam: see if we can spot what is going wrong (shy bug) RACE CONDITION!
   if((unsigned long)(mp_.mmapped_mem) > (unsigned long)(mp_.max_mmapped_mem)){
     fprintf(stderr, "mp_.mmapped_mem = %zu  mp_.max_mmapped_mem = %zu\n", mp_.mmapped_mem, mp_.max_mmapped_mem);
   }

@@ -160,6 +160,7 @@ static inline mstate arena_for_chunk(mchunkptr ptr){
   INTERNAL_SIZE_T index;
   mstate arena;
   size_t count;
+  size_t check;
   
   assert(ptr != NULL);
 
@@ -178,8 +179,14 @@ static inline mstate arena_for_chunk(mchunkptr ptr){
   assert(arena_list != NULL);
   
   arena = arena_list;
-
+  check = 2;
+  
+  
   while(index > 1){
+
+    assert(arena->arena_index == check++);
+    unused_var(check);
+    
     arena = arena->subsequent_arena;
     index--;
   }

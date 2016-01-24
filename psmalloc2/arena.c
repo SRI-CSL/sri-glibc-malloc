@@ -156,11 +156,19 @@ static inline heap_info* heap_for_ptr(void *ptr){
 #define deprecated_arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)
 
+
+/*
+ * Returns the arena with the same index as ptr.
+ * Though we try to preserve the order in the arena_list
+ * it is not guarenteed. So we go through the list 
+ * until we find it.
+ *
+ *
+ */
 static inline mstate arena_for_chunk(mchunkptr ptr){
   INTERNAL_SIZE_T index;
   mstate arena;
   size_t count;
-  size_t check;
   
   assert(ptr != NULL);
 
@@ -172,30 +180,27 @@ static inline mstate arena_for_chunk(mchunkptr ptr){
 
   count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
   
-  index--;
 
-  assert(index <= count);
+  assert(index  <= count + 1);
 
   assert(arena_list != NULL);
   
   arena = arena_list;
-  check = 2;
   
-  
-  while(index > 1){
-
-    assert(arena->arena_index == check++);
-    unused_var(check);
-    
+  while(count > 0 && arena->arena_index != index){
     arena = arena->subsequent_arena;
-    index--;
+    count--;
   }
 
+  assert(arena != NULL);
+  assert(arena->arena_index == index);
+  
   /* unsafe; but just a sanity check */
   assert(heap_for_ptr(ptr)->ar_ptr == arena);
 
   return arena;
 }
+
 
 #else /* !USE_ARENAS */
 

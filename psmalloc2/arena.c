@@ -160,7 +160,7 @@ static inline heap_info* heap_for_ptr(void *ptr){
 /*
  * Returns the arena with the same index as ptr.
  * Though we try to preserve the order in the arena_list
- * it is not guarenteed. So we go through the list 
+ * it is not guaranteed. So we go through the list 
  * until we find it.
  *
  *

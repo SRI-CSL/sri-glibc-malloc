@@ -140,6 +140,13 @@ mstress16: mtreplay
 	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
 	done
 
+kmstress16: mtreplay
+	for number in ${KINTERVAL} ; do \
+	      echo "Run $$number" ; \
+	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
+	done
+
+
 
 helgrind: mtreplay
 	valgrind --tool=helgrind ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt

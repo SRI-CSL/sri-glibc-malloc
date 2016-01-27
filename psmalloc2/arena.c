@@ -1068,6 +1068,13 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   /* make sure "a" has a sane arena_index */
   /* increment (non main arena) arena_count */
   count = __atomic_add_fetch(&arena_count, 1, __ATOMIC_SEQ_CST);
+
+  /* Drew's desire */
+  if(count + 8 < count){
+    fprintf(stderr, "Too many arenas. Bye\n");
+    abort();
+  }
+
   /* index is one more, since main_arena has index 1 */
   a->arena_index = count + 1;    
 
@@ -1085,7 +1092,7 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   /* Add the new arena to the global list.  */
   (void)mutex_lock(&list_lock);
   a->next = main_arena.next;
-  atomic_write_barrier ();
+  //atomic_write_barrier ();
   main_arena.next = a;
   if(arena_list == NULL){
     assert(last_arena == NULL);

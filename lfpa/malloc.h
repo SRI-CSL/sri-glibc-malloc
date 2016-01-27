@@ -35,7 +35,7 @@ typedef struct Descriptor descriptor;
 struct Procheap;
 typedef struct Procheap procheap;
 
-#define TYPE_SIZE	4
+#define TYPE_SIZE	8
 #define PTR_SIZE	sizeof(void*)
 #define HEADER_SIZE	(TYPE_SIZE + PTR_SIZE)
 
@@ -51,8 +51,8 @@ typedef struct Procheap procheap;
 #define PARTIAL		2
 #define EMPTY		3
 
-#define	MAXCREDITS	64 // 2^(bits for credits in active)
-#define GRANULARITY	8
+#define	MAXCREDITS	64  // 2^(bits for credits in active)
+#define GRANULARITY	16  // sri: for x86_64 alignment we require 16 NOT 8
 
 /* We need to squeeze this in 64-bits, but conceptually
  * this is the case:

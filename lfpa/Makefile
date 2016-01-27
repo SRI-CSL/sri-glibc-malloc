@@ -28,7 +28,7 @@ CLFLAGS		= -lpthread -lm
 CFLAGS		= -D$(ASM) -D_GNU_SOURCE -D_REENTRANT #-DDEBUG
 
 GCC_CFLAGS	= -Wall $(BITS) -fno-strict-aliasing $(FPIC)
-GCC_OPT		= -O3 -ggdb #-DDEBUG
+GCC_OPT		= -ggdb # -DDEBUG -O3 
 
 CLANG_CFLAGS	= -Wall $(BITS) -fno-strict-aliasing $(FPIC)
 CLANG_OPT	= -O3 -ggdb #-DDEBUG

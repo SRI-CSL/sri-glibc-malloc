@@ -1143,10 +1143,14 @@ _int_new_arena(size_t size)
   /*a->next = NULL;*/
   a->system_mem = a->max_system_mem = h->size;
   arena_mem += h->size;
+
 #ifdef NO_THREADS
+
   if((unsigned long)(mp_.mmapped_mem + arena_mem + main_arena.system_mem) >
      mp_.max_total_mem)
     mp_.max_total_mem = mp_.mmapped_mem + arena_mem + main_arena.system_mem;
+
+
 #endif
 
   /* Set up the top chunk, with proper alignment. */

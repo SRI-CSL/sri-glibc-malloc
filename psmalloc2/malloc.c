@@ -1798,10 +1798,6 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 /* size field is or'ed with PREV_INUSE when previous adjacent chunk in use */
 #define PREV_INUSE 0x1
 
-/* size field is or'ed when the chunk is in use */
-#define INUSE 0x2
-
-
 /* extract inuse bit of previous chunk */
 static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 {
@@ -1888,7 +1884,7 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 /*
   Bits to mask off when extracting size
 */
-#define SIZE_BITS (PREV_INUSE|INUSE)
+#define SIZE_BITS (PREV_INUSE)
 
 /* Get size, ignoring use bits  */
 static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci)
@@ -4676,6 +4672,7 @@ _int_malloc(mstate av, size_t bytes)
     bin = bin_at(av,idx);
 
     if ( (_md_victim = last(bin)) != bin) {
+
       if (_md_victim == 0){ /* initialization check */
         malloc_consolidate(av);
       }
@@ -5842,7 +5839,7 @@ _int_memalign(mstate av, size_t alignment, size_t bytes)
     /* Otherwise, give back leader, use the rest */
     _md_newp = create_metadata(av, newp);
     set_head(av, _md_newp, newp, newsize | PREV_INUSE); 
-    set_inuse_bit_at_offset(av, _md_newp, newp, newsize); //cuidado
+    set_inuse_bit_at_offset(av, _md_newp, newp, newsize); 
 
                
     /* update p */

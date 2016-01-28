@@ -2559,7 +2559,7 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
   assert(av != NULL);
   assert(p != NULL);
 
-  if(false && tag){
+  if(tag){
     p->__dummy = tag;
   }
 
@@ -2628,8 +2628,7 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
   
   _md_p->chunk = chunk2mem(p);
   
-  if(false)
-    p->__dummy = 1234567890;
+  p->__dummy = 1234567890;
   
   retcode = hashtable_add(av, _md_p);
   assert(retcode);

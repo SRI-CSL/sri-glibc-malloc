@@ -36,7 +36,7 @@ int main(void) {
       }
       bank[i] = test;
     }
-    printf("Allocated %"PRIu32" blocks of size %lu\n", i, (unsigned long) sz);
+    printf("Allocated %"PRIu32" blocks of size %lu;  usable = %lu\n", i, (unsigned long) sz, (unsigned long)  malloc_usable_size(test));
 
     for (i=0; i<BNK_SIZE; i++) {
       free(bank[i]);
@@ -53,7 +53,7 @@ int main(void) {
       }
       bank[i] = test;
     }
-    printf("Reallocated %"PRIu32" blocks of size %lu\n", i, (unsigned long) sz);
+    printf("Reallocated %"PRIu32" blocks of size %lu;  usable = %lu\n", i, (unsigned long) sz, (unsigned long)  malloc_usable_size(test));
   }
 
   for (step = 2; step < 5; step ++) {

@@ -6114,17 +6114,43 @@ size_t mUSABLe(Void_t* mem)
 size_t mUSABLe(mem) Void_t* mem;
 #endif
 {
+  mstate ar_ptr;
   mchunkptr p;
-#if 0  
+  chunkinfoptr _md_p;
+  size_t retval;
+
+  retval = 0;
+  
   if (mem != 0) {
+
     p = mem2chunk(mem);
+    
+    arena_is_sane(p);
+
+
+    ar_ptr = arena_for_chunk(p);
+
+    (void)mutex_lock(&ar_ptr->mutex);
+
+    _md_p = hashtable_lookup(ar_ptr, p);
+
+    if (_md_p == NULL) {
+      missing_metadata(ar_ptr, p);
+    } 
+    
     if (chunk_is_mmapped(p))
-      return chunksize(p) - 2*SIZE_SZ;   //iam: work needs doing
-    else if (inuse(p))
-      return chunksize(p) - SIZE_SZ;     //iam: work needs doing
+      retval = chunksize(_md_p) - 2*SIZE_SZ; 
+    else if (inuse(ar_ptr, _md_p, p))
+      retval = chunksize(_md_p) - SIZE_SZ;   
+    
+
+    (void)mutex_unlock(&ar_ptr->mutex);
+
+
   }
-#endif
-  return 0;
+
+  return retval;
+
 }
 
 /*

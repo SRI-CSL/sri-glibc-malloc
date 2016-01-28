@@ -9,7 +9,7 @@
 
 #define MAX_THREADS  1024
 
-static const bool verbose = false;
+static const bool verbose = true;
 
 /*
  *  Nothing fancy yet.

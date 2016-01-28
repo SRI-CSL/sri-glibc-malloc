@@ -1817,24 +1817,6 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
   return retval;
 }
 
-/* extract inuse bit of chunk */
-static inline bool get_inuse(chunkinfoptr _md_p, mchunkptr p)
-{
-  bool retval;
-
-  if(_md_p == NULL){
-    fprintf(stderr, "%p with arena_index %zu has no metadata\n", p, p->arena_index);
-  }
-  
-  assert(_md_p != NULL);
-  assert(chunkinfo2chunk(_md_p) == p);
-
-  if(_md_p != NULL){
-    retval = ((_md_p->size & INUSE) == INUSE);
-  }
-
-  return retval;
-}
 
 /* arena index constants. The index is stored in the 
  * arena_index field of the malloc_chunk. It indicates
@@ -2577,7 +2559,7 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
   assert(av != NULL);
   assert(p != NULL);
 
-  if(tag){
+  if(false && tag){
     p->__dummy = tag;
   }
 
@@ -2645,8 +2627,9 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
   assert(_md_p != NULL);
   
   _md_p->chunk = chunk2mem(p);
-
-  p->__dummy = 1234567890;
+  
+  if(false)
+    p->__dummy = 1234567890;
   
   retcode = hashtable_add(av, _md_p);
   assert(retcode);

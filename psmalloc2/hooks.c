@@ -228,14 +228,16 @@ mem2chunk_check(mem) chunkinfoptr _md_p; mchunkptr p; Void_t* mem;
        alignment relative to the beginning of a page.  Check this
        first. */
     offset = (unsigned long)mem & page_mask;
+
     if((offset!=MALLOC_ALIGNMENT && offset!=0 && offset!=0x10 &&
         offset!=0x20 && offset!=0x40 && offset!=0x80 && offset!=0x100 &&
         offset!=0x200 && offset!=0x400 && offset!=0x800 && offset!=0x1000 &&
         offset<0x2000) ||
        !chunk_is_mmapped(p) || (_md_p->size & PREV_INUSE) ||
        ( (((unsigned long)p - _md_p->prev_size) & page_mask) != 0 ) ||
-       ( (sz = chunksize(_md_p)), ((_md_p->prev_size + sz) & page_mask) != 0 ) )  //iam: UGLY
+       ( (sz = chunksize(_md_p)), ((_md_p->prev_size + sz) & page_mask) != 0 ) ) 
       return NULL;
+
     magic = MAGICBYTE(p);
     for(sz -= 1; (c = ((unsigned char*)p)[sz]) != magic; sz -= c) {
       if(c<=0 || sz<(c+2*SIZE_SZ)) return NULL;
@@ -465,7 +467,7 @@ memalign_check(alignment, bytes, caller)
 
 
   if (top_check() >= 0) {
-    _md_mem = _int_memalign(&main_arena, alignment, nb); //iam: bytes+1 should be nb
+    _md_mem = _int_memalign(&main_arena, alignment, nb); //SRI: bytes+1 should be nb
     mem = chunkinfo2mem(_md_mem);
   } else {
     mem = NULL;
@@ -563,7 +565,7 @@ free_starter(mem, caller) Void_t* mem; const Void_t *caller;
 struct malloc_save_state {
   long          magic;
   long          version;
-  mbinptr       av[NBINS * 2 + 2];   //iam: check this
+  mbinptr       av[NBINS * 2 + 2];
   char*         sbrk_base;
   int           sbrked_mem_bytes;
   unsigned long trim_threshold;

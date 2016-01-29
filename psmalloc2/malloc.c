@@ -1649,7 +1649,7 @@ static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 
 struct malloc_chunk {
 
-  INTERNAL_SIZE_T     __dummy;          /* where prev_size used to live */
+  INTERNAL_SIZE_T     __tombstone__;          /* where prev_size used to live */
   INTERNAL_SIZE_T     arena_index;      /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
 
 };
@@ -2198,7 +2198,7 @@ static inline unsigned int idx2bit(unsigned int i)
 }
 
 /*
-  iam & dd: we had to move the bin routines below the definition of malloc_state
+  SRI: we had to move the bin routines below the definition of malloc_state
   to define them as functions. 
 */
 
@@ -2242,8 +2242,10 @@ typedef struct chunkinfo* mfastbinptr;
 
 #define FASTBIN_CONSOLIDATION_THRESHOLD  (65536UL)
 
-// More macros had to be moved after the definition of malloc_state to become functions
-// Fast chunks, et al.
+/*
+  SRI: More macros had to be moved after the definition of malloc_state to become functions
+  Fast chunks, et al.
+*/
 
 /*
   ----------- Internal state representation and initialization. i.e. mstate -----------
@@ -2488,7 +2490,7 @@ static inline void set_max_fast(mstateptr M, int s)
 static struct malloc_state main_arena;
 
 /* There is only one instance of the malloc parameters.  */
-/* iam: and it is not protected by a mutex and this causes assertion failures on my 16 and 32 core machines! */
+/* SRI: and it is not protected by a mutex and this causes assertion failures on our 16 and 32 core machines. */
 
 static struct malloc_par mp_;
 
@@ -2514,7 +2516,7 @@ static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno);
 
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno);
 
-//needed for malloc_stats which "conveniently" is in another file.
+/* SRI: needed for malloc_stats which "conveniently" is in another file. */
 void dump_hashtable(mstate av)
 {
   dump_metadata(stderr, &(av->htbl), false);
@@ -2557,10 +2559,12 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
   assert(av != NULL);
   assert(p != NULL);
 
+#ifdef SRI_DEBUG  
   if(tag){
-    p->__dummy = tag;
+    p->__tombstone__ = tag;
   }
-
+#endif
+  
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
 
@@ -2625,8 +2629,11 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
   assert(_md_p != NULL);
   
   _md_p->chunk = chunk2mem(p);
+
   
-  p->__dummy = 1234567890;
+#ifdef SRI_DEBUG
+  p->__tombstone__ = 1234567890;
+#endif
   
   retcode = hashtable_add(av, _md_p);
   assert(retcode);
@@ -3340,7 +3347,7 @@ mstate av; const char* file; int lineno;
   assert((unsigned long)(av->system_mem) <=
          (unsigned long)(av->max_system_mem));
 
-  //iam: see if we can spot what is going wrong (shy bug) RACE CONDITION!
+  //SRI This is one race condition that gets tweeked every now and again on multicore machines.
   if((unsigned long)(mp_.mmapped_mem) > (unsigned long)(mp_.max_mmapped_mem)){
     fprintf(stderr, "mp_.mmapped_mem = %zu  mp_.max_mmapped_mem = %zu\n", mp_.mmapped_mem, mp_.max_mmapped_mem);
   }

@@ -69,7 +69,6 @@
 # if defined __cplusplus && (__GNUC__ >= 3 || __GNUC_MINOR__ >= 8)
 #  define __THROW	throw ()
 # else
-/* iam: this causes complaints */
 #ifndef  __THROW
 #define __THROW
 #else

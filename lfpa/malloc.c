@@ -772,31 +772,13 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
   }
 }
 
-
-void *_memcpy(void *dest, const void *src, size_t nbytes){
-  size_t* mcsrc = (size_t*) src;			
-  size_t* mcdst = (size_t*) dest;			
-  unsigned long mctmp = (nbytes)/sizeof(size_t);		
-  long mcn;								
-  if (mctmp < 8) mcn = 0; else { mcn = (mctmp-1)/8; mctmp %= 8; }	
-  switch (mctmp) {							
-  case 0: for(;;) { *mcdst++ = *mcsrc++;				
-    case 7:           *mcdst++ = *mcsrc++;				
-    case 6:           *mcdst++ = *mcsrc++;				
-    case 5:           *mcdst++ = *mcsrc++;				
-    case 4:           *mcdst++ = *mcsrc++;				
-    case 3:           *mcdst++ = *mcsrc++;				
-    case 2:           *mcdst++ = *mcsrc++;				
-    case 1:           *mcdst++ = *mcsrc++; if(mcn <= 0) break; mcn--; }	
-  }
-  return dest;									
-}
-
 void *realloc(void *object, size_t size)
 {
   descriptor* desc;
   void* header;
   void* ret;
+  size_t osize;
+  size_t minsize;
 
   if (object == NULL) {
     return malloc(size);
@@ -807,11 +789,21 @@ void *realloc(void *object, size_t size)
   }
 
   header = (void*)((unsigned long)object - HEADER_SIZE);  
+  
+
 
   if (*((char*)header) == (char)LARGE) {
+    osize = *((unsigned long *)(header + TYPE_SIZE));
     ret = malloc(size);
-    _memcpy(ret, object, *((unsigned long *)(header + TYPE_SIZE)));
-    munmap(object, *((unsigned long *)(header + TYPE_SIZE)));
+    minsize = osize;
+    /* note that we could be getting smaller NOT larger */
+    if(osize > size){
+      minsize = size;
+    }
+
+    memcpy(ret, object, minsize);
+    munmap(object, osize);
+    
   }
   else {
     desc = *((descriptor**)((unsigned long)header + TYPE_SIZE));
@@ -820,7 +812,7 @@ void *realloc(void *object, size_t size)
     }
     else {
       ret = malloc(size);
-      _memcpy(ret, object, desc->sz - HEADER_SIZE);
+      memcpy(ret, object, desc->sz - HEADER_SIZE);
       free(object);
     }
   }

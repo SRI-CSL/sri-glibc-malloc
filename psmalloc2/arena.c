@@ -305,7 +305,7 @@ malloc_atfork(size_t sz, const Void_t *caller)
         return 0;
       _md_victim = _int_malloc(&main_arena, sz+1);
       victim = chunkinfo2mem(_md_victim);
-      return mem2mem_check(victim, sz);
+      return mem2mem_check(_md_victim, victim, chunk2mem(victim), sz);
     }
   } else {
     /* Suspend the thread until the `atfork' handlers have completed.

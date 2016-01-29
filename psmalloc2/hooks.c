@@ -125,21 +125,21 @@ __malloc_check_init()
 static Void_t*
 internal_function
 #if __STD_C
-mem2mem_check(Void_t *ptr, size_t sz)
+mem2mem_check(chunkinfoptr _md_p, mchunkptr p, Void_t *ptr, size_t sz)
 #else
-mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
+mem2mem_check(ptr, sz) chunkinfoptr _md_p; mchunkptr p; Void_t *ptr; size_t sz;
 #endif
 {
-  //iam: need help in hooks I think.
-#if 0
-  mchunkptr p;
   unsigned char* m_ptr = (unsigned char*)BOUNDED_N(ptr, sz);
   size_t i;
 
   if (!ptr)
     return ptr;
-  p = mem2chunk(ptr);
-  for(i = chunksize(p) - (chunk_is_mmapped(p) ? 2*SIZE_SZ+1 : SIZE_SZ+1);  //iam: work needs doing
+
+  assert(p == mem2chunk(ptr));
+  assert(chunkinfo2chunk(_md_p) == p);
+  
+  for(i = chunksize(_md_p) - (chunk_is_mmapped(p) ? 2*SIZE_SZ+1 : SIZE_SZ+1);
       i > sz;
       i -= 0xFF) {
     if(i-sz < 0x100) {
@@ -150,10 +150,6 @@ mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
   }
   m_ptr[sz] = MAGICBYTE(p);
   return (Void_t*)m_ptr;
-#else
-  return NULL;
-#endif
-
 }
 
 /* Convert a pointer to be free()d or realloc()ed to a valid chunk
@@ -162,22 +158,56 @@ mem2mem_check(ptr, sz) Void_t *ptr; size_t sz;
 static mchunkptr
 internal_function
 #if __STD_C
-mem2chunk_check(Void_t* mem)
+mem2chunk_check(chunkinfoptr _md_p, mchunkptr p, Void_t* mem)
 #else
-mem2chunk_check(mem) Void_t* mem;
+mem2chunk_check(mem) chunkinfoptr _md_p; mchunkptr p; Void_t* mem;
 #endif
 {
-#if 0  //iam: lots of head scratching here ...
-  mchunkptr p;
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
+  int contig;
+  mchunkptr prev_p;
+  mchunkptr next_p;
+  chunkinfoptr _md_prev_p;
+  
   if(!aligned_OK(mem)) return NULL;
-  p = mem2chunk(mem);
+
+  assert(p == mem2chunk(mem));
+  
   if (!chunk_is_mmapped(p)) {
     /* Must be a chunk in conventional heap memory. */
-    int contig = contiguous(&main_arena);
-    sz = chunksize(p);  //iam: work needs doing
-    if((contig &&
+    contig = contiguous(&main_arena);
+    sz = chunksize(_md_p);
+
+    if(contig &&
+       ((char*)p<mp_.sbrk_base ||
+	((char*)p + sz) >= (mp_.sbrk_base+main_arena.system_mem))){
+      return NULL;
+    }
+
+    if (sz < MINSIZE ||
+	sz&MALLOC_ALIGN_MASK ||
+	!inuse(&main_arena, _md_p, p)){
+      return NULL;
+    }
+    
+    if ( !prev_inuse(_md_p, p) ){
+      if (_md_p->prev_size&MALLOC_ALIGN_MASK){
+	return NULL;
+      }
+      prev_p = prev_chunk(_md_p, p);
+      if ((char*)prev_p < mp_.sbrk_base){ return NULL; }
+      if(contig){  
+	_md_prev_p = hashtable_lookup(&main_arena, prev_p);
+	if ( (next_p = NULL) ||
+	     next_chunk(_md_prev_p, prev_p) != p){
+	  return NULL;
+	}
+      }
+    }
+      
+    /*
+       if((contig &&
 	((char*)p<mp_.sbrk_base ||
 	 ((char*)p + sz)>=(mp_.sbrk_base+main_arena.system_mem) )) ||
        sz<MINSIZE || sz&MALLOC_ALIGN_MASK || !inuse(p) ||
@@ -185,6 +215,7 @@ mem2chunk_check(mem) Void_t* mem;
                             (contig && (char*)prev_chunk(p)<mp_.sbrk_base) ||
                             next_chunk(prev_chunk(p))!=p) ))
       return NULL;
+    */
     magic = MAGICBYTE(p);
     for(sz += SIZE_SZ-1; (c = ((unsigned char*)p)[sz]) != magic; sz -= c) {
       if(c<=0 || sz<(c+2*SIZE_SZ)) return NULL;
@@ -201,9 +232,9 @@ mem2chunk_check(mem) Void_t* mem;
         offset!=0x20 && offset!=0x40 && offset!=0x80 && offset!=0x100 &&
         offset!=0x200 && offset!=0x400 && offset!=0x800 && offset!=0x1000 &&
         offset<0x2000) ||
-       !chunk_is_mmapped(p) || (p->size & PREV_INUSE) ||
-       ( (((unsigned long)p - p->prev_size) & page_mask) != 0 ) ||
-       ( (sz = chunksize(p)), ((p->prev_size + sz) & page_mask) != 0 ) )  //iam: work needs doing
+       !chunk_is_mmapped(p) || (_md_p->size & PREV_INUSE) ||
+       ( (((unsigned long)p - _md_p->prev_size) & page_mask) != 0 ) ||
+       ( (sz = chunksize(_md_p)), ((_md_p->prev_size + sz) & page_mask) != 0 ) )  //iam: UGLY
       return NULL;
     magic = MAGICBYTE(p);
     for(sz -= 1; (c = ((unsigned char*)p)[sz]) != magic; sz -= c) {
@@ -212,9 +243,6 @@ mem2chunk_check(mem) Void_t* mem;
     ((unsigned char*)p)[sz] ^= 0xFF;
   }
   return p;
-#else
-  return NULL;
-#endif
 }
 
 /* Check for corruption of the top chunk, and try to recover if
@@ -283,17 +311,21 @@ malloc_check(size_t sz, const Void_t *caller)
 malloc_check(sz, caller) size_t sz; const Void_t *caller;
 #endif
 {
-  Void_t *victim;
+  Void_t *mem;
+  mchunkptr victim;
   chunkinfoptr _md_victim;
   (void)mutex_lock(&main_arena.mutex);
   if(top_check() >= 0){
     _md_victim = _int_malloc(&main_arena, sz+1);
-    victim = chunkinfo2mem(_md_victim);
+    victim = chunkinfo2chunk(_md_victim);
+    mem = chunk2mem(victim);
   } else {
+    _md_victim = NULL;
     victim = NULL;
+    mem = NULL;
   }
   (void)mutex_unlock(&main_arena.mutex);
-  return mem2mem_check(victim, sz);
+  return mem2mem_check(_md_victim, victim, mem, sz);
 }
 
 static void
@@ -308,9 +340,10 @@ free_check(mem, caller) Void_t* mem; const Void_t *caller;
   
   if(!mem) return;
   (void)mutex_lock(&main_arena.mutex);
-
-  p = mem2chunk_check(mem);
+  p = mem2chunk(mem);
   _md_p = hashtable_lookup(&main_arena, p);
+  
+  p = mem2chunk_check(_md_p, p, mem);
   
   if(!p || !_md_p) {
     (void)mutex_unlock(&main_arena.mutex);
@@ -350,8 +383,11 @@ realloc_check(oldmem, bytes, caller)
 
   if (oldmem == 0) return malloc_check(bytes, NULL);
   (void)mutex_lock(&main_arena.mutex);
-  oldp = mem2chunk_check(oldmem);
+  
+  oldp = mem2chunk(oldmem);
   _md_oldp = hashtable_lookup(&main_arena, oldp);
+  oldp = mem2chunk_check(_md_oldp,  oldp, oldmem);
+  
   (void)mutex_unlock(&main_arena.mutex);
   if(!oldp || !_md_oldp) {
     if(check_action & 1)
@@ -404,7 +440,7 @@ realloc_check(oldmem, bytes, caller)
 #endif
   (void)mutex_unlock(&main_arena.mutex);
 
-  return mem2mem_check(newmem, bytes);
+  return mem2mem_check(_md_newmem, chunkinfo2chunk(_md_newmem), newmem, bytes);
 }
 
 static Void_t*
@@ -435,7 +471,7 @@ memalign_check(alignment, bytes, caller)
     mem = NULL;
   }
   (void)mutex_unlock(&main_arena.mutex);
-  return mem2mem_check(mem, bytes);
+  return mem2mem_check(_md_mem,  chunkinfo2chunk(_md_mem), mem, bytes);
 }
 
 #if !defined NO_THREADS && USE_STARTER

@@ -1531,7 +1531,7 @@ static int      mTRIm(size_t);
 static size_t   mUSABLe(Void_t*);
 static int      mALLOPt(int, int);
 
-static Void_t* internal_function mem2mem_check(Void_t *p, size_t sz);
+static Void_t* internal_function mem2mem_check(chunkinfoptr _md_p, mchunkptr p, Void_t *ptr, size_t sz);
 static int internal_function top_check(void);
 static void internal_function munmap_chunk(chunkinfoptr p);
 #if HAVE_MREMAP
@@ -1540,10 +1540,8 @@ static chunkinfoptr internal_function mremap_chunk(mstate av, chunkinfoptr p, si
 
 static Void_t*   malloc_check(size_t sz, const Void_t *caller);
 static void      free_check(Void_t* mem, const Void_t *caller);
-static Void_t*   realloc_check(Void_t* oldmem, size_t bytes,
-                               const Void_t *caller);
-static Void_t*   memalign_check(size_t alignment, size_t bytes,
-                                const Void_t *caller);
+static Void_t*   realloc_check(Void_t* oldmem, size_t bytes, const Void_t *caller);
+static Void_t*   memalign_check(size_t alignment, size_t bytes, const Void_t *caller);
 #ifndef NO_THREADS
 # if USE_STARTER
 static Void_t*   malloc_starter(size_t sz, const Void_t *caller);

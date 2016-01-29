@@ -176,7 +176,7 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
   
   addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (addr == MAP_FAILED) {
-    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %d: ", size, queue_head.tag);
+    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %lu: ", size, queue_head.tag);
     switch (errno) {
     case EBADF: fprintf(stderr, "EBADF"); break;
     case EACCES:        fprintf(stderr, "EACCES"); break;
@@ -191,7 +191,7 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
     exit(1);
   }
   else if (addr == NULL) {
-    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %d\n", size, queue_head.tag);
+    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %lu\n", size, queue_head.tag);
     fflush(stderr);
     exit(1);
   }
@@ -201,11 +201,11 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
 
 static void organize_desc_list(descriptor* start, unsigned long count, unsigned long stride)
 {
-  unsigned long ptr;
+  uintptr_t ptr;
   unsigned int i;
  
   start->Next = (descriptor*)(start + stride);
-  ptr = (unsigned long)start; 
+  ptr = (uintptr_t)start; 
   for (i = 1; i < count - 1; i++) {
     ptr += stride;
     ((descriptor*)ptr)->Next = (descriptor*)(ptr + stride);
@@ -216,13 +216,13 @@ static void organize_desc_list(descriptor* start, unsigned long count, unsigned 
 
 static void organize_list(void* start, unsigned long count, unsigned long stride)
 {
-  unsigned long ptr;
+  uintptr_t ptr;
   unsigned long i;
   
-  ptr = (unsigned long)start; 
+  ptr = (uintptr_t)start; 
   for (i = 1; i < count - 1; i++) {
     ptr += stride;
-    *((unsigned long*)ptr) = i + 1;
+    *((uintptr_t*)ptr) = i + 1;
   }
 }
 
@@ -239,9 +239,9 @@ static descriptor* DescAlloc() {
   while(1) {
     old_queue = queue_head;
     if (old_queue.DescAvail) {
-      new_queue.DescAvail = (unsigned long)((descriptor*)old_queue.DescAvail)->Next;
+      new_queue.DescAvail = (uintptr_t)((descriptor*)old_queue.DescAvail)->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (compare_and_swap64((volatile unsigned long*)&queue_head, *((unsigned long*)&old_queue), *((unsigned long*)&new_queue))) {
+      if (compare_and_swap128((volatile aba_128_t*)&queue_head, *((aba_128_t*)&old_queue), *((aba_128_t*)&new_queue))) {
         desc = (descriptor*)old_queue.DescAvail;
 #ifdef DEBUG
         fprintf(stderr, "Returning recycled descriptor %p (tag %hu)\n", desc, queue_head.tag);
@@ -254,9 +254,9 @@ static descriptor* DescAlloc() {
       desc = AllocNewSB(DESCSBSIZE, sizeof(descriptor));
       organize_desc_list((void *)desc, DESCSBSIZE / sizeof(descriptor), sizeof(descriptor));
 
-      new_queue.DescAvail = (unsigned long)desc->Next;
+      new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (compare_and_swap64((volatile unsigned long*)&queue_head, *((unsigned long*)&old_queue), *((unsigned long*)&new_queue))) {
+      if (compare_and_swap128((volatile aba_128_t*)&queue_head, *((aba_128_t*)&old_queue), *((aba_128_t*)&new_queue))) {
 #ifdef DEBUG
         fprintf(stderr, "Returning descriptor %p from new descriptor block\n", desc);
         fflush(stderr);
@@ -281,9 +281,9 @@ void DescRetire(descriptor* desc)
   do {
     old_queue = queue_head;
     desc->Next = (descriptor*)old_queue.DescAvail;
-    new_queue.DescAvail = (unsigned long)desc;
+    new_queue.DescAvail = (uintptr_t)desc;
     new_queue.tag = old_queue.tag + 1;
-  } while (!compare_and_swap64((volatile unsigned long*)&queue_head, *((unsigned long*)&old_queue), *((unsigned long*)&new_queue)));
+  } while (!compare_and_swap128((volatile aba_128_t*)&queue_head, *((aba_128_t*)&old_queue), *((aba_128_t*)&new_queue)));
 }
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
@@ -366,9 +366,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
 #endif
 
   *((unsigned long long*)&oldactive) = 0;
-  newactive.ptr = (unsigned long)desc;
+  newactive.ptr = (uintptr_t)desc;
   newactive.credits = morecredits - 1;
-  if (compare_and_swap64((volatile unsigned long *)&heap->Active, *((unsigned long*)&oldactive), *((unsigned long*)&newactive))) {
+  if (compare_and_swap128((volatile aba_128_t *)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive))) {
     return;
   }
 
@@ -378,7 +378,7 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
     newanchor = oldanchor = desc->Anchor;
     newanchor.count += morecredits;
     newanchor.state = PARTIAL;
-  } while (!compare_and_swap64((volatile unsigned long *)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
+  } while (!compare_and_swap64((volatile uintptr_t *)&desc->Anchor, *((uintptr_t*)&oldanchor), *((uintptr_t*)&newanchor)));
 
   HeapPutPartial(desc);
 }
@@ -413,7 +413,7 @@ static void* MallocFromActive(procheap *heap)
     else {
       --newactive.credits;
     }
-  } while (!compare_and_swap64((volatile unsigned long*)&heap->Active, *((unsigned long*)&oldactive), *((unsigned long*)&newactive)));
+  } while (!compare_and_swap128((volatile aba_128_t*)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive)));
 
 #ifdef DEBUG
   fprintf(stderr, "MallocFromActive() heap->Active %p, credits %hu\n", *((void**)&heap->Active), oldactive.credits);
@@ -550,7 +550,7 @@ static void* MallocFromNewSB(procheap* heap)
 #endif
 
   // memory fence.
-  if (compare_and_swap64((volatile unsigned long*)&heap->Active, *((unsigned long*)&oldactive), *((unsigned long*)&newactive))) { 
+  if (compare_and_swap128((volatile aba_128_t*)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive))) { 
     addr = desc->sb;
     *((char*)addr) = (char)SMALL; 
     addr += TYPE_SIZE;
@@ -772,6 +772,26 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
   }
 }
 
+
+void *_memcpy(void *dest, const void *src, size_t nbytes){
+  size_t* mcsrc = (size_t*) src;			
+  size_t* mcdst = (size_t*) dest;			
+  unsigned long mctmp = (nbytes)/sizeof(size_t);		
+  long mcn;								
+  if (mctmp < 8) mcn = 0; else { mcn = (mctmp-1)/8; mctmp %= 8; }	
+  switch (mctmp) {							
+  case 0: for(;;) { *mcdst++ = *mcsrc++;				
+    case 7:           *mcdst++ = *mcsrc++;				
+    case 6:           *mcdst++ = *mcsrc++;				
+    case 5:           *mcdst++ = *mcsrc++;				
+    case 4:           *mcdst++ = *mcsrc++;				
+    case 3:           *mcdst++ = *mcsrc++;				
+    case 2:           *mcdst++ = *mcsrc++;				
+    case 1:           *mcdst++ = *mcsrc++; if(mcn <= 0) break; mcn--; }	
+  }
+  return dest;									
+}
+
 void *realloc(void *object, size_t size)
 {
   descriptor* desc;
@@ -790,7 +810,7 @@ void *realloc(void *object, size_t size)
 
   if (*((char*)header) == (char)LARGE) {
     ret = malloc(size);
-    memcpy(ret, object, *((unsigned long *)(header + TYPE_SIZE)));
+    _memcpy(ret, object, *((unsigned long *)(header + TYPE_SIZE)));
     munmap(object, *((unsigned long *)(header + TYPE_SIZE)));
   }
   else {
@@ -800,7 +820,7 @@ void *realloc(void *object, size_t size)
     }
     else {
       ret = malloc(size);
-      memcpy(ret, object, desc->sz - HEADER_SIZE);
+      _memcpy(ret, object, desc->sz - HEADER_SIZE);
       free(object);
     }
   }

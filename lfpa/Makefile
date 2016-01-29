@@ -22,10 +22,13 @@ ifeq ($(ASM), ia64)
 	FPIC = -fPIC
 endif
 
+NOBUILTINS      =  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc  -fno-builtin-memcpy
+
+
 CC		= gcc
 
 CLFLAGS		= -lpthread -lm
-CFLAGS		= -D$(ASM) -D_GNU_SOURCE -D_REENTRANT #-DDEBUG
+CFLAGS		= -D$(ASM) -D_GNU_SOURCE -D_REENTRANT  $(NOBUILTINS) #-DDEBUG
 
 GCC_CFLAGS	= -Wall $(BITS) -fno-strict-aliasing $(FPIC)
 GCC_OPT		= -ggdb # -DDEBUG -O3 

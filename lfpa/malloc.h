@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "atomic.h"
 #include "queue.h"
@@ -59,7 +60,8 @@ typedef struct Procheap procheap;
  *	descriptor* DescAvail;
  */
 typedef struct {
-	unsigned long long 	DescAvail:48, tag:16;
+  uintptr_t 	DescAvail;
+  uint64_t      tag;
 } descriptor_queue;
 
 /* Superblock descriptor structure. We bumped avail and count 
@@ -85,7 +87,8 @@ typedef struct {
 } sizeclass;
 
 typedef struct {
-	unsigned long long	ptr:58, credits:6;
+  uintptr_t	ptr;
+  uint64_t      credits;
 } active;
 
 struct Procheap {

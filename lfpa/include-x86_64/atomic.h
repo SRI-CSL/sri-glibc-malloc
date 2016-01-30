@@ -1,6 +1,8 @@
 #ifndef __SYNCHRO_ATOMIC_H__
 #define __SYNCHRO_ATOMIC_H__
 
+#include <stdint.h>
+
 typedef struct {
   uintptr_t 	ptr;
   uint64_t      tag;

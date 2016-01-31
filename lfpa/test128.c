@@ -7,10 +7,8 @@
 #include <inttypes.h>
 
 /*
-typedef struct {
-  uintptr_t 	ptr;
-  uint64_t      tag;
-} aba_128_t;
+  Make sure our  compare_and_swap128 appears to work ok.
+  
 */
 
 #define MAX_THREADS  1024
@@ -21,7 +19,7 @@ bool update(aba_128_t* abbap, int val){
   aba_128_t old;
   aba_128_t new;
   
-  /* read the current values */
+  /* attempt to read the "current" values */
   
   uintptr_t ptr = __atomic_load_n(&abbap->ptr, __ATOMIC_SEQ_CST);
   uint64_t  tag = __atomic_load_n(&abbap->tag, __ATOMIC_SEQ_CST);
@@ -35,7 +33,7 @@ bool update(aba_128_t* abbap, int val){
   new.ptr = ptr;
   new.tag = tag;
 
-
+  /* should fail every now and then... */
   return compare_and_swap128(abbap, old, new);
 }
 
@@ -65,10 +63,11 @@ int main(int argc, char* argv[]){
   int nthreads;
   int rc;
   int i;
+  int total;
   pthread_t threads[MAX_THREADS];
   targs_t targs[MAX_THREADS];
   void* status;
-
+  
 
   if (argc != 2) {
     fprintf(stdout, "Usage: %s <nthreads>\n", argv[0]);
@@ -90,7 +89,7 @@ int main(int argc, char* argv[]){
   for(i = 0; i < nthreads; i++){
     targs_t *targsp = &targs[i];
     targsp->id = i;
-    targsp->val = (i % 2 == 0) ? 2 : 1;
+    targsp->val = 1;
     targsp->count = 1000;
     targsp->successes = 0;
   }
@@ -117,13 +116,14 @@ int main(int argc, char* argv[]){
 
 
 
-
+  
   for(i = 0; i < nthreads; i++){
+    total += targs[i].successes;
     fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
   }
 
-
-  fprintf(stdout, "abba.ptr = %"PRIu64" abba.tag = %"PRIu64"\n", abba.ptr,  abba.tag);
+  /* should all be equal */
+  fprintf(stdout, "total = %d abba.ptr = %"PRIu64" abba.tag = %"PRIu64"\n", total, abba.ptr,  abba.tag);
  
 
   return 0;

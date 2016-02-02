@@ -2491,7 +2491,7 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
 
 #ifdef SRI_DEBUG  
   if(tag){
-    p->__tombstone__ = tag;
+     p->__tombstone__ = tag;
   }
 #endif
   
@@ -2760,16 +2760,14 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 
 #if ! MALLOC_DEBUG
 
-#define check_top(A)                         do_check_top(A,__FILE__,__LINE__)
+#define check_top(A)                         
 #define check_chunk(A,P,MD_P)                
 #define check_free_chunk(A,P,MD_P)           
 #define check_inuse_chunk(A,P,MD_P)          
 #define check_remalloced_chunk(A,P,MD_P,N)   
 #define check_malloced_chunk(A,P,MD_P,N)     
 #define check_malloc_state(A)                
-#define check_metadata_chunk(A,P,MD_P)       do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
-
-#warning "using do_check_* in ! MALLOC_DEBUG mode"
+#define check_metadata_chunk(A,P,MD_P)       
 
 #else
 
@@ -5144,10 +5142,9 @@ _int_free(mstate av, chunkinfoptr _md_p)
 
           iterations = heap_trim(heap, mp_.top_pad);
 
-	  if(!check_top(av)){
-	    fprintf(stderr, "heap_trim culprit: %d iterations\n", iterations);
-	  }
-	  
+	  check_top(av);
+	  unused_var(iterations);
+
 #endif
         }
       }

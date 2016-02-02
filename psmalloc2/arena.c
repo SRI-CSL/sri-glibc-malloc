@@ -1008,8 +1008,6 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   int err;
   size_t count;
   
-  Void_t *vptr = NULL;
-  
   stepper = max(stepper, 1);
   
   if(!a_tsd) {
@@ -1115,12 +1113,9 @@ arena_get2(a_tsd, size) mstate a_tsd; size_t size;
   
   THREAD_STAT(++(a->stat_lock_loop));
 
-
+  /* finally publish the result */
   tsd_setspecific(arena_key, (Void_t *)a);
   
-  tsd_getspecific(arena_key, vptr);
-  assert(a == vptr);
-
   return a;
 }
 

@@ -47,7 +47,7 @@ endif
 
 # Rules
 
-all:	liblfpa.so replay mtreplay
+all:	liblfpa.so replay mtreplay test128 
 
 clean:
 	rm -f *.o *.so  replay mtreplay
@@ -57,6 +57,10 @@ malloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
 
 liblfpa.so:	malloc.o
 		$(CC) $(CFLAGS) $(OPT) malloc.o -o liblfpa.so $(CLFLAGS) -shared
+
+test128:	include-$(ASM)/atomic.h  test128.c
+		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) test128.c -o test128 -lpthread
+
 
 # Replay stuff
 MALLOCOBJ = malloc.o

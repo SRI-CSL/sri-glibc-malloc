@@ -1,4 +1,7 @@
- /* Malloc implementation for multiple threads without lock contention.
+ /*
+   SRI's metadata-less port of ptmalloc2.
+
+   Malloc implementation for multiple threads without lock contention.
    Copyright (C) 1996-2002, 2003, 2004 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Wolfram Gloger <wg@malloc.de>
@@ -20,35 +23,12 @@
    Boston, MA 02111-1307, USA.  */
 
 /*
-  This is a version (aka ptmalloc2) of malloc/free/realloc written by
-  Doug Lea and adapted to multiple threads/arenas by Wolfram Gloger.
-
-  * Version ptmalloc2-20011215
-  $Id: malloc.c,v 1.20 2004/11/04 17:31:04 wg Exp $
-  based on:
-  VERSION 2.7.1pre1 Sat May 12 07:41:21 2001  Doug Lea  (dl at gee)
-
-  Note: There may be an updated version of this malloc obtainable at
-  http://www.malloc.de/malloc/ptmalloc2.tar.gz
-  Check before installing!
 
   * Quickstart
 
-  In order to compile this implementation, a Makefile is provided with
-  the ptmalloc2 distribution, which has pre-defined targets for some
-  popular systems (e.g. "make posix" for Posix threads).  All that is
-  typically required with regard to compiler flags is the selection of
-  an appropriate malloc-machine.h include file via -I directives.
-  Many/most systems will additionally require USE_TSD_DATA_HACK to be
-  defined, so this is the default for "make posix".
-
   * Why use this malloc?
 
-  This is not the fastest, most space-conserving, most portable, or
-  most tunable malloc ever written. However it is among the fastest
-  while also being among the most space-conserving, portable and tunable.
-  Consistent balance across these factors results in a good general-purpose
-  allocator for malloc-intensive programs.
+  This malloc will be slower than ptmalloc2. It will also be more secure.
 
   The main properties of the algorithms are:
   * For large (>= 512 bytes) requests, it is a pure best-fit allocator,
@@ -283,10 +263,9 @@ extern "C" {
   /*
     Debugging:
 
-    Because freed chunks may be overwritten with bookkeeping fields, this
-    malloc will often die when freed memory is overwritten by user
-    programs.  This can be very effective (albeit in an annoying way)
-    in helping track down dangling pointers.
+    This malloc is not actually metadata-free. We have left one piece
+    of information in the header of a chunk. The arena index that the 
+    chunk belongs.
 
     If you compile with -DMALLOC_DEBUG, a number of assertion checks are
     enabled that will catch more memory errors. You probably won't be
@@ -319,7 +298,6 @@ extern "C" {
 
   /* SRI's  metatdata header */
 #include "metadata.h"
-
 
   /*
     INTERNAL_SIZE_T is the word-size used for internal bookkeeping
@@ -1650,76 +1628,28 @@ static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 struct malloc_chunk {
 
   INTERNAL_SIZE_T     __tombstone__;          /* where prev_size used to live */
-  INTERNAL_SIZE_T     arena_index;      /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
+  INTERNAL_SIZE_T     arena_index;            /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
 
 };
 
 
 /*
-  malloc_chunk details:
 
-  (The following includes lightly edited explanations by Colin Plumb.)
+  malloc_chunk details:
 
   Chunks of memory are maintained using a `boundary tag' method as
   described in e.g., Knuth or Standish.  (See the paper by Paul
   Wilson ftp://ftp.cs.utexas.edu/pub/garbage/allocsrv.ps for a
-  survey of such techniques.)  Sizes of free chunks are stored both
-  in the front of each chunk and at the end.  This makes
-  consolidating fragmented chunks into bigger chunks very fast.  The
-  size fields also hold bits representing whether chunks are free or
-  in use.
+  survey of such techniques.)  
 
-  An allocated chunk looks like this:
+  To retain alignment properties our headers contian two slots.
+  Apart from debugging, we only use the second. It stores 
+  an number that indicates whether the chunk was mmapped, from the
+  main_arena, or else from a non_main_arena with a particular index.
+  The reason for this is so that we can go, safely and efficiently,
+  from an arbitrary pointer (under our jurisdiction)  to the arena
+  it came from in a lock free fashion.
 
-
-  chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of previous chunk, if allocated            | |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of chunk, in bytes                         |P|
-  mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             User data starts here...                          .
-  .                                                               .
-  .             (malloc_usable_space() bytes)                     .
-  .                                                               |
-  nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of chunk                                     |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-  Where "chunk" is the front of the chunk for the purpose of most of
-  the malloc code, but "mem" is the pointer that is returned to the
-  user.  "Nextchunk" is the beginning of the next contiguous chunk.
-
-  Chunks always begin on even word boundries, so the mem portion
-  (which is returned to the user) is also on an even word boundary, and
-  thus at least double-word aligned.
-
-  The P (PREV_INUSE) bit, stored in the unused low-order bit of the
-  chunk size (which is always a multiple of two words), is an in-use
-  bit for the *previous* chunk.  If that bit is *clear*, then the
-  word before the current chunk size contains the previous chunk
-  size, and can be used to find the front of the previous chunk.
-  The very first chunk allocated always has this bit set,
-  preventing access to non-existent (or non-owned) memory. If
-  prev_inuse is set for any given chunk, then you CANNOT determine
-  the size of the previous chunk, and might even get a memory
-  addressing fault when trying to do so.
-
-  Note that the `foot' of the current chunk is actually represented
-  as the prev_size of the NEXT chunk. This makes it easier to
-  deal with alignments etc but can be very confusing when trying
-  to extend or adapt this code.
-
-  The two exceptions to all this are
-
-  1. The special chunk `top' doesn't bother using the
-  trailing size field since there is no next contiguous chunk
-  that would have to index off it. After initialization, `top'
-  is forced to always exist.  If it would become less than
-  MINSIZE bytes long, it is replenished.
-
-  2. Chunks allocated via mmap, which have their arena_index field set to
-  zero.
 
 */
 

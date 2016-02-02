@@ -97,6 +97,7 @@ struct Procheap {
 	sizeclass*		sc;		// pointer to parent sizeclass
 };
 
+
 extern void* malloc(size_t sz);
 extern void free(void* ptr);
 extern void *realloc(void *object, size_t size);
@@ -104,6 +105,8 @@ extern void *calloc(size_t nmemb, size_t size);
 extern void *memalign(size_t boundary, size_t size);
 extern int posix_memalign(void **memptr, size_t alignment, size_t size);
 extern void malloc_stats(void);
+
+
 
 #endif	/* __MAGED_H__ */
 

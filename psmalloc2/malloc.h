@@ -25,21 +25,11 @@
 #endif
 
 /*
-  $Id: malloc.h,v 1.7 2004/08/08 12:34:57 wg Exp $
-  `ptmalloc2', a malloc implementation for multiple threads without
-  lock contention, by Wolfram Gloger <wg@malloc.de>.
+  
+  This is SRI's metadata-less version of ptmalloc2.
 
-  VERSION 2.7.0
+  It derives from version (1.7 2004/08/08 12:34:57)
 
-  This work is mainly derived from malloc-2.7.0 by Doug Lea
-  <dl@cs.oswego.edu>, which is available from:
-
-                 ftp://gee.cs.oswego.edu/pub/misc/malloc.c
-
-  This trimmed-down header file only provides function prototypes and
-  the exported data structures.  For more detailed function
-  descriptions and compile-time options, see the source file
-  `malloc.c'.
 */
 
 #if defined(__STDC__) || defined (__cplusplus)

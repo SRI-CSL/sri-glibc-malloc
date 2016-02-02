@@ -17,6 +17,7 @@
  */
 
 #include "malloc.h"
+#include <inttypes.h>
 
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
@@ -176,7 +177,7 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
   
   addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (addr == MAP_FAILED) {
-    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %lu: ", size, queue_head.tag);
+    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
     switch (errno) {
     case EBADF: fprintf(stderr, "EBADF"); break;
     case EACCES:        fprintf(stderr, "EACCES"); break;
@@ -191,7 +192,7 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
     exit(1);
   }
   else if (addr == NULL) {
-    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %lu\n", size, queue_head.tag);
+    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %"PRIu64"\n", size, queue_head.tag);
     fflush(stderr);
     exit(1);
   }
@@ -244,7 +245,7 @@ static descriptor* DescAlloc() {
       if (compare_and_swap128((volatile aba_128_t*)&queue_head, *((aba_128_t*)&old_queue), *((aba_128_t*)&new_queue))) {
         desc = (descriptor*)old_queue.DescAvail;
 #ifdef DEBUG
-        fprintf(stderr, "Returning recycled descriptor %p (tag %hu)\n", desc, queue_head.tag);
+        fprintf(stderr, "Returning recycled descriptor %p (tag %"PRIu64")\n", desc, queue_head.tag);
         fflush(stderr);
 #endif
         break;

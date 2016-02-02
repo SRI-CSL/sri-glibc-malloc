@@ -7,9 +7,6 @@ typedef struct {
 } aba_128_t;
 
 
-//typedef unsigned __int128 uint128_t;
-
-
 #define mb()		asm volatile ("sync" : : : "memory")
 #define LOCK_PREFIX	"lock ; "
 
@@ -81,8 +78,7 @@ static inline unsigned int compare_and_swap128(volatile aba_128_t *address, aba_
 
   char result;
   asm volatile
-    (
-     "lock cmpxchg16b %1\n\t"
+    (LOCK_PREFIX "cmpxchg16b %1\n\t"
      "setz %0\n"
      : "=q" ( result )
        , "+m" ( *address )

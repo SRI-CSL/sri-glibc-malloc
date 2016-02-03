@@ -22,17 +22,19 @@ bool update(aba_128_t* abbap, int val){
   /* attempt to read the "current" values */
   
   uintptr_t ptr = __atomic_load_n(&abbap->ptr, __ATOMIC_SEQ_CST);
-  uint64_t  tag = __atomic_load_n(&abbap->tag, __ATOMIC_SEQ_CST);
-
   old.ptr = ptr;
-  old.tag = tag;
-  
   ptr  += val;
-  tag  += val;
-
   new.ptr = ptr;
+
+
+  
+
+  uint64_t  tag = __atomic_load_n(&abbap->tag, __ATOMIC_SEQ_CST);
+  old.tag = tag;
+  tag  += val;
   new.tag = tag;
 
+ 
   /* should fail every now and then... */
   return compare_and_swap128(abbap, old, new);
 }

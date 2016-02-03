@@ -334,7 +334,7 @@ extern "C" {
 #define INTERNAL_SIZE_T size_t
 #endif
 
-  /* The corresponding word size */
+/* The corresponding word size */
 #define SIZE_SZ                (sizeof(INTERNAL_SIZE_T))
 
 

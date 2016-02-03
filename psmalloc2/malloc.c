@@ -1669,7 +1669,12 @@ static inline mchunkptr mem2chunk(void *mem)
   return (mchunkptr)((char*)mem - 2*SIZE_SZ);
 }
 
-/* The smallest possible chunk. N.B. Bene the factor of 2 added after the removal of the metatdata */
+/* 
+ * The smallest possible chunk. 
+ * N.B. Bene the factor of 2 added after the removal of the metatdata 
+ * 
+ *  HEADER_SIZE == sizeof(struct malloc_chunk) == 2 * SIZE_SZ 
+ */
 #define MIN_CHUNK_SIZE        (2 * sizeof(struct malloc_chunk))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
@@ -1701,7 +1706,14 @@ static inline bool aligned_OK(void * m)
    MINSIZE :                                                    \
    ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
-/*  Same, except also perform argument check */
+
+/*  
+ * Checks that the requested size 'req' is small enough to actually be serviced.
+ * If not it does nothing and returns false. Otherwise itC onverts a client request size 'req' 
+ * into an internal servicable size 'sz' (adding  the header size and by rounding). 
+ * It updates the 'sz' pointer to this value. 
+ * 
+ */
 
 static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz)
 {
@@ -2760,14 +2772,16 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 
 #if ! MALLOC_DEBUG
 
-#define check_top(A)                         
+#define check_top(A)                         do_check_top(A,__FILE__,__LINE__)
 #define check_chunk(A,P,MD_P)                
 #define check_free_chunk(A,P,MD_P)           
 #define check_inuse_chunk(A,P,MD_P)          
 #define check_remalloced_chunk(A,P,MD_P,N)   
 #define check_malloced_chunk(A,P,MD_P,N)     
 #define check_malloc_state(A)                
-#define check_metadata_chunk(A,P,MD_P)       
+#define check_metadata_chunk(A,P,MD_P)       do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
+
+#warning "using do_check_* in ! MALLOC_DEBUG mode"
 
 #else
 

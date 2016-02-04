@@ -296,8 +296,9 @@ extern "C" {
 #define unused_var(x) ((void)x)
 #endif
 
-  /* SRI's  metatdata header */
+/* SRI's  metatdata header */
 #include "metadata.h"
+#include <stdint.h>
 
   /*
     INTERNAL_SIZE_T is the word-size used for internal bookkeeping
@@ -354,6 +355,48 @@ extern "C" {
   /* The corresponding bit mask value */
 #define MALLOC_ALIGN_MASK      (MALLOC_ALIGNMENT - 1)
 
+
+/*
+  -----------------------  Chunk Header -----------------------
+*/
+
+typedef struct malloc_chunk {
+
+  INTERNAL_SIZE_T     __canary__;          /* where prev_size used to live */
+  INTERNAL_SIZE_T     arena_index;            /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
+
+} mheader;
+
+
+
+typedef mheader* mchunkptr;
+
+/*
+ * The size of our header. Note that it is precisely MALLOC_ALIGNMENT
+ * Since we want the chunk after the header to be aligned when our
+ * header is aligned.
+*/
+#define HEADER_SIZE (sizeof(mheader))
+
+/*
+
+  malloc_chunk details:
+
+  Chunks of memory are maintained using a `boundary tag' method as
+  described in e.g., Knuth or Standish.  (See the paper by Paul
+  Wilson ftp://ftp.cs.utexas.edu/pub/garbage/allocsrv.ps for a
+  survey of such techniques.)  
+
+  To retain alignment properties our headers contian two slots.
+  Apart from debugging, we only use the second. It stores 
+  an number that indicates whether the chunk was mmapped, from the
+  main_arena, or else from a non_main_arena with a particular index.
+  The reason for this is so that we can go, safely and efficiently,
+  from an arbitrary pointer (under our jurisdiction)  to the arena
+  it came from in a lock free fashion.
+
+
+*/
 
 
   /*
@@ -1481,10 +1524,6 @@ extern "C" {
 # define internal_function
 #endif
 
-/* Forward declarations.  */
-struct malloc_chunk;
-typedef struct malloc_chunk* mchunkptr;
-
 /* Internal routines.  */
 
 #if __STD_C
@@ -1614,44 +1653,6 @@ static inline void* MMAP(void *addr, size_t length, int prot, int flags)
 #endif /* HAVE_MMAP */
 
 
-/*
-  -----------------------  Chunk representations -----------------------
-*/
-
-
-/*
-  This struct declaration is misleading (but accurate and necessary).
-  It declares a "view" into memory allowing access to necessary
-  fields at known offsets from a given base. See explanation below.
-*/
-
-struct malloc_chunk {
-
-  INTERNAL_SIZE_T     __tombstone__;          /* where prev_size used to live */
-  INTERNAL_SIZE_T     arena_index;            /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
-
-};
-
-
-/*
-
-  malloc_chunk details:
-
-  Chunks of memory are maintained using a `boundary tag' method as
-  described in e.g., Knuth or Standish.  (See the paper by Paul
-  Wilson ftp://ftp.cs.utexas.edu/pub/garbage/allocsrv.ps for a
-  survey of such techniques.)  
-
-  To retain alignment properties our headers contian two slots.
-  Apart from debugging, we only use the second. It stores 
-  an number that indicates whether the chunk was mmapped, from the
-  main_arena, or else from a non_main_arena with a particular index.
-  The reason for this is so that we can go, safely and efficiently,
-  from an arbitrary pointer (under our jurisdiction)  to the arena
-  it came from in a lock free fashion.
-
-
-*/
 
 /*
   ---------- Size and alignment checks and conversions ----------
@@ -1661,12 +1662,12 @@ struct malloc_chunk {
 
 static inline Void_t* chunk2mem(void *p)
 {
-  return (Void_t*)((char*)p + 2*SIZE_SZ);
+  return (Void_t*)((char*)p + HEADER_SIZE);
 }
 
 static inline mchunkptr mem2chunk(void *mem)
 {
-  return (mchunkptr)((char*)mem - 2*SIZE_SZ);
+  return (mchunkptr)((char*)mem - HEADER_SIZE);
 }
 
 /* 
@@ -1677,16 +1678,19 @@ static inline mchunkptr mem2chunk(void *mem)
  */
 #define MIN_CHUNK_SIZE        (2 * sizeof(struct malloc_chunk))
 
-/* The smallest size we can malloc is an aligned minimal chunk */
-
+/* 
+ * The smallest size we can malloc is an aligned minimal chunk 
+ * It is the HEADER_SIZE rounded up to the nearest multiple of MALLOC_ALIGNMENT
+ *
+ */
 #define MINSIZE                                                         \
-  (unsigned long)(((MIN_CHUNK_SIZE+MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK))
+  (INTERNAL_SIZE_T)(((MIN_CHUNK_SIZE+MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK))
 
 /* Check if m has acceptable alignment */
 
-static inline bool aligned_OK(void * m)
+static inline bool aligned_OK(void *m)
 {
-  return ((unsigned long)m & (MALLOC_ALIGN_MASK)) == 0;
+  return ((uintptr_t)m & (MALLOC_ALIGN_MASK)) == 0;
 }
 
 /*
@@ -1695,16 +1699,26 @@ static inline bool aligned_OK(void * m)
   low enough so that adding MINSIZE will also not wrap around zero.
 */
 
-#define REQUEST_OUT_OF_RANGE(req)                       \
+#define REQUEST_OUT_OF_RANGE(req)			\
   ((unsigned long)(req) >=                              \
    (unsigned long)(INTERNAL_SIZE_T)(-2 * MINSIZE))
 
 /* pad request bytes into a usable size -- internal version */
+static inline bool request_out_of_range(INTERNAL_SIZE_T req){
+  return req >= (INTERNAL_SIZE_T)(-2 * MINSIZE);
+}
 
-#define request2size(req)                                       \
-  (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?           \
-   MINSIZE :                                                    \
-   ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
+
+static inline INTERNAL_SIZE_T sri_request2size(INTERNAL_SIZE_T req){
+  INTERNAL_SIZE_T sz = req + HEADER_SIZE + MALLOC_ALIGN_MASK;
+  return (sz < MINSIZE)  ? MINSIZE : (sz & ~MALLOC_ALIGN_MASK);
+}
+
+
+#define request2size(req)                                           \
+  ((((req) + HEADER_SIZE + MALLOC_ALIGN_MASK) < MINSIZE)  ?	    \
+   MINSIZE :                                                        \
+   ((req) + HEADER_SIZE + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
 
 /*  
@@ -1718,7 +1732,7 @@ static inline bool aligned_OK(void * m)
 static inline bool checked_request2size(INTERNAL_SIZE_T req, INTERNAL_SIZE_T *sz)
 {
   assert(sz != NULL);
-  if (REQUEST_OUT_OF_RANGE(req)) { 
+  if (request_out_of_range(req)) { 
     MALLOC_FAILURE_ACTION;         
     return false;                      
   }                                
@@ -2503,7 +2517,7 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
 
 #ifdef SRI_DEBUG  
   if(tag){
-     p->__tombstone__ = tag;
+     p->__canary__ = tag;
   }
 #endif
   
@@ -2574,7 +2588,7 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
 
   
 #ifdef SRI_DEBUG
-  p->__tombstone__ = 1234567890;
+  p->__canary__ = 1234567890;
 #endif
   
   retcode = hashtable_add(av, _md_p);
@@ -3369,8 +3383,11 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
       Round up size to nearest page.  For mmapped chunks, the overhead
       is one SIZE_SZ unit larger than for normal chunks, because there
       is no following chunk whose prev_size field could be used.
+
+      iam: this overhead rationale does not seem to be necessary anymore ...
+
     */
-    size = (nb + SIZE_SZ + MALLOC_ALIGN_MASK + pagemask) & ~pagemask;
+    size = (nb + HEADER_SIZE + MALLOC_ALIGN_MASK + pagemask) & ~pagemask;
 
     /* Don't try if size wraps around 0 */
     if ((unsigned long)(size) > (unsigned long)(nb)) {
@@ -3688,7 +3705,7 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
               multiple of MALLOC_ALIGNMENT. We know there is at least
               enough space in old_top to do this.
             */
-            old_size = (old_size - 4*SIZE_SZ) & ~MALLOC_ALIGN_MASK;
+            old_size = (old_size - 2*HEADER_SIZE) & ~MALLOC_ALIGN_MASK;
             set_head(av, _md_old_top, old_top, old_size | PREV_INUSE);
 
             /*
@@ -3700,11 +3717,11 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
             fencepost = chunk_at_offset(old_top, old_size);
 	    _md_fencepost = create_metadata(av, fencepost);
-            set_head(av, _md_fencepost, fencepost, (2*SIZE_SZ)|PREV_INUSE);
+            set_head(av, _md_fencepost, fencepost, HEADER_SIZE|PREV_INUSE);
           
-            fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
+            fencepost = chunk_at_offset(old_top, old_size + HEADER_SIZE);
 	    _md_fencepost = create_metadata(av, fencepost);
-            set_head(av, _md_fencepost, fencepost, (2*SIZE_SZ)|PREV_INUSE);
+            set_head(av, _md_fencepost, fencepost, HEADER_SIZE|PREV_INUSE);
 
             /* If possible, release the rest. */
             if (old_size >= MINSIZE) {
@@ -5153,12 +5170,12 @@ _int_free(mstate av, chunkinfoptr _md_p)
 	  check_top(av);
 	  
           assert(heap->ar_ptr == av);
-
+	  
           iterations = heap_trim(heap, mp_.top_pad);
-
+	  
 	  check_top(av);
-	  unused_var(iterations);
-
+	  (void)iterations;
+	  
 #endif
         }
       }
@@ -6087,7 +6104,7 @@ size_t mUSABLe(mem) Void_t* mem;
     if (chunk_is_mmapped(p))
       retval = chunksize(_md_p) - 2*SIZE_SZ; 
     else if (inuse(ar_ptr, _md_p, p))
-      retval = chunksize(_md_p) - SIZE_SZ;   
+      retval = chunksize(_md_p) - SIZE_SZ;  //iam: should be HEADER_SIZE? 
     
 
     (void)mutex_unlock(&ar_ptr->mutex);

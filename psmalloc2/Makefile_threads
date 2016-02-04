@@ -9,6 +9,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-Wall -Wstrict-prototypes                 \
 	-D_REENTRANT                              \
 	-DNDEBUG                                  \
+	-DSRI_DEBUG                               \
 	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
@@ -22,6 +23,9 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 #       -DMALLOC_DEBUG=1                          \
 # for production:
 #	-DNDEBUG                                  \
+#
+# for using the canary slot
+#	-DSRI_DEBUG                               \
 # see the README
 #
 #	-DUSE_TSD_DATA_HACK                       \

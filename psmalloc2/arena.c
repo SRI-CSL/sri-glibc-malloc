@@ -817,7 +817,7 @@ heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
          up, too, although the chunk is marked in use. */
       old_size -= MINSIZE;
 
-      fencepost = chunk_at_offset(old_top, old_size + 2*SIZE_SZ);
+      fencepost = chunk_at_offset(old_top, old_size + HEADER_SIZE);
       _md_fencepost = create_metadata(av, fencepost);
       set_head(av, _md_fencepost, fencepost, 0|PREV_INUSE);
 
@@ -826,8 +826,8 @@ heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
         minpost = chunk_at_offset(old_top, old_size);
 	_md_minpost = create_metadata(av, minpost);
 
-        set_head(av, _md_minpost, minpost, (2*SIZE_SZ)|PREV_INUSE);
-        set_foot(av, _md_minpost, minpost, (2*SIZE_SZ));
+        set_head(av, _md_minpost, minpost, HEADER_SIZE|PREV_INUSE);
+        set_foot(av, _md_minpost, minpost, HEADER_SIZE);
         
         set_head(av, _md_old_top, old_top, old_size|PREV_INUSE);
 
@@ -835,8 +835,8 @@ heap_sysmalloc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
       } else {
 
-        set_head(av, _md_old_top, old_top, (old_size + 2*SIZE_SZ)|PREV_INUSE);
-        set_foot(av, _md_old_top, old_top, (old_size + 2*SIZE_SZ));
+        set_head(av, _md_old_top, old_top, (old_size + HEADER_SIZE)|PREV_INUSE);
+        set_foot(av, _md_old_top, old_top, old_size + HEADER_SIZE);
 
       }
     }
@@ -899,7 +899,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
     /* iam: we are going to delete this heap and consolidate the tail of the previous heap */
 
     /* get the fencepost at the end */
-    fencepost = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE-2*SIZE_SZ));
+    fencepost = chunk_at_offset(prev_heap, prev_heap->size - (MINSIZE - HEADER_SIZE));
     _md_fencepost = hashtable_lookup(ar_ptr, fencepost);
     
     if(_md_fencepost == NULL){
@@ -918,7 +918,7 @@ heap_trim(heap, pad) heap_info *heap; size_t pad;
       return 0;
     } 
 
-    new_size = chunksize(_md_minpost) + (MINSIZE-2*SIZE_SZ);  /* iam: pulling out the fencepost! */
+    new_size = chunksize(_md_minpost) + (MINSIZE - HEADER_SIZE);  /* iam: pulling out the fencepost! */
     
     assert(new_size>0 && new_size<(long)(2*MINSIZE));  /* must be minpost */ 
 

@@ -15,16 +15,20 @@ typedef struct segment_pool_s segment_pool_t;
 
 typedef void * mchunkptr;
 
-/* based on the dlmalloc chunk not the glibc chunk */
+/* based on the glibc chunk not the dlmalloc chunk  */
 typedef struct chunkinfo {
-  INTERNAL_SIZE_T   size;          /* Size in bytes, including overhead. */
-  INTERNAL_SIZE_T   prev_size;     /* Size of previous in bytes          */
-  INTERNAL_SIZE_T   req;           /* Original request size, for guard.  */
-  struct chunkinfo*  fd;	   /* double links -- used only if free. */
-  struct chunkinfo*  bk;           /* double links -- used only if free. */
-  struct chunkinfo*  next_bucket;  /* next bucket in the bin             */
-  mchunkptr chunk;                  
-  bucket_pool_t* bucket_pool_ptr;  //BD's optimization #1.
+  INTERNAL_SIZE_T   prev_size;       /* Size of previous chunk (if free).  used in malloc.[ch]    */
+  INTERNAL_SIZE_T   size;            /* Size in bytes, including overhead. used in malloc.[ch]    */
+  struct chunkinfo* fd;              /* double links -- used only if free. used in malloc.[ch]    */
+  struct chunkinfo* bk;
+                                     /* Only used for large blocks.        used in malloc.[ch]    */
+                                     /* pointer to next larger size.       used in malloc.[ch]    */
+  struct chunkinfo* fd_nextsize;     /* double links -- used only if free. used in malloc.[ch]    */
+  struct chunkinfo* bk_nextsize;
+  mchunkptr         chunk;           /* the actual client memory           used in malloc.[ch]    */
+
+  struct chunkinfo* next_bucket;     /* next bucket in the bin             used in metadata.[ch]  */
+  bucket_pool_t*    bucket_pool_ptr; /* pointer to my the bucket pool.     used in metadata.[ch]  */
 } bucket_t;
 
 typedef bucket_t* chunkinfoptr;

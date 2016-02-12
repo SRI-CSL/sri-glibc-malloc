@@ -28,7 +28,9 @@ tests := mallocbug tst-malloc tst-valloc tst-calloc tst-obstack \
 	 tst-mallocstate tst-mcheck tst-mallocfork tst-trim1 \
 	 tst-malloc-usable tst-realloc tst-posix_memalign \
 	 tst-pvalloc tst-memalign tst-mallopt tst-scratch_buffer \
-	 tst-malloc-backtrace
+	 tst-malloc-backtrace \
+	 stest0 stest1 stest2 \
+	 replay.c mtreplay.c
 test-srcs = tst-mtrace
 
 routines = malloc morecore mcheck mtrace obstack \

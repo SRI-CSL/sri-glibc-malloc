@@ -1,0 +1,23 @@
+Plan of Attack 
+
+Based on the approach taken for psmalloc.
+
+0. get av->top under control
+
+1. twin data with metadata
+
+2. get metadata to agree with the data
+
+3. bins need to become chunkinfoptrs not mchunkptrs
+
+4. all the _int_ routines need chunkinfoptrs args
+
+5. trim the metadata stored in mchunkptrs (the linked lists)
+
+6. last remainder etc
+
+7. only store arena numbers in mchunkptr
+
+8. remove the sharing of the header and footer
+
+

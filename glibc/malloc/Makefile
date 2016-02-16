@@ -23,7 +23,7 @@ subdir	:= malloc
 include ../Makeconfig
 
 dist-headers := malloc.h
-headers := $(dist-headers) gassert.h obstack.h mcheck.h utils.h chunkinfo.h memcxt.h metatdata.h
+headers := $(dist-headers) gassert.h obstack.h mcheck.h utils.h chunkinfo.h memcxt.h metatdata.h 
 tests := mallocbug tst-malloc tst-valloc tst-calloc tst-obstack \
 	 tst-mallocstate tst-mcheck tst-mallocfork tst-trim1 \
 	 tst-malloc-usable tst-realloc tst-posix_memalign \
@@ -36,7 +36,8 @@ test-srcs = tst-mtrace
 routines = malloc morecore mcheck mtrace obstack \
   memcxt metadata utils \
   scratch_buffer_grow scratch_buffer_grow_preserve \
-  scratch_buffer_set_array_size
+  scratch_buffer_set_array_size \
+  replaylib lphash
 
 install-lib := libmcheck.a
 non-lib.a := libmcheck.a

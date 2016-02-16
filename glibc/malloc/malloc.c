@@ -1034,7 +1034,7 @@ typedef struct malloc_chunk* mchunkptr;
 /* Internal routines.  */
 
 static void*  _int_malloc(mstate, size_t);
-static void     _int_free(mstate, mchunkptr, int);
+static void   _int_free(mstate, mchunkptr, int);
 static void*  _int_realloc(mstate, mchunkptr, INTERNAL_SIZE_T,
 			   INTERNAL_SIZE_T);
 static void*  _int_memalign(mstate, size_t, size_t);
@@ -2053,7 +2053,7 @@ do_check_chunk (mstate av, mchunkptr p)
       /* chunk is page-aligned */
       assert (((p->prev_size + sz) & (GLRO (dl_pagesize) - 1)) == 0);
       /* mem is aligned */
-      assert (aligned_OK (chunk2mem (p)));
+      assert (aligned_OK ((unsigned long)chunk2mem (p)));
     }
 }
 
@@ -2077,7 +2077,7 @@ do_check_free_chunk (mstate av, mchunkptr p)
   if ((unsigned long) (sz) >= MINSIZE)
     {
       assert ((sz & MALLOC_ALIGN_MASK) == 0);
-      assert (aligned_OK (chunk2mem (p)));
+      assert (aligned_OK ((unsigned long)chunk2mem (p)));
       /* ... matching footer field */
       assert (next->prev_size == sz);
       /* ... and is fully consolidated */
@@ -2156,7 +2156,7 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, INTERNAL_SIZE_T s)
   assert ((sz & MALLOC_ALIGN_MASK) == 0);
   assert ((unsigned long) (sz) >= MINSIZE);
   /* ... and alignment */
-  assert (aligned_OK (chunk2mem (p)));
+  assert (aligned_OK ((unsigned long)chunk2mem (p)));
   /* chunk is less than MINSIZE more than request */
   assert ((long) (sz) - (long) (s) >= 0);
   assert ((long) (sz) - (long) (s + MINSIZE) < 0);

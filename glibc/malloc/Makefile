@@ -29,8 +29,10 @@ tests := mallocbug tst-malloc tst-valloc tst-calloc tst-obstack \
 	 tst-malloc-usable tst-realloc tst-posix_memalign \
 	 tst-pvalloc tst-memalign tst-mallopt tst-scratch_buffer \
 	 tst-malloc-backtrace \
-	 stest0 stest1 stest2 \
-	 replay.c mtreplay.c
+	 stest0 stest1 stest2 
+
+#	 replay mtreplay
+
 test-srcs = tst-mtrace
 
 routines = malloc morecore mcheck mtrace obstack \
@@ -166,3 +168,11 @@ $(objpfx)libmemusage.so: $(libdl)
 
 # Extra dependencies
 $(foreach o,$(all-object-suffixes),$(objpfx)malloc$(o)): arena.c hooks.c
+
+
+# Ian's temporary hacks
+
+$(objpfx)replay:
+	${CC} ${CFLAGS} ${LDFLAGS} replay.c $(objpfx)replaylib.o $(objpfx)lphash.o -o replay
+
+

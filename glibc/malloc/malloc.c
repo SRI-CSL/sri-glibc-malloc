@@ -1034,7 +1034,7 @@ typedef struct malloc_chunk* mchunkptr;
 /* Internal routines.  */
 
 static void*  _int_malloc(mstate, size_t);
-static void     _int_free(mstate, mchunkptr, int);
+static void   _int_free(mstate, mchunkptr, int);
 static void*  _int_realloc(mstate, mchunkptr, INTERNAL_SIZE_T,
 			   INTERNAL_SIZE_T);
 static void*  _int_memalign(mstate, size_t, size_t);

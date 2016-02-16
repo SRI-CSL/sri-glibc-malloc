@@ -1,18 +1,21 @@
 
-CFLAGS = -Wall  
+CFLAGS = -Wall  -I../mhooks
 
-OBJECTS = replay.o lphash.o
+OBJECTS = replay.o lphash.o mtreplay.o replaylib.o
 
-all: ${LIB} ${OBJECTS}
-	${CC} ${CFLAGS} replay.o lphash.o -o replay
-
+all: ${OBJECTS}
+	${CC} ${CFLAGS} replay.o lphash.o replaylib.o -o replay
+	${CC} ${CFLAGS} mtreplay.o lphash.o replaylib.o -lpthread -o mtreplay
 
 %.o: %.c %.h 
 	${CC} ${CFLAGS} $< -c 
 
 
 clean:
-	rm -rf *~ replay
+	rm -rf *~ ${OBJECTS} replay mtreplay
 
 test:  all
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
+
+mtest:  all
+	./mtreplay 4 ../../analysis/data/yices_smt2_2668e3c6.txt

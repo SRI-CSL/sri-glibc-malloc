@@ -1,0 +1,93 @@
+# Makefile for ptmalloc, version 2
+# by Wolfram Gloger 1996-1999, 2001, 2002, 2003, 2004, 2006
+# iam: snip snip; trimmed and cleaned up 
+
+LDFLAGS = -shared -fPIC
+
+CFLAGS = -D_GNU_SOURCE=1                          \
+	-g -O                                     \
+	-Wall -Wstrict-prototypes                 \
+	-fPIC                                     \
+	-DUSE_ARENAS=0                            \
+	-DNDEBUG                                  \
+	-Isysdeps/generic                         \
+	-I. 
+
+#	-DMALLOC_DEBUG				  \
+
+
+# Flags for the test programs
+T_FLAGS   = -DUSE_MALLOC=1 -DTEST=1
+
+# Flags for the compilation of malloc.c
+M_FLAGS   = 
+
+METAOBJ= utils.o memcxt.o metadata.o 
+MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
+
+LIB_MALLOC = libmalloc.a
+
+TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest1 stest2
+
+%.o: %.c %.h 
+	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
+
+all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay
+
+libmalloc.a: $(MALLOCOBJ)
+	ar cr $@ $(MALLOCOBJ)
+	ranlib $@
+
+shared: $(METAOBJ) malloc.so 
+
+malloc.so: $(MALLOCOBJ) malloc.h
+	$(CC)  $(CFLAGS) $(M_FLAGS) $(MALLOCOBJ) $(LDFLAGS) -o $@
+
+t-test1: t-test1.c t-test.h $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) t-test1.c $(LIB_MALLOC) -o $@
+
+t-test2: t-test2.c t-test.h $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) t-test2.c $(LIB_MALLOC) -o $@
+
+tst-mallocstate: tst-mallocstate.c $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) tst-mallocstate.c $(LIB_MALLOC) -o $@
+
+tst-mstats: tst-mstats.c $(LIB_MALLOC)
+	$(CC) $(CFLAGS) $(T_FLAGS) tst-mstats.c $(LIB_MALLOC)  -o $@
+
+
+stest0: $(MALLOCOBJ)
+	$(CC) $(CFLAGS) $(T_FLAGS) stest0.c $(MALLOCOBJ)  -o  $@
+
+stest1: $(MALLOCOBJ)
+	$(CC) $(CFLAGS) $(T_FLAGS) stest1.c $(MALLOCOBJ)  -o  $@
+
+stest2: $(MALLOCOBJ)
+	$(CC) $(CFLAGS) $(T_FLAGS) stest2.c $(MALLOCOBJ)  -o  $@
+
+lphash.o:
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) ../lphash/lphash.c -c
+
+replaylib.o:
+	$(CC) $(CFLAGS) -I../lphash -I../mhooks $(T_FLAGS) replaylib.c -c
+
+replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
+	$(CC) $(CFLAGS) -I../lphash $(T_FLAGS) replay.c $(MALLOCOBJ)  lphash.o replaylib.o  -o  $@
+
+testreplay: replay
+	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
+
+
+check: $(TESTS)
+	./t-test1
+	./t-test2
+	./tst-mallocstate || echo "Test mallocstate failed!"
+	./tst-mstats || echo "Test mstats failed!"
+
+clean:
+	rm -f $(MALLOCOBJ) libmalloc.a malloc.so $(TESTS) lphash.o  replaylib.o replay
+	rm -rf *.dSYM 
+
+
+# dependencies
+malloc.o: arena.c hooks.c

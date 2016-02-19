@@ -2786,16 +2786,18 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 
 #if ! MALLOC_DEBUG
 
-#define check_top(A)                         do_check_top(A,__FILE__,__LINE__)
+#define check_top(A)                         
+//do_check_top(A,__FILE__,__LINE__)
 #define check_chunk(A,P,MD_P)                
 #define check_free_chunk(A,P,MD_P)           
 #define check_inuse_chunk(A,P,MD_P)          
 #define check_remalloced_chunk(A,P,MD_P,N)   
 #define check_malloced_chunk(A,P,MD_P,N)     
 #define check_malloc_state(A)                
-#define check_metadata_chunk(A,P,MD_P)       do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
+#define check_metadata_chunk(A,P,MD_P)       
+//do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
-#warning "using do_check_* in ! MALLOC_DEBUG mode"
+//#warning "using do_check_* in ! MALLOC_DEBUG mode"
 
 #else
 

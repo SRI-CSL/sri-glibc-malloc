@@ -1914,8 +1914,8 @@ malloc_init_state (mstate av)
  */
 
 static void *sysmalloc (INTERNAL_SIZE_T, mstate);
-static int      systrim (size_t, mstate);
-static void     malloc_consolidate (mstate);
+static int   systrim (size_t, mstate);
+static void  malloc_consolidate (mstate);
 
 
 /* -------------- Early definitions for debugging hooks ---------------- */

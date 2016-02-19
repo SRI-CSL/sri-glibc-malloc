@@ -9,6 +9,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-Wall -Wstrict-prototypes                 \
 	-D_REENTRANT                              \
 	-DNDEBUG                                  \
+	-DMALLOC_HOOKS                            \
 	-DSRI_DEBUG                               \
 	-DUSE_NO_SPINLOCKS                        \
 	-fPIC                                     \
@@ -37,7 +38,9 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 # $5 = 0
 # (gdb) print threads[1] % 256
 # $6 = 0
-
+#
+# -DMALLOC_HOOKS                            \
+# is required to prevent infinite recursion in the malloc_at_fork call!
 
 
 # Flags for the test programs

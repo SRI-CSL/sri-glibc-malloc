@@ -33,4 +33,9 @@ the necessary new metadata would be preallocated.
 
 Say as part of the arena.
 
+chunkinfoptr  md_pool[4];
+
+
+
+
 

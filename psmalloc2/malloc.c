@@ -2582,18 +2582,18 @@ static chunkinfoptr create_metadata(mstate av, mchunkptr p)
 
   _md_p = new_chunkinfoptr(av);
 
-  assert(_md_p != NULL);
-  
-  _md_p->chunk = chunk2mem(p);
+  if (_md_p != NULL) {
+    _md_p->chunk = chunk2mem(p);
 
-  
 #ifdef SRI_DEBUG
-  p->__canary__ = 1234567890;
+    p->__canary__ = 1234567890;
 #endif
   
-  retcode = hashtable_add(av, _md_p);
-  assert(retcode);
-  unused_var(retcode);
+    retcode = hashtable_add(av, _md_p);
+    assert(retcode);
+    unused_var(retcode);
+  }
+
   return _md_p;
 }
 
@@ -2614,10 +2614,11 @@ static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr vi
   /* pair it with new metatdata and add the metadata into the hashtable */
 
   _md_remainder = create_metadata(av, remainder);
-  set_head(av, _md_remainder, remainder, remainder_size | PREV_INUSE);
-  
-  /* configure the victim */
-  set_head(av, _md_victim, victim, desiderata | PREV_INUSE); 
+  if (_md_remainder != NULL) {
+    set_head(av, _md_remainder, remainder, remainder_size | PREV_INUSE);
+    /* configure the victim */
+    set_head(av, _md_victim, victim, desiderata | PREV_INUSE); 
+  }
 
   return _md_remainder;
 }
@@ -3756,12 +3757,12 @@ static chunkinfoptr sYSMALLOc(nb, av) INTERNAL_SIZE_T nb; mstate av;
 
   /* check that one of the above allocation paths succeeded */
   if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
-
-    av->_md_top = split_chunk(av, _md_p, p, size, nb);
-
-    check_malloced_chunk(av, p, _md_p, nb);
-
-    return _md_p;
+    chunkinfoptr _md_new_top = split_chunk(av, _md_p, p, size, nb);
+    if (_md_new_top != NULL) {
+      av->_md_top = _md_new_top;
+      check_malloced_chunk(av, p, _md_p, nb);
+      return _md_p;
+    }
   }
 
   /* catch all failure paths */
@@ -3958,13 +3959,15 @@ public_mALLOc(size_t bytes)
 
   __malloc_ptr_t (*hook) __MALLOC_P ((size_t, __const __malloc_ptr_t)) =
     __malloc_hook;
-  if (hook != NULL)
+  if (hook != NULL) {
     return (*hook)(bytes, RETURN_ADDRESS (0));
+  }
 
   arena_get(ar_ptr, bytes);
   
-  if (!ar_ptr)
-    return 0;
+  if (!ar_ptr) {
+    return NULL;
+  }
 
   if(ar_ptr != &main_arena){
     assert(ar_ptr->arena_index >= 2);
@@ -4011,10 +4014,13 @@ public_mALLOc(size_t bytes)
 
   }
 
+  if (!_md_victim) {
+    return NULL;
+  }
+
   arena_is_sane(chunkinfo2chunk(_md_victim));
 
   //fprintf(stderr, "%p malloced from arena %zu\n", chunkinfo2mem(_md_victim), chunkinfo2chunk(_md_victim)->arena_index);
-  
   
   return chunkinfo2mem(_md_victim);
 }
@@ -4570,6 +4576,8 @@ _int_malloc(mstate av, size_t bytes)
   chunkinfoptr    _md_remainder;    /* metadata for the remainder */
   unsigned long   remainder_size;   /* its size */
 
+  chunkinfoptr    _md_new_top;      /* metada if we split the top */
+
   unsigned int    block;            /* bit map traverser */
   unsigned int    bit;              /* bit map traverser */
   unsigned int    map;              /* current word of binmap */
@@ -4967,15 +4975,18 @@ _int_malloc(mstate av, size_t bytes)
 
 
     if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
-
       _md_victim = av->_md_top;
-
-      av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
+      _md_new_top = split_chunk(av, _md_victim, victim, size, nb);
+      // create metadata may fail if we run out of memory (i.e., sbrk/mmap fails)
+      if (_md_new_top != NULL) {
+	av->_md_top = _md_new_top;
       
-      check_malloced_chunk(av, victim, _md_victim, nb);
-
-      //fprintf(stderr, "Using top\n");
-      return _md_victim;
+	check_malloced_chunk(av, victim, _md_victim, nb);
+	//fprintf(stderr, "Using top\n");
+	return _md_victim;
+      } else {
+	return NULL; // BD: is this OK?
+      }
     }
 
     /*

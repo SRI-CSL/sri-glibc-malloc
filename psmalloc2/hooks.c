@@ -381,7 +381,7 @@ realloc_check(oldmem, bytes, caller)
   chunkinfoptr _md_oldp;
   INTERNAL_SIZE_T nb, oldsize;
   Void_t* newmem = 0;
-  chunkinfoptr _md_newmem;
+  chunkinfoptr _md_newmem = NULL;
 
   if (oldmem == 0) return malloc_check(bytes, NULL);
   (void)mutex_lock(&main_arena.mutex);
@@ -454,8 +454,8 @@ memalign_check(alignment, bytes, caller)
 #endif
 {
   INTERNAL_SIZE_T nb;
-  Void_t* mem;
-  chunkinfoptr _md_mem;
+  Void_t* mem = NULL;
+  chunkinfoptr _md_mem = NULL;
 
   if (alignment <= MALLOC_ALIGNMENT) return malloc_check(bytes, NULL);
   if (alignment <  MINSIZE) alignment = MINSIZE;

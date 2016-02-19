@@ -1755,7 +1755,7 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 /* extract inuse bit of previous chunk */
 static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 {
-  bool retval;
+  bool retval = false;
 
   if(_md_p == NULL){
     fprintf(stderr, "%p with arena_index %zu has no metadata\n", p, p->arena_index);

@@ -5,7 +5,7 @@
 LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
-	-g -O0                                    \
+	-O2                                       \
 	-Wall -Wstrict-prototypes                 \
 	-D_REENTRANT                              \
 	-DNDEBUG                                  \
@@ -15,7 +15,7 @@ CFLAGS = -D_GNU_SOURCE=1                          \
 	-fPIC                                     \
 	-Isysdeps/pthread -Isysdeps/generic -I. 
 
-
+# -g -O0
 # to not use Gloger's spin locks:
 #	-DUSE_NO_SPINLOCKS                        \
 # turns on sanity checky of the memory pools

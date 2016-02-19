@@ -21,3 +21,16 @@ Based on the approach taken for psmalloc.
 8. remove the sharing of the header and footer
 
 
+
+
+Memory Exhaustion Design
+
+We need to improve the psmalloc2 design so that we can recover
+from memory exhaustion, specifically when we need to create metadata.
+
+The idea would be that prior to any memory allocation
+the necessary new metadata would be preallocated.
+
+Say as part of the arena.
+
+

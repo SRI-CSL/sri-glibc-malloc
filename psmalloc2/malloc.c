@@ -1709,12 +1709,6 @@ static inline bool request_out_of_range(INTERNAL_SIZE_T req){
 }
 
 
-static inline INTERNAL_SIZE_T sri_request2size(INTERNAL_SIZE_T req){
-  INTERNAL_SIZE_T sz = req + HEADER_SIZE + MALLOC_ALIGN_MASK;
-  return (sz < MINSIZE)  ? MINSIZE : (sz & ~MALLOC_ALIGN_MASK);
-}
-
-
 #define request2size(req)                                           \
   ((((req) + HEADER_SIZE + MALLOC_ALIGN_MASK) < MINSIZE)  ?	    \
    MINSIZE :                                                        \

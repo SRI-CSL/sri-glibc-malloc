@@ -2528,9 +2528,9 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
-  fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d  arena_index %zu canary = %zu @ %s line %d\n", 
-          chunk2mem(p), is_main_arena(av), chunk_is_mmapped(p), p->arena_index, p->__canary__, file, lineno);
-  //abort();
+  fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d  @ %s line %d\n", 
+          chunk2mem(p), is_main_arena(av), chunk_is_mmapped(p), file, lineno);
+  abort();
 }
 
 
@@ -4176,11 +4176,11 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
         return oldmem; /* do nothing */
       }
 
-      hashtable_remove(ar_ptr, oldp, true);
+      /* Must alloc, copy, free. */
+      hashtable_remove(ar_ptr, oldp, false);
 
       (void)mutex_unlock(&ar_ptr->mutex);
 
-      /* Must alloc, copy, free. */
       newmem = public_mALLOc(bytes);
   
       if (newmem == 0) return 0; /* propagate failure */

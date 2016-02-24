@@ -363,7 +363,7 @@ extern "C" {
 typedef struct malloc_chunk {
 
   INTERNAL_SIZE_T     __canary__;          /* where prev_size used to live */
-  INTERNAL_SIZE_T     arena_index;            /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
+  INTERNAL_SIZE_T     arena_index;         /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
 
 } mheader;
 
@@ -2528,9 +2528,9 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
-  fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d @ %s line %d\n", 
-          chunk2mem(p), is_main_arena(av), chunk_is_mmapped(p), file, lineno);
-  abort();
+  fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d  arena_index %zu canary = %zu @ %s line %d\n", 
+          chunk2mem(p), is_main_arena(av), chunk_is_mmapped(p), p->arena_index, p->__canary__, file, lineno);
+  //abort();
 }
 
 
@@ -4157,7 +4157,6 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       _md_newp = mremap_chunk(ar_ptr, _md_oldp, nb);
       
       if (_md_newp) {
-
 	check_top(ar_ptr);
 
 	(void)mutex_unlock(&ar_ptr->mutex);
@@ -4168,16 +4167,19 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       }
 #endif
 
-      hashtable_remove(ar_ptr, oldp, false);
-
-      (void)mutex_unlock(&ar_ptr->mutex);
-
       oldsize = chunksize(_md_oldp);
 
       /* Note the extra SIZE_SZ overhead. */
       if (oldsize - SIZE_SZ >= nb) {
+
+	(void)mutex_unlock(&ar_ptr->mutex);
         return oldmem; /* do nothing */
       }
+
+      hashtable_remove(ar_ptr, oldp, true);
+
+      (void)mutex_unlock(&ar_ptr->mutex);
+
       /* Must alloc, copy, free. */
       newmem = public_mALLOc(bytes);
   

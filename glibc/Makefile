@@ -11,7 +11,7 @@ STEST2=${REPO}/src/tests/stest2
 
 REPLAYCMD=${REPO}/src/replay/replay ${REPO}/analysis/data/yices_smt2_2668e3c6.txt
 
-all: update build
+all: update build install
 
 update:
 	cp malloc/*.[ch]  malloc/Makefile  ${GLIBC_SRC}/malloc
@@ -19,10 +19,11 @@ update:
 build:
 	$(MAKE) -C ${GLIBC_BUILD} CFLAGS="-DMALLOC_DEBUG=1 -O1 -g"  
 
+install:
+	$(MAKE) -C ${GLIBC_BUILD} install
+
 test:
-	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST0}
-	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST1}
-	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST2}
+	$(MAKE) -C ../glibc_tests  run
 	cd ${GLIBC_BUILD}; ./testrun.sh ${REPLAYCMD}
 
 

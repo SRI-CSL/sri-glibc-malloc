@@ -5,7 +5,7 @@
 LDFLAGS = -shared -fPIC -lpthread
 
 CFLAGS = -D_GNU_SOURCE=1                          \
-	-O2                                       \
+	-g -O0                                    \
 	-Wall -Wstrict-prototypes                 \
 	-D_REENTRANT                              \
 	-DNDEBUG                                  \

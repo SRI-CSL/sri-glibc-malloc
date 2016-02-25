@@ -399,6 +399,7 @@ static bool replay_realloc(lphash_t* htbl, replay_stats_t* statsp, const uchar* 
     sz = (size_t)addresses[1];
     ptr_out =  (void *)addresses[2];
 
+    
     if (ptr_in == NULL) {
       
       val_old = NULL;
@@ -510,7 +511,7 @@ static bool replay_free(lphash_t* htbl, replay_stats_t* statsp, const uchar* buf
 
   if (success) {
 
-    if (!silent_running) {
+    if (true || !silent_running) {
       fprintf(stderr, "free(%zu) @ %zu\n", addresses[0], addresses[1]);
     }
 

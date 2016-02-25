@@ -4176,14 +4176,20 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
         return oldmem; /* do nothing */
       }
 
+
       /* Must alloc, copy, free. */
+      _md_newp =  _int_malloc(ar_ptr, bytes);
+      
       hashtable_remove(ar_ptr, oldp, false);
-
+      
       (void)mutex_unlock(&ar_ptr->mutex);
-
-      newmem = public_mALLOc(bytes);
+      
+      if(_md_newp == NULL){
+	return NULL; /* propagate failure */
+      }
+      
+      newmem =  chunk2mem(chunkinfo2chunk(_md_newp));
   
-      if (newmem == 0) return 0; /* propagate failure */
       MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
       munmap_chunk(_md_oldp);
 
@@ -4232,6 +4238,7 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   (void)mutex_unlock(&ar_ptr->mutex);
   assert(!newmem || chunk_is_mmapped(mem2chunk(newmem)) ||
          ar_ptr == arena_for_chunk(mem2chunk(newmem)));
+
   return newmem;
 }
 #ifdef libc_hidden_def

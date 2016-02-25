@@ -1,0 +1,47 @@
+
+
+SYSROOT=${HOME}/Repositories/HeapMetadata/Variants/glibc-install
+
+gcc \
+  -L${SYSROOT}/usr/lib64 \
+  -I${SYSROOT}/include \
+  --sysroot=${SYSROOT} \
+  -Wl,-rpath=${SYSROOT}/lib64 \
+  -Wl,--dynamic-linker=${SYSROOT}/lib64/ld-2.18.90.so\
+  <other compiler flags> -o <application> <application>.c
+
+
+
+CFLAGS = -Wall  \
+  -L${SYSROOT}/usr/lib \
+  -I${SYSROOT}/include \
+  --sysroot=${SYSROOT} \
+  -Wl,-rpath=${SYSROOT}/lib \
+  -Wl,--dynamic-linker=${SYSROOT}/lib/ld-2.22.90.so 
+
+
+
+
+TESTS = stest0 stest1 stest2 stest3
+
+%.o: %.c %.h 
+	$(CC) $(CFLAGS) $< -c 
+
+all: $(TESTS)
+
+stest0: stest0.c
+	$(CC) $(CFLAGS) stest0.c  -o  $@
+
+stest1: stest1.c
+	$(CC) $(CFLAGS) stest1.c  -o  $@
+
+stest2: stest2.c
+	$(CC) $(CFLAGS) stest2.c  -o  $@
+
+stest3: stest3.c
+	$(CC) $(CFLAGS) stest3.c  -o  $@
+
+clean:
+	rm -f $(TESTS) 
+
+

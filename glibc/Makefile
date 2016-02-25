@@ -20,9 +20,13 @@ build:
 	$(MAKE) -C ${GLIBC_BUILD} CFLAGS="-DMALLOC_DEBUG=1 -O1 -g"  
 
 test:
-	cd ${GLIBC_BUILD}; ${STEST0}
-	cd ${GLIBC_BUILD}; ${STEST1}
-	cd ${GLIBC_BUILD}; ${STEST2}
+	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST0}
+	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST1}
+	cd ${GLIBC_BUILD}; ./testrun.sh ${STEST2}
 	cd ${GLIBC_BUILD}; ./testrun.sh ${REPLAYCMD}
 
 
+
+#
+#
+#

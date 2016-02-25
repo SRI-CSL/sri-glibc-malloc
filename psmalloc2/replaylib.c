@@ -511,7 +511,7 @@ static bool replay_free(lphash_t* htbl, replay_stats_t* statsp, const uchar* buf
 
   if (success) {
 
-    if (true || !silent_running) {
+    if (!silent_running) {
       fprintf(stderr, "free(%zu) @ %zu\n", addresses[0], addresses[1]);
     }
 

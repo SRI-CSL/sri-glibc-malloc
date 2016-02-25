@@ -17,7 +17,7 @@ cd ${HEAPMETADATA}/Variants/glibc; git submodule update --remote
 ```
 mkdir ${HEAPMETADATA}/Variants/glibc-build
 cd ${HEAPMETADATA}/Variants/glibc-build
-../glibc/configure  --prefix=/usr
+../glibc/configure  --prefix=${HEAPMETADATA}/Variants/glibc-install
 make
 ```
 

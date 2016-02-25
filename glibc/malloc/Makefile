@@ -23,7 +23,7 @@ subdir	:= malloc
 include ../Makeconfig
 
 dist-headers := malloc.h
-headers := $(dist-headers) gassert.h obstack.h mcheck.h utils.h chunkinfo.h memcxt.h metatdata.h 
+headers := $(dist-headers) gassert.h obstack.h mcheck.h utils.h chunkinfo.h memcxt.h metadata.h 
 tests := mallocbug tst-malloc tst-valloc tst-calloc tst-obstack \
 	 tst-mallocstate tst-mcheck tst-mallocfork tst-trim1 \
 	 tst-malloc-usable tst-realloc tst-posix_memalign \

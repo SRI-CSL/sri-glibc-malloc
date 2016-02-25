@@ -2992,7 +2992,6 @@ __libc_malloc (size_t bytes)
 {
   mstate ar_ptr;
   void *victim;
-
   void *(*hook) (size_t, const void *)
     = atomic_forced_read (__malloc_hook);
   if (__builtin_expect (hook != NULL, 0))

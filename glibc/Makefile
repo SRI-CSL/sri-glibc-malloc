@@ -17,7 +17,7 @@ update:
 	cp malloc/*.[ch]  malloc/Makefile  ${GLIBC_SRC}/malloc
 
 build:
-	$(MAKE) -C ${GLIBC_BUILD} CFLAGS="-DMALLOC_DEBUG=1 -O1 -g"  
+	$(MAKE) -C ${GLIBC_BUILD} CFLAGS="-DMALLOC_DEBUG=1 -g"  
 
 install:
 	$(MAKE) -C ${GLIBC_BUILD} install

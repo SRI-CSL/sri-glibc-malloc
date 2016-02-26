@@ -2,7 +2,7 @@
 
 SYSROOT=${HOME}/Repositories/HeapMetadata/Variants/glibc-install
 
-CFLAGS = -Wall  \
+CFLAGS = -Wall  -g -O0 \
   -L${SYSROOT}/usr/lib \
   -I${SYSROOT}/include \
   --sysroot=${SYSROOT} \
@@ -12,7 +12,7 @@ CFLAGS = -Wall  \
 
 
 
-TESTS = stest0 stest1 stest2 stest3
+TESTS = stest0 stest1 stest2
 
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $< -c 
@@ -27,9 +27,6 @@ stest1: stest1.c
 
 stest2: stest2.c
 	$(CC) $(CFLAGS) stest2.c  -o  $@
-
-stest3: stest3.c
-	$(CC) $(CFLAGS) stest3.c  -o  $@
 
 clean:
 	rm -f $(TESTS) 

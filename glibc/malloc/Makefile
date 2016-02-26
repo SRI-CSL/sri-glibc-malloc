@@ -28,18 +28,14 @@ tests := mallocbug tst-malloc tst-valloc tst-calloc tst-obstack \
 	 tst-mallocstate tst-mcheck tst-mallocfork tst-trim1 \
 	 tst-malloc-usable tst-realloc tst-posix_memalign \
 	 tst-pvalloc tst-memalign tst-mallopt tst-scratch_buffer \
-	 tst-malloc-backtrace \
-	 stest0 stest1 stest2 
-
-#	 replay mtreplay
+	 tst-malloc-backtrace 
 
 test-srcs = tst-mtrace
 
 routines = malloc morecore mcheck mtrace obstack \
   memcxt metadata utils \
   scratch_buffer_grow scratch_buffer_grow_preserve \
-  scratch_buffer_set_array_size \
-  replaylib lphash
+  scratch_buffer_set_array_size
 
 install-lib := libmcheck.a
 non-lib.a := libmcheck.a
@@ -120,6 +116,15 @@ include ../Rules
 CFLAGS-mcheck-init.c = $(PIC-ccflag)
 CFLAGS-obstack.c = $(uses-callbacks)
 
+#SRI hack to compile our version of malloc without optimizations.
+#you will need to make sure that you have commented out line 4 
+# of config.h in the glibc-build directory.
+CFLAGS-malloc.c =  -O0
+CFLAGS-utils.c =  -O0
+CFLAGS-memcxt.c =  -O0
+CFLAGS-metadata.c =  -O0
+
+
 $(objpfx)libmcheck.a: $(objpfx)mcheck-init.o
 	-rm -f $@
 	$(patsubst %/,cd % &&,$(objpfx)) \
@@ -168,11 +173,5 @@ $(objpfx)libmemusage.so: $(libdl)
 
 # Extra dependencies
 $(foreach o,$(all-object-suffixes),$(objpfx)malloc$(o)): arena.c hooks.c
-
-
-# Ian's temporary hacks
-
-$(objpfx)replay:
-	${CC} ${CFLAGS} ${LDFLAGS} replay.c $(objpfx)replaylib.o $(objpfx)lphash.o -o replay
 
 

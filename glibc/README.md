@@ -26,6 +26,8 @@ Now would be a **very good time** to comment out line 4 in `config.h` in the
 make
 make install
 ```
+If you are bulding in a vagrant box, hard links will give you trouble.
+I copied the files instead.
 
 Note that to test we are going to do a `make install` so the prefix is 
 **very important**.
@@ -35,7 +37,7 @@ Note that to test we are going to do a `make install` so the prefix is
 ```
 make update
 ```
-I was hoping to ue a symbolic link here, but that did not seem to work (due
+I was hoping to use a symbolic link here, but that did not seem to work (due
 to references to ../.. stuff in the malloc dir).
 
 ## 4. Rebuild the new stuff.
@@ -50,7 +52,9 @@ make build
 make
 ```
 
-## 6. Testing. Once you have built and installed glibc as described in 2.
+## 6. Testing. 
+
+Once you have built and installed glibc as described in 2.
 You need to do ssome additional work to be able to compile the test
 suite in 
 ```

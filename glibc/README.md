@@ -46,7 +46,9 @@ to references to ../.. stuff in the malloc dir).
 make build
 ```
 
-## 5. When developing 3. and 4. can be combine by doing:
+## 5. Developing
+
+When developing 3. and 4. can be combined by doing:
 
 ```
 make
@@ -55,7 +57,7 @@ make
 ## 6. Testing. 
 
 Once you have built and installed glibc as described in 2.
-You need to do ssome additional work to be able to compile the test
+You need to do some additional work to be able to compile the test
 suite in 
 ```
 ../glibc_tests

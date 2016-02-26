@@ -103,11 +103,6 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   metadata_cfg_init(lhtbl_cfg, memcxt);
     
 
-  /* lock for resolving contention  (only when cfg->multithreaded)   */
-  if(lhtbl_cfg->multithreaded){
-    pthread_mutex_init(&lhtbl->mutex, NULL);
-  }
-
   lhtbl->directory_length = lhtbl_cfg->initial_directory_length;
   lhtbl->directory_current = metadata_segments_at_startup; 
 

@@ -13,7 +13,9 @@ typedef struct segment_pool_s segment_pool_t;
 #define INTERNAL_SIZE_T size_t
 #endif
 
-typedef void * mchunkptr;
+/* Forward declarations.  */
+struct malloc_chunk;
+typedef struct malloc_chunk* mchunkptr;
 
 /* based on the glibc chunk not the dlmalloc chunk  */
 typedef struct chunkinfo {

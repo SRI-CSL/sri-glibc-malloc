@@ -246,10 +246,14 @@
 #include <libc-internal.h>
 
 /* 
-   iam: we need to use assert as well, so we pull it out into it's own
+   SRI: we need to use assert as well, so we pull it out into it's own
    header file
 */
 #include "gassert.h"
+
+/* SRI's  metatdata header */
+#include "metadata.h"
+
 
 /*
   Debugging:
@@ -1027,11 +1031,16 @@ int      __posix_memalign(void **, size_t, size_t);
 # define internal_function
 #endif
 
-/* Forward declarations.  */
-struct malloc_chunk;
-typedef struct malloc_chunk* mchunkptr;
-
 /* Internal routines.  */
+static chunkinfoptr new_chunkinfoptr(mstate av);
+static bool replenish_metadata_cache(mstate av);
+
+//static chunkinfoptr hashtable_lookup (mstate av, mchunkptr p);
+//static chunkinfoptr create_metadata(mstate av, mchunkptr p);
+//static chunkinfoptr new_chunkinfoptr(mstate av);
+//static bool hashtable_add (mstate av, chunkinfoptr ci);
+//static bool hashtable_remove (mstate av, mchunkptr p, int tag) 
+
 
 static void*  _int_malloc(mstate, size_t);
 static void   _int_free(mstate, mchunkptr, int);
@@ -1767,10 +1776,12 @@ typedef struct malloc_chunk *mfastbinptr;
                      ? SMALLBIN_WIDTH : ((s + SIZE_SZ) & ~MALLOC_ALIGN_MASK))
 #define get_max_fast() global_max_fast
 
-
 /*
    ----------- Internal state representation and initialization -----------
  */
+
+
+#define METADATA_CACHE_SIZE 4
 
 struct malloc_state
 {
@@ -1810,6 +1821,20 @@ struct malloc_state
   /* Memory allocated from the system in this arena.  */
   INTERNAL_SIZE_T system_mem;
   INTERNAL_SIZE_T max_system_mem;
+
+
+  /* SRI: pool memory for the metadata */
+  memcxt_t memcxt;
+
+  /* SRI: metadata */
+  metadata_t htbl;      
+
+  /* SRI: metadata cache; pool of metadata big enough so 
+     that we don't get caught halfway through an allocation routine 
+     and not be able to create the necessary metadata.
+  */
+  chunkinfoptr  metadata_cache[METADATA_CACHE_SIZE];
+
 };
 
 struct malloc_par
@@ -1906,8 +1931,40 @@ malloc_init_state (mstate av)
     set_max_fast (DEFAULT_MXFAST);
   av->flags |= FASTCHUNKS_BIT;
 
+  /* init the metadata pool */
+  init_memcxt(&av->memcxt);
+
+  /* init the metadata hash table */
+  if ( ! init_metadata(&av->htbl, &av->memcxt)) {
+    abort();
+  }
+
+  if ( ! replenish_metadata_cache(av) ){
+    abort();
+  }
+  
   av->top = initial_top (av);
+
 }
+
+static bool replenish_metadata_cache(mstate av){
+  int i;
+  chunkinfoptr _md_p;
+  for(i = 0; i < METADATA_CACHE_SIZE; i++){
+    if(av->metadata_cache[i] == NULL){
+      _md_p = new_chunkinfoptr(av);
+      if(_md_p != NULL){
+	av->metadata_cache[i] = _md_p;
+      } else {
+	return false;
+      }
+    }
+  }
+  return true;
+}
+
+
+
 
 /*
    Other internal utilities operating on mstates
@@ -1916,6 +1973,51 @@ malloc_init_state (mstate av)
 static void *sysmalloc (INTERNAL_SIZE_T, mstate);
 static int   systrim (size_t, mstate);
 static void  malloc_consolidate (mstate);
+
+/*
+  ----------- SRI: Metadata manipulation and initialization -----------
+*/
+
+/* Get a free chunkinfo */
+static chunkinfoptr new_chunkinfoptr(mstate av)
+{
+  chunkinfoptr retval;
+  assert(av != NULL);
+  retval = allocate_chunkinfoptr(&(av->htbl));
+  return retval;
+}
+
+/* lookup the chunk in the hashtable
+static chunkinfoptr
+hashtable_lookup (mstate av, mchunkptr p)
+{
+  assert(av != NULL);
+  assert(p != NULL);
+  return metadata_lookup(&av->htbl, chunk2mem(p));
+}
+*/
+
+/* Add the metadata to the hashtable
+static bool
+hashtable_add (mstate av, chunkinfoptr ci)
+{
+  assert(av != NULL);
+  assert(ci != NULL);
+  return metadata_add(&av->htbl, ci);
+}
+ */
+
+/* Remove the metadata from the hashtable; tag temp feature, if true we tag the chunk
+static bool
+hashtable_remove (mstate av, mchunkptr p, int tag) 
+{
+  assert(av != NULL);
+  assert(p != NULL);
+  return metadata_delete(&av->htbl, chunk2mem(p));
+}
+*/
+
+
 
 
 /* -------------- Early definitions for debugging hooks ---------------- */

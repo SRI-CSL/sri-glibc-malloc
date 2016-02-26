@@ -1,7 +1,7 @@
 In what follows  ${HEAPMETADATA} names the top level of the HeapMetadata
 repository.
 
-The malloc subdirectory of this directory contains our modified globc malloc.
+The malloc subdirectory of this directory contains our modified glibc `malloc`.
 
 To build and run this malloc you do the following steps.
 
@@ -18,14 +18,17 @@ cd ${HEAPMETADATA}/Variants/glibc; git submodule update --remote
 mkdir ${HEAPMETADATA}/Variants/glibc-build
 cd ${HEAPMETADATA}/Variants/glibc-build
 ../glibc/configure  --prefix=${HEAPMETADATA}/Variants/glibc-install
-# now would be a good time to comment out line 4 in config.h in the
-# glibc-build
+```
+Now would be a **very good time** to comment out line 4 in `config.h` in the
+`glibc-build`, this will enable us to build our version of malloc with 
+*no optimization*.
+```
 make
 make install
 ```
 
-Note that we are not going to do a `make install` so the prefix is just
-for the build product's sake.
+Note that to test we are going to do a `make install` so the prefix is 
+**very important**.
 
 3. Do the mocking bird thing:
 

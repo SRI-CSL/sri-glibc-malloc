@@ -1796,6 +1796,9 @@ struct malloc_state
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
   mchunkptr top;
+  /* temporary value of initial top while we are in transition. */
+  struct malloc_chunk  initial_top;        
+
 
   /* The remainder from the most recent split of a small request */
   mchunkptr last_remainder;
@@ -1831,7 +1834,10 @@ struct malloc_state
 
   /* SRI: metadata cache; pool of metadata big enough so 
      that we don't get caught halfway through an allocation routine 
-     and not be able to create the necessary metadata.
+     and not be able to create the necessary metadata. If we can't 
+     fill the cache at the start of malloc, realloc, or calloc we
+     can return NULL and know that the current state is still
+     consistent.
   */
   chunkinfoptr  metadata_cache[METADATA_CACHE_SIZE];
   int           metadata_cache_count;

@@ -6,13 +6,13 @@ The malloc subdirectory of this directory contains our modified glibc `malloc`.
 To build and run this malloc you do the following steps.
 
 
-1.  Make sure you have extracted the glibc git submodule:
+## 1.  Make sure you have extracted the glibc git submodule:
 
 ```
 cd ${HEAPMETADATA}/Variants/glibc; git submodule update --remote
 ```
 
-2. Build the puppy.
+## 2. Build the puppy.
 
 ```
 mkdir ${HEAPMETADATA}/Variants/glibc-build
@@ -30,7 +30,7 @@ make install
 Note that to test we are going to do a `make install` so the prefix is 
 **very important**.
 
-3. Do the mocking bird thing:
+## 3. Do the mocking bird thing:
 
 ```
 make update
@@ -38,19 +38,19 @@ make update
 I was hoping to ue a symbolic link here, but that did not seem to work (due
 to references to ../.. stuff in the malloc dir).
 
-4. Rebuild the new stuff.
+## 4. Rebuild the new stuff.
 
 ```
 make build
 ```
 
-5. When developing 3. and 4. can be combine by doing:
+## 5. When developing 3. and 4. can be combine by doing:
 
 ```
 make
 ```
 
-6. Testing. Once you have built and installed glibc as described in 2.
+## 6. Testing. Once you have built and installed glibc as described in 2.
 You need to do ssome additional work to be able to compile the test
 suite in 
 ```

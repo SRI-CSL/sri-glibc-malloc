@@ -21,7 +21,11 @@ TESTS = stest0 stest1 stest2 replay mtreplay
 	$(CC) $(CFLAGS) $< -c 
 
 all: $(TESTS) ${OBJECTS}
+
+replay:
 	${CC} ${CFLAGS} replay.o lphash.o replaylib.o -o replay
+
+mtreplay:
 	${CC} ${CFLAGS} mtreplay.o lphash.o replaylib.o -lpthread -o mtreplay
 
 stest0: stest0.c

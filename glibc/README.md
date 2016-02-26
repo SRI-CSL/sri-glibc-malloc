@@ -77,7 +77,7 @@ Once this is done you should be able to compile the tests (located `src/glibc_te
 cd ../glibc_tests
 make
 ```
-You can double check by making sure the libraries are corrent:
+You can double check by making sure the libraries are correct:
 ```
 ldd replay
 ```
@@ -86,6 +86,11 @@ ldd replay
 ```
 make test
 ```
+Try them out with:
+```
+make run
+```
+
 
 For guidance:
 

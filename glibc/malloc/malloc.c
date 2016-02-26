@@ -1834,6 +1834,7 @@ struct malloc_state
      and not be able to create the necessary metadata.
   */
   chunkinfoptr  metadata_cache[METADATA_CACHE_SIZE];
+  int           metadata_cache_count;
 
 };
 
@@ -1950,7 +1951,11 @@ malloc_init_state (mstate av)
 static bool replenish_metadata_cache(mstate av){
   int i;
   chunkinfoptr _md_p;
-  for(i = 0; i < METADATA_CACHE_SIZE; i++){
+  int count = av->metadata_cache_count;
+
+  assert(METADATA_CACHE_SIZE >= count && count >= 0);
+
+  for(i = count; i < METADATA_CACHE_SIZE; i++){
     if(av->metadata_cache[i] == NULL){
       _md_p = new_chunkinfoptr(av);
       if(_md_p != NULL){
@@ -1960,6 +1965,7 @@ static bool replenish_metadata_cache(mstate av){
       }
     }
   }
+  av->metadata_cache_count = METADATA_CACHE_SIZE;
   return true;
 }
 

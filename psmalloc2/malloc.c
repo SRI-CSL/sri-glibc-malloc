@@ -4180,11 +4180,9 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
       /* Must alloc, copy, free. */
       _md_newp =  _int_malloc(ar_ptr, bytes);
       
-      hashtable_remove(ar_ptr, oldp, false);
-      
-      (void)mutex_unlock(&ar_ptr->mutex);
       
       if(_md_newp == NULL){
+	(void)mutex_unlock(&ar_ptr->mutex);
 	return NULL; /* propagate failure */
       }
       
@@ -4192,6 +4190,12 @@ public_rEALLOc(Void_t* oldmem, size_t bytes)
   
       MALLOC_COPY(newmem, oldmem, oldsize - 2*SIZE_SZ);
       munmap_chunk(_md_oldp);
+
+      /* cannot remove the metadata until we have finished with it; 
+       * since removing it allows for someone else to reuse it */
+      hashtable_remove(ar_ptr, oldp, false);
+      
+      (void)mutex_unlock(&ar_ptr->mutex);
 
       return newmem;
     }

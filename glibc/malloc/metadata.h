@@ -66,7 +66,6 @@ typedef struct metadata_cfg_s {
 
 typedef struct metadata_s {
   metadata_cfg_t cfg;            /* configuration constants                                                */
-  pthread_mutex_t mutex;	 /* lock for resolving contention    (only when cfg->multithreaded)        */
   segment_t** directory;         /* the array of segment pointers                                          */
   size_t directory_length;       /* the size of the directory (must be a power of two)                     */
   size_t directory_current;      /* the number of segments in the directory                                */

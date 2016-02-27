@@ -1,4 +1,15 @@
-
+# N.B You need to add some linux headers/libs to sysroot
+# to get the replay stuff to compile.
+#
+# cd ../../Variants/glibc-install/include
+# ln -s /usr/include/linux . 
+# ln -s /usr/include/x86_64-linux-gnu/asm .
+# ln -s /usr/include/asm-generic .
+#
+# cd ../../Variants/glibc-install/lib
+# ln -s /lib/x86_64-linux-gnu/libgcc_s.so.1 .
+#
+#
 
 
 ifeq ($(shell whoami),vagrant)
@@ -24,7 +35,7 @@ TESTS = stest0 stest1 stest2 replay mtreplay
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $< -c 
 
-all: $(TESTS) ${OBJECTS}
+all: ${OBJECTS} $(TESTS) 
 
 replay:
 	${CC} ${CFLAGS} replay.o lphash.o replaylib.o -o replay

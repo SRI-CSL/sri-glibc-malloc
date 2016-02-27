@@ -1,8 +1,12 @@
 
 
-#SYSROOT=${HOME}/Repositories/HeapMetadata/Variants/glibc-install
 
+ifeq ($(shell whoami),vagrant)
+SYSROOT=${HOME}/glibc-install
+else
 SYSROOT=../../Variants/glibc-install
+endif
+
 
 CFLAGS = -Wall  -g -O0   -I../mhooks \
   -L${SYSROOT}/usr/lib \

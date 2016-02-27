@@ -84,14 +84,17 @@ You can double check by making sure the libraries are correct:
 ```
 ldd replay
 ```
-
-7. As part of the workflow you can run the tests with 
-```
-make test
-```
 Try them out with:
 ```
 make run
+```
+
+## 7. Testing Workflow
+
+As part of the workflow you can run the tests with 
+```
+make test
+in the `${HEAPMETADATA}/src/glibc` directory.
 ```
 
 

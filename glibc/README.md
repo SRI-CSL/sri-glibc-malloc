@@ -22,12 +22,12 @@ cd ${HEAPMETADATA}/Variants/glibc-build
 Now would be a **very good time** to comment out line 4 in `config.h` in the
 `glibc-build`, this will enable us to build our version of malloc with 
 *no optimization*.
+Note that to test we are going to do a `make install` so the prefix is 
+**very important**.
 ```
 make
 make install
 ```
-Note that to test we are going to do a `make install` so the prefix is 
-**very important**.
 
 ## 3. Do the mocking bird thing:
 
@@ -54,7 +54,7 @@ When developing 3. and 4. can be combined by doing:
 ```
 make
 ```
-in the `${HEAPMETADATA}/src/glibc` directory do:
+in the `${HEAPMETADATA}/src/glibc` directory.
 
 
 ## 6. Testing. 

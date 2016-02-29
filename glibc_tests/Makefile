@@ -14,8 +14,10 @@
 
 ifeq ($(shell whoami),vagrant)
 SYSROOT=${HOME}/glibc-install
+MY_LD=ld-2.23.90.so
 else
 SYSROOT=../../Variants/glibc-install
+MY_LD=ld-2.22.90.so
 endif
 
 
@@ -24,7 +26,7 @@ CFLAGS = -Wall  -g -O0   -I../mhooks \
   -I${SYSROOT}/include \
   --sysroot=${SYSROOT} \
   -Wl,-rpath=${SYSROOT}/lib \
-  -Wl,--dynamic-linker=${SYSROOT}/lib/ld-2.22.90.so 
+  -Wl,--dynamic-linker=${SYSROOT}/lib/${MY_LD}
 
 
 

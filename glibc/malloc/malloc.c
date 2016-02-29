@@ -1037,9 +1037,14 @@ static bool replenish_metadata_cache(mstate av);
 
 //static chunkinfoptr hashtable_lookup (mstate av, mchunkptr p);
 //static chunkinfoptr create_metadata(mstate av, mchunkptr p);
-//static chunkinfoptr new_chunkinfoptr(mstate av);
-//static bool hashtable_add (mstate av, chunkinfoptr ci);
+
+static bool hashtable_add (mstate av, chunkinfoptr ci);
 //static bool hashtable_remove (mstate av, mchunkptr p, int tag) 
+
+static chunkinfoptr register_chunk(mstate av, mchunkptr p);
+
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim);
+//static void*  chunkinfo2mem(chunkinfoptr _md_victim);
 
 
 static void*  _int_malloc(mstate, size_t);
@@ -1642,15 +1647,9 @@ typedef struct malloc_chunk *mbinptr;
     points to its own bin with initial zero size, thus forcing
     extension on the first malloc request, we avoid having any special
     code in malloc to check whether it even exists yet. But we still
-    need to do so when getting memory from system, so we make
-    initial_top treat the bin as a legal but unusable chunk during the
-    interval between initialization and the first call to
-    sysmalloc. (This is somewhat delicate, since it relies on
-    the 2 preceding words to be zero during this interval as well.)
+    need to do so when getting memory from system, so we make a default
+    initial_top as part of the malloc_state.
  */
-
-/* Conveniently, the unsorted bin can be used as dummy top on first call */
-#define initial_top(M)              (unsorted_chunks (M))
 
 /*
    Binmap
@@ -1796,6 +1795,10 @@ struct malloc_state
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
   mchunkptr top;
+ 
+ /* Metadata of the base of the topmost chunk -- not otherwise kept in a bin */
+  chunkinfoptr _md_top;
+
   /* temporary value of initial top while we are in transition. */
   struct malloc_chunk  initial_top;        
 
@@ -1826,6 +1829,9 @@ struct malloc_state
   INTERNAL_SIZE_T max_system_mem;
 
 
+  /* SRI: flag indicating arena is initialized */
+  bool arena_is_initialized;
+
   /* SRI: pool memory for the metadata */
   memcxt_t memcxt;
 
@@ -1843,6 +1849,8 @@ struct malloc_state
   int           metadata_cache_count;
 
 };
+
+
 
 struct malloc_par
 {
@@ -1917,6 +1925,14 @@ static INTERNAL_SIZE_T global_max_fast;
    optimization at all. (Inlining it in malloc_consolidate is fine though.)
  */
 
+static inline chunkinfoptr initial_md_top(mstate av)
+{
+  mchunkptr top = &(av->initial_top);
+  top->prev_size = 0;
+  set_head(top, 0);
+  return register_chunk(av, top);
+}
+
 static void
 malloc_init_state (mstate av)
 {
@@ -1946,12 +1962,16 @@ malloc_init_state (mstate av)
     abort();
   }
 
+  /* enable replenishing */
+  av->arena_is_initialized = true;
+
+
   if ( ! replenish_metadata_cache(av) ){
     abort();
   }
   
-  av->top = initial_top (av);
-
+  av->_md_top = initial_md_top(av);
+  av->top = chunkinfo2chunk(av->_md_top);
 }
 
 static bool replenish_metadata_cache(mstate av){
@@ -1959,11 +1979,14 @@ static bool replenish_metadata_cache(mstate av){
   chunkinfoptr _md_p;
   int count = av->metadata_cache_count;
 
+  /* we only replenish if av has already been initialized */
+  if( ! av->arena_is_initialized){  return true; }
+
   assert(METADATA_CACHE_SIZE >= count && count >= 0);
 
   for(i = count; i < METADATA_CACHE_SIZE; i++){
     if(av->metadata_cache[i] == NULL){
-      _md_p = new_chunkinfoptr(av);
+      _md_p = allocate_chunkinfoptr(&(av->htbl));
       if(_md_p != NULL){
 	av->metadata_cache[i] = _md_p;
       } else {
@@ -1990,12 +2013,17 @@ static void  malloc_consolidate (mstate);
   ----------- SRI: Metadata manipulation and initialization -----------
 */
 
-/* Get a free chunkinfo */
+/* Get a free chunkinfo from av's metadata cache */
 static chunkinfoptr new_chunkinfoptr(mstate av)
 {
   chunkinfoptr retval;
   assert(av != NULL);
-  retval = allocate_chunkinfoptr(&(av->htbl));
+  assert(av->metadata_cache_count > 0);
+  if(av->metadata_cache_count <= 0){
+    abort();
+  }
+  retval = av->metadata_cache[--av->metadata_cache_count];
+  av->metadata_cache[av->metadata_cache_count] = NULL;
   return retval;
 }
 
@@ -2009,7 +2037,7 @@ hashtable_lookup (mstate av, mchunkptr p)
 }
 */
 
-/* Add the metadata to the hashtable
+/* Add the metadata to the hashtable   */
 static bool
 hashtable_add (mstate av, chunkinfoptr ci)
 {
@@ -2017,7 +2045,6 @@ hashtable_add (mstate av, chunkinfoptr ci)
   assert(ci != NULL);
   return metadata_add(&av->htbl, ci);
 }
- */
 
 /* Remove the metadata from the hashtable; tag temp feature, if true we tag the chunk
 static bool
@@ -2028,6 +2055,44 @@ hashtable_remove (mstate av, mchunkptr p, int tag)
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
 */
+
+static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
+{
+  assert(_md_victim != NULL);
+  return mem2chunk(_md_victim->chunk);
+}
+
+/*
+static void* chunkinfo2mem(chunkinfoptr _md_victim)
+{
+  if (_md_victim == NULL) {
+    return NULL;
+  } else {
+    return _md_victim->chunk;
+  }
+}
+*/
+
+/* 
+ * temporary hack to marry metadata to data; 
+ * twin assumes that the chunkinfoptr was newly allocated.
+ */
+static void twin(chunkinfoptr ci, mchunkptr c)
+{
+  assert(ci != NULL);
+  assert(c != NULL);
+  ci->chunk = chunk2mem(c);
+  ci->size = c->size;
+  ci->prev_size =  c->prev_size;
+}
+
+static chunkinfoptr register_chunk(mstate av, mchunkptr p)
+{
+  chunkinfoptr _md_p = new_chunkinfoptr(av);
+  twin(_md_p, p);
+  hashtable_add(av, _md_p);
+  return _md_p;
+}
 
 
 
@@ -2160,7 +2225,7 @@ do_check_chunk (mstate av, mchunkptr p)
   else
     {
       /* address is outside main heap  */
-      if (contiguous (av) && av->top != initial_top (av))
+      if (contiguous (av) && av->top != &av->initial_top)
         {
           assert (((char *) p) < min_address || ((char *) p) >= max_address);
         }
@@ -2330,7 +2395,7 @@ do_check_malloc_state (mstate av)
   assert ((MALLOC_ALIGNMENT & (MALLOC_ALIGNMENT - 1)) == 0);
 
   /* cannot run remaining checks until fully initialized */
-  if (av->top == 0 || av->top == initial_top (av))
+  if (av->top == 0 || av->top == &av->initial_top)
     return;
 
   /* pagesize is a power of 2 */
@@ -2592,7 +2657,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
      at least MINSIZE and to have prev_inuse set.
    */
 
-  assert ((old_top == initial_top (av) && old_size == 0) ||
+  assert ((old_top == &av->initial_top && old_size == 0) ||
           ((unsigned long) (old_size) >= MINSIZE &&
            prev_inuse (old_top) &&
            ((unsigned long) old_end & (pagesize - 1)) == 0));
@@ -2625,8 +2690,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           av->system_mem += heap->size;
           arena_mem += heap->size;
           /* Set up the new top.  */
-          top (av) = chunk_at_offset (heap, sizeof (*heap));
-          set_head (top (av), (heap->size - sizeof (*heap)) | PREV_INUSE);
+          av->top = chunk_at_offset (heap, sizeof (*heap));
+          set_head (av->top, (heap->size - sizeof (*heap)) | PREV_INUSE);
 
           /* Setup fencepost and free the old top chunk with a multiple of
              MALLOC_ALIGNMENT in size. */
@@ -3113,6 +3178,13 @@ __libc_malloc (size_t bytes)
 
   arena_get (ar_ptr, bytes);
 
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache */
+  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+    (void) mutex_unlock (&ar_ptr->mutex);
+    return NULL;
+  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+
   victim = _int_malloc (ar_ptr, bytes);
   /* Retry with another arena only if we were able to find a usable arena
      before.  */
@@ -3202,7 +3274,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   const INTERNAL_SIZE_T oldsize = chunksize (oldp);
 
   if (chunk_is_mmapped (oldp))
-    ar_ptr = NULL;
+    ar_ptr = NULL;  /* FIXME: this will need to be the main arena once we are twinned */
   else
     ar_ptr = arena_for_chunk (oldp);
 
@@ -3247,6 +3319,13 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   (void) mutex_lock (&ar_ptr->mutex);
 
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache */
+  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+    (void) mutex_unlock (&ar_ptr->mutex);
+    return NULL;
+  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+  
   newp = _int_realloc (ar_ptr, oldp, oldsize, nb);
 
   (void) mutex_unlock (&ar_ptr->mutex);
@@ -3321,6 +3400,14 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
     }
 
   arena_get (ar_ptr, bytes + alignment + MINSIZE);
+
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache */
+  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+    (void) mutex_unlock (&ar_ptr->mutex);
+    return NULL;
+  }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+
 
   p = _int_memalign (ar_ptr, alignment, bytes);
   if (!p && ar_ptr != NULL)
@@ -3411,13 +3498,22 @@ __libc_calloc (size_t n, size_t elem_size)
   sz = bytes;
 
   arena_get (av, sz);
+
+
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache */
+  if(av != NULL && !replenish_metadata_cache(av)){
+    (void) mutex_unlock (&av->mutex);
+    return NULL;
+  }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+
   if (av)
     {
       /* Check if we hand out the top chunk, in which case there may be no
 	 need to clear. */
 #if MORECORE_CLEARS
-      oldtop = top (av);
-      oldtopsize = chunksize (top (av));
+      oldtop = av->top;
+      oldtopsize = chunksize (oldtop);
 # if MORECORE_CLEARS < 2
       /* Only newly allocated memory is guaranteed to be cleared.  */
       if (av == &main_arena &&
@@ -4290,7 +4386,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       } else {
 	/* Always try heap_trim(), even if the top chunk is not
 	   large, because the corresponding heap might go away.  */
-	heap_info *heap = heap_for_ptr(top(av));
+	heap_info *heap = heap_for_ptr(av->top);
 
 	assert(heap->ar_ptr == av);
 	heap_trim(heap, mp_.top_pad);
@@ -4933,7 +5029,7 @@ __malloc_stats (void)
       fprintf (stderr, "in use bytes     = %10u\n", (unsigned int) mi.uordblks);
 #if MALLOC_DEBUG > 1
       if (i > 0)
-        dump_heap (heap_for_ptr (top (ar_ptr)));
+        dump_heap (heap_for_ptr (ar_ptr->top));
 #endif
       system_b += mi.arena;
       in_use_b += mi.uordblks;
@@ -5382,7 +5478,7 @@ __malloc_info (int options, FILE *fp)
 
       if (ar_ptr != &main_arena)
 	{
-	  heap_info *heap = heap_for_ptr (top (ar_ptr));
+	  heap_info *heap = heap_for_ptr (ar_ptr->top);
 	  fprintf (fp,
 		   "<aspace type=\"total\" size=\"%zu\"/>\n"
 		   "<aspace type=\"mprotect\" size=\"%zu\"/>\n",

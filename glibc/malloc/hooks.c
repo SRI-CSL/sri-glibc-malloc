@@ -239,12 +239,12 @@ static int
 internal_function
 top_check (void)
 {
-  mchunkptr t = top (&main_arena);
+  mchunkptr t = main_arena.top;
   char *brk, *new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
   unsigned long pagesz = GLRO (dl_pagesize);
 
-  if (t == initial_top (&main_arena) ||
+  if (t == &main_arena.initial_top ||
       (!chunk_is_mmapped (t) &&
        chunksize (t) >= MINSIZE &&
        prev_inuse (t) &&
@@ -274,8 +274,8 @@ top_check (void)
     (*hook)();
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
 
-  top (&main_arena) = (mchunkptr) (brk + front_misalign);
-  set_head (top (&main_arena), (sbrk_size - front_misalign) | PREV_INUSE);
+  main_arena.top = (mchunkptr) (brk + front_misalign);
+  set_head (main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
 
   return 0;
 }
@@ -513,7 +513,7 @@ __malloc_get_state (void)
   ms->version = MALLOC_STATE_VERSION;
   ms->av[0] = 0;
   ms->av[1] = 0; /* used to be binblocks, now no longer used */
-  ms->av[2] = top (&main_arena);
+  ms->av[2] = main_arena.top;
   ms->av[3] = 0; /* used to be undefined */
   for (i = 1; i < NBINS; i++)
     {
@@ -575,7 +575,7 @@ __malloc_set_state (void *msptr)
     fastbin (&main_arena, i) = 0;
   for (i = 0; i < BINMAPSIZE; ++i)
     main_arena.binmap[i] = 0;
-  top (&main_arena) = ms->av[2];
+  main_arena.top = ms->av[2];
   main_arena.last_remainder = 0;
   for (i = 1; i < NBINS; i++)
     {

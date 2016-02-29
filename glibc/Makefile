@@ -1,7 +1,13 @@
 #ian's kludgey way of developing.
 
+ifeq ($(shell whoami),vagrant)
+GLIBC_SRC=../../Variants/glibc/
+GLIBC_BUILD=/home/vagrant/glibc-build/
+else
 GLIBC_SRC=../../Variants/glibc/
 GLIBC_BUILD=../../Variants/glibc-build/
+endif
+
 
 all: update build install
 

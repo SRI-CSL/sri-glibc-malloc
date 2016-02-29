@@ -1779,7 +1779,10 @@ typedef struct malloc_chunk *mfastbinptr;
    ----------- Internal state representation and initialization -----------
  */
 
-
+/*
+  Maximum number of metadata needed to service a request to the
+  malloc api
+*/
 #define METADATA_CACHE_SIZE 4
 
 struct malloc_state

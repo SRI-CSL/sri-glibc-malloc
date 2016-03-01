@@ -2661,7 +2661,7 @@ static void malloc_init_state(av) mstate av;
     abort();
   }
 
-  av->_md_top        = initial_md_top(av);
+  av->_md_top = initial_md_top(av);
 
 }
 

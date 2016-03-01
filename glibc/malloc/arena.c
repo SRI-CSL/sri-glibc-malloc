@@ -730,6 +730,7 @@ heap_trim (heap_info *heap, size_t pad)
   return 1;
 }
 
+
 /* Create a new arena with initial size "size".  */
 
 /* If REPLACED_ARENA is not NULL, detach it from this thread.  Must be

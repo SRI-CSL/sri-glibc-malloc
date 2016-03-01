@@ -3375,6 +3375,10 @@ __libc_malloc (size_t bytes)
 {
   mstate ar_ptr;
   void *victim;
+
+  mchunkptr p;
+  chunkinfoptr _md_p;
+    
   void *(*hook) (size_t, const void *)
     = atomic_forced_read (__malloc_hook);
   if (__builtin_expect (hook != NULL, 0))
@@ -3406,6 +3410,13 @@ __libc_malloc (size_t bytes)
           ar_ptr == arena_for_chunk (mem2chunk (victim)));
   
   if(ar_ptr != NULL)check_top(ar_ptr);
+
+  //FIXME: temporary hack to spot misses
+  if (ar_ptr != NULL){
+    p = mem2chunk(victim);
+    _md_p = hashtable_lookup(ar_ptr, p);
+    if (_md_p == NULL) { missing_metadata(ar_ptr, p);  /* FIXME */ }
+  }
 
   return victim;
 }
@@ -3507,7 +3518,7 @@ __libc_realloc (void *oldmem, size_t bytes)
     ar_ptr = arena_for_chunk (oldp);
 
   /* Little security check which won't hurt performance: the
-     allocator never wrapps around at the end of the address space.
+     allocator never wraps around at the end of the address space.
      Therefore we can exclude some size values which might appear
      here by accident or by "design" from some intruder.  */
   if (__builtin_expect ((uintptr_t) oldp > (uintptr_t) -oldsize, 0)
@@ -4833,10 +4844,13 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 	     INTERNAL_SIZE_T nb)
 {
   mchunkptr        newp;            /* chunk to return */
+  chunkinfoptr     _md_newp;        /* metadata of chunk to return */
+  chunkinfoptr     _md_oldp;        /* FIXME metadata of old chunk */
   INTERNAL_SIZE_T  newsize;         /* its size */
   void*            newmem;          /* corresponding user mem */
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
+  chunkinfoptr     _md_next;        /* metadata of next contiguous chunk after oldp */
 
   mchunkptr        remainder;       /* extra space at end of newp */
   unsigned long    remainder_size;  /* its size */
@@ -4866,7 +4880,16 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   /* All callers already filter out mmap'ed chunks.  */
   assert (!chunk_is_mmapped (oldp));
 
+
+  _md_oldp = hashtable_lookup(av, oldp);
+  
+  /* iam: this should be removable once we get our global act together */
+  if (_md_oldp == NULL) { missing_metadata(av, oldp);  }
+        
+
   next = chunk_at_offset (oldp, oldsize);
+
+
   INTERNAL_SIZE_T nextsize = chunksize (next);
   if (__builtin_expect (next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
@@ -4879,6 +4902,7 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
     {
       /* already big enough; split below */
       newp = oldp;
+      _md_newp = _md_oldp;
       newsize = oldsize;
     }
 
@@ -4890,6 +4914,8 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
           (unsigned long) (nb + MINSIZE))
         {
           set_head_size (oldp, nb | arena_bit(av));
+	  update(_md_oldp, oldp);
+
           av->top = chunk_at_offset (oldp, nb);
           set_head (av->top, (newsize - nb) | PREV_INUSE);
 	  av->_md_top = register_chunk(av, av->top);
@@ -4906,6 +4932,14 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
                (unsigned long) (newsize = oldsize + nextsize) >=
                (unsigned long) (nb))
         {
+
+	  _md_next = hashtable_lookup(av, next);
+  
+	  /* iam: this should be removable once we get our global act together */
+	  if (_md_next == NULL) { missing_metadata(av, next);  }
+
+	  //FIXME: _md_next should get the flick!
+ 
           newp = oldp;
           unlink (av, next, bck, fwd);
         }
@@ -4982,17 +5016,19 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 
   if (remainder_size < MINSIZE)   /* not enough extra to split off */
     {
-      set_head_size (newp, newsize | (av != &main_arena ? NON_MAIN_ARENA : 0));
+      set_head_size (newp, newsize | arena_bit(av));
       set_inuse_bit_at_offset (newp, newsize);
+      update(_md_newp, newp);
     }
   else   /* split remainder */
     {
       remainder = chunk_at_offset (newp, nb);
-      set_head_size (newp, nb | (av != &main_arena ? NON_MAIN_ARENA : 0));
-      set_head (remainder, remainder_size | PREV_INUSE |
-                (av != &main_arena ? NON_MAIN_ARENA : 0));
+      set_head_size (newp, nb | arena_bit(av));
+      set_head (remainder, remainder_size | PREV_INUSE | arena_bit(av));
       /* Mark remainder as inuse so free() won't complain */
       set_inuse_bit_at_offset (remainder, remainder_size);
+      register_chunk(av, remainder);
+      
       _int_free (av, remainder, 1);
     }
 

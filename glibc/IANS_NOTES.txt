@@ -8,17 +8,19 @@ Based on the approach taken for psmalloc.
 
 2. get metadata to agree with the data
 
-3. bins need to become chunkinfoptrs not mchunkptrs
+3. _int_ allocation routines should return chunkinfoptrs not mems
 
-4. all the _int_ routines need chunkinfoptrs args
+4. bins need to become chunkinfoptrs not mchunkptrs
 
-5. trim the metadata stored in mchunkptrs (the linked lists)
+5. all the _int_ routines need chunkinfoptrs args
 
-6. last remainder etc
+6. trim the metadata stored in mchunkptrs (the linked lists)
 
-7. only store arena numbers in mchunkptr
+7. last remainder etc
 
-8. remove the sharing of the header and footer
+8. only store arena numbers in mchunkptr
+
+9. remove the sharing of the header and footer
 
 
 

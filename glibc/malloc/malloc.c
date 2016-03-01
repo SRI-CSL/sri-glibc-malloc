@@ -1817,6 +1817,9 @@ struct malloc_state
 
   /* The remainder from the most recent split of a small request */
   mchunkptr last_remainder;
+ 
+  /* Metadata of the remainder from the most recent split of a small request */
+  chunkinfoptr _md_last_remainder;
 
   /* Normal bins packed as described above */
   mchunkptr bins[NBINS * 2 - 2];
@@ -2160,6 +2163,15 @@ static inline INTERNAL_SIZE_T _md_chunksize(chunkinfoptr ci)
     return 0;
   else 
     return (ci->size & ~(SIZE_BITS));
+}
+
+#define missing_metadata(AV,P) report_missing_metadata(AV, P, __FILE__, __LINE__)
+
+static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
+{
+  fprintf(stderr, "No metadata for %p of size %zu. main_arena %d. chunk_is_mmapped: %d @ %s line %d\n", 
+          chunk2mem(p), chunksize(p), is_main_arena(av), chunk_is_mmapped(p), file, lineno);
+  abort();
 }
 
 
@@ -3404,6 +3416,7 @@ __libc_free (void *mem)
 {
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
+  chunkinfoptr _md_p;                   /* metadata of chunk corresponding to mem */
 
   void (*hook) (void *, const void *)
     = atomic_forced_read (__free_hook);
@@ -3445,6 +3458,12 @@ __libc_free (void *mem)
     // FIXME: needing to replenish before a free is a drag.
   
   check_top(ar_ptr);
+
+  _md_p = hashtable_lookup(ar_ptr, p);
+  
+  if (_md_p == NULL) {
+    missing_metadata(ar_ptr, p);
+  }
 
   _int_free (ar_ptr, p, 0);
 
@@ -3841,6 +3860,7 @@ _int_malloc (mstate av, size_t bytes)
   int victim_index;                 /* its bin index */
 
   mchunkptr remainder;              /* remainder from a split */
+  chunkinfoptr _md_remainder;       /* metadata of remainder from a split */
   unsigned long remainder_size;     /* its size */
 
   unsigned int block;               /* bit map traverser */
@@ -3911,26 +3931,28 @@ _int_malloc (mstate av, size_t bytes)
     }
 
   /*
-     If a small request, check regular bin.  Since these "smallbins"
-     hold one size each, no searching within bins is necessary.
-     (For a large request, we need to wait until unsorted chunks are
-     processed to find best fit. But for small ones, fits are exact
-     anyway, so we can check now, which is faster.)
-   */
+    If a small request, check regular bin.  Since these "smallbins"
+    hold one size each, no searching within bins is necessary.
+    (For a large request, we need to wait until unsorted chunks are
+    processed to find best fit. But for small ones, fits are exact
+    anyway, so we can check now, which is faster.)
+  */
 
   if (in_smallbin_range (nb))
     {
       idx = smallbin_index (nb);
       bin = bin_at (av, idx);
-
+      
       if ((victim = last (bin)) != bin)
         {
           if (victim == 0) /* initialization check */
             malloc_consolidate (av);
           else
             {
+	      _md_victim = hashtable_lookup(av, victim);
+	      if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
               bck = victim->bk;
-	if (__glibc_unlikely (bck->fd != victim))
+	      if (__glibc_unlikely (bck->fd != victim))
                 {
                   errstr = "malloc(): smallbin double linked list corrupted";
                   goto errout;
@@ -3938,9 +3960,10 @@ _int_malloc (mstate av, size_t bytes)
               set_inuse_bit_at_offset (victim, nb);
               bin->bk = bck;
               bck->fd = bin;
-
+	      
               if (av != &main_arena)
                 victim->size |= NON_MAIN_ARENA;
+	      update(_md_victim, victim);
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
               alloc_perturb (p, bytes);
@@ -3985,6 +4008,10 @@ _int_malloc (mstate av, size_t bytes)
       int iters = 0;
       while ((victim = unsorted_chunks (av)->bk) != unsorted_chunks (av))
         {
+
+	  _md_victim = hashtable_lookup(av, victim);
+	  if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
+
           bck = victim->bk;
           if (__builtin_expect (victim->size <= 2 * SIZE_SZ, 0)
               || __builtin_expect (victim->size > av->system_mem, 0))
@@ -4008,19 +4035,21 @@ _int_malloc (mstate av, size_t bytes)
               /* split and reattach remainder */
               remainder_size = size - nb;
               remainder = chunk_at_offset (victim, nb);
+              set_head (victim, nb | PREV_INUSE | arena_bit(av));
+	      update(_md_victim, victim);
+              set_head (remainder, remainder_size | PREV_INUSE);
+              set_foot (remainder, remainder_size);
+	      _md_remainder = register_chunk(av, remainder);
+
               unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = remainder;
               av->last_remainder = remainder;
+              av->_md_last_remainder = _md_remainder;
               remainder->bk = remainder->fd = unsorted_chunks (av);
               if (!in_smallbin_range (remainder_size))
                 {
                   remainder->fd_nextsize = NULL;
                   remainder->bk_nextsize = NULL;
                 }
-
-              set_head (victim, nb | PREV_INUSE |
-                        (av != &main_arena ? NON_MAIN_ARENA : 0));
-              set_head (remainder, remainder_size | PREV_INUSE);
-              set_foot (remainder, remainder_size);
 
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
@@ -4039,6 +4068,7 @@ _int_malloc (mstate av, size_t bytes)
               set_inuse_bit_at_offset (victim, size);
               if (av != &main_arena)
                 victim->size |= NON_MAIN_ARENA;
+	      update(_md_victim, victim);
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
               alloc_perturb (p, bytes);
@@ -4138,6 +4168,10 @@ _int_malloc (mstate av, size_t bytes)
               remainder_size = size - nb;
               unlink (av, victim, bck, fwd);
 
+	      _md_victim = hashtable_lookup(av, victim);
+	      if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
+
+
               /* Exhaust */
               if (remainder_size < MINSIZE)
                 {
@@ -4153,7 +4187,7 @@ _int_malloc (mstate av, size_t bytes)
                      have to perform a complete insert here.  */
                   bck = unsorted_chunks (av);
                   fwd = bck->fd;
-	  if (__glibc_unlikely (fwd->bk != bck))
+		  if (__glibc_unlikely (fwd->bk != bck))
                     {
                       errstr = "malloc(): corrupted unsorted chunks";
                       goto errout;
@@ -4167,11 +4201,13 @@ _int_malloc (mstate av, size_t bytes)
                       remainder->fd_nextsize = NULL;
                       remainder->bk_nextsize = NULL;
                     }
-                  set_head (victim, nb | PREV_INUSE |
-                            (av != &main_arena ? NON_MAIN_ARENA : 0));
+                  set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (remainder, remainder_size);
+		  _md_victim = register_chunk(av, remainder);
                 }
+	      
+	      update(_md_victim, victim);
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
               alloc_perturb (p, bytes);
@@ -4234,6 +4270,9 @@ _int_malloc (mstate av, size_t bytes)
           else
             {
               size = chunksize (victim);
+	      
+	      _md_victim = hashtable_lookup(av, victim);
+	      if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
 
               /*  We know the first chunk in this bin is big enough to use. */
               assert ((unsigned long) (size) >= (unsigned long) (nb));
@@ -4250,17 +4289,17 @@ _int_malloc (mstate av, size_t bytes)
                   if (av != &main_arena)
                     victim->size |= NON_MAIN_ARENA;
                 }
-
+	      
               /* Split */
               else
                 {
                   remainder = chunk_at_offset (victim, nb);
-
+		  
                   /* We cannot assume the unsorted list is empty and therefore
                      have to perform a complete insert here.  */
                   bck = unsorted_chunks (av);
                   fwd = bck->fd;
-	  if (__glibc_unlikely (fwd->bk != bck))
+		  if (__glibc_unlikely (fwd->bk != bck))
                     {
                       errstr = "malloc(): corrupted unsorted chunks 2";
                       goto errout;
@@ -4269,7 +4308,7 @@ _int_malloc (mstate av, size_t bytes)
                   remainder->fd = fwd;
                   bck->fd = remainder;
                   fwd->bk = remainder;
-
+		  
                   /* advertise as last remainder */
                   if (in_smallbin_range (nb))
                     av->last_remainder = remainder;
@@ -4278,11 +4317,13 @@ _int_malloc (mstate av, size_t bytes)
                       remainder->fd_nextsize = NULL;
                       remainder->bk_nextsize = NULL;
                     }
-                  set_head (victim, nb | PREV_INUSE |
-                            (av != &main_arena ? NON_MAIN_ARENA : 0));
+                  set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (remainder, remainder_size);
                 }
+	      
+	      update(_md_victim, victim);
+
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
               alloc_perturb (p, bytes);
@@ -4315,15 +4356,6 @@ _int_malloc (mstate av, size_t bytes)
 	  _md_victim = av->_md_top;
 	  av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
 	  av->top = chunkinfo2chunk(av->_md_top);
-
-	  /*
-          remainder_size = size - nb;
-          remainder = chunk_at_offset (victim, nb);
-          av->top = remainder;
-          set_head (victim, nb | PREV_INUSE |
-                    (av != &main_arena ? NON_MAIN_ARENA : 0));
-          set_head (remainder, remainder_size | PREV_INUSE);
-	  */
           check_malloced_chunk (av, victim, nb);
           void *p = chunk2mem (victim);
           alloc_perturb (p, bytes);
@@ -4530,8 +4562,8 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       prevsize = p->prev_size;
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
-      _md_p = hashtable_lookup(av, p);
-      unlink(av, p, bck, fwd);
+      _md_p = hashtable_lookup(av, p);             //FIXME: if prevsize != 0 the old _md_p nees reclaiming
+      unlink(av, p, bck, fwd);                     //FIXME: probably also malloc_consolidate
     }
 
     if (nextchunk != av->top) {

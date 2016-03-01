@@ -62,7 +62,9 @@ run:  clean all
 	./stest0
 	./stest1
 	./stest2
-#	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
 
-mtrun:  clean all 
+testreplay:
+	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
+
+mtestreplay:
 	./mtreplay 4 ../../analysis/data/yices_smt2_2668e3c6.txt

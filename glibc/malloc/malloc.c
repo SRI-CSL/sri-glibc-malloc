@@ -2739,7 +2739,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     {
       char *mm;           /* return value from mmap call*/
 
-    try_mmap:
+    try_mmap:  //FIXME: we should be using the main arena here!!
       /*
          Round up size to nearest page.  For mmapped chunks, the overhead
          is one SIZE_SZ unit larger than for normal chunks, because there
@@ -2791,6 +2791,9 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   p = (mchunkptr) mm;
                   set_head (p, size | IS_MMAPPED);
                 }
+	      
+	      /* FIXME: relying on av == &main_arena HERE. */
+	      register_chunk(av, p);
 
               /* update statistics */
 

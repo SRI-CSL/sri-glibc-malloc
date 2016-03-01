@@ -1024,6 +1024,12 @@ int      __posix_memalign(void **, size_t, size_t);
 #define RETURN_ADDRESS(X_) (NULL)
 #endif
 
+
+/* Forward declarations.  */
+struct malloc_chunk;
+typedef struct malloc_chunk* mchunkptr;
+
+
 /* On some platforms we can compile internal, not exported functions better.
    Let the environment provide a macro and define it to be empty if it
    is not available.  */
@@ -3268,6 +3274,7 @@ systrim (size_t pad, mstate av)
               /* Success. Adjust top. */
               av->system_mem -= released;
               set_head (av->top, (top_size - released) | PREV_INUSE);
+	      update(av->_md_top, av->top);
               check_malloc_state (av);
               return 1;
             }
@@ -4302,16 +4309,12 @@ _int_malloc (mstate av, size_t bytes)
       victim = av->top;
       size = chunksize (victim);
 
-      check_top(av);
-      
       if ((unsigned long) (size) >= (unsigned long) (nb + MINSIZE))
         {
 
 	  _md_victim = av->_md_top;
 	  av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
 	  av->top = chunkinfo2chunk(av->_md_top);
-
-	  check_top(av);
 
 	  /*
           remainder_size = size - nb;
@@ -4486,8 +4489,6 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       locked = 1;
     }
 
-    check_top(av);
-
     _md_p = hashtable_lookup(av, p);
 
     nextchunk = chunk_at_offset(p, size);
@@ -4644,6 +4645,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       assert (locked);
       (void)mutex_unlock(&av->mutex);
     }
+    
   }
   /*
     If the chunk was allocated via mmap, release via munmap().

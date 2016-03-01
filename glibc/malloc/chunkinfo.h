@@ -13,10 +13,6 @@ typedef struct segment_pool_s segment_pool_t;
 #define INTERNAL_SIZE_T size_t
 #endif
 
-/* Forward declarations.  */
-struct malloc_chunk;
-typedef struct malloc_chunk* mchunkptr;
-
 /* based on the glibc chunk not the dlmalloc chunk  */
 typedef struct chunkinfo {
   INTERNAL_SIZE_T   prev_size;       /* Size of previous chunk (if free).  used in malloc.[ch]    */
@@ -27,7 +23,7 @@ typedef struct chunkinfo {
                                      /* pointer to next larger size.       used in malloc.[ch]    */
   struct chunkinfo* fd_nextsize;     /* double links -- used only if free. used in malloc.[ch]    */
   struct chunkinfo* bk_nextsize;
-  mchunkptr         chunk;           /* the actual client memory           used in malloc.[ch]    */
+  void*             chunk;           /* the actual client memory           used in malloc.[ch]    */
 
   struct chunkinfo* next_bucket;     /* next bucket in the bin             used in metadata.[ch]  */
   bucket_pool_t*    bucket_pool_ptr; /* pointer to my the bucket pool.     used in metadata.[ch]  */

@@ -4204,7 +4204,7 @@ _int_malloc (mstate av, size_t bytes)
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (remainder, remainder_size);
-		  _md_victim = register_chunk(av, remainder);
+		  _md_remainder = register_chunk(av, remainder);
                 }
 	      
 	      update(_md_victim, victim);

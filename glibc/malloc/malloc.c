@@ -4375,9 +4375,6 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
   size = chunksize (p);
 
-  check_top(av);
-
-  _md_p = hashtable_lookup(av, p);
 
   /* Little security check which won't hurt performance: the
      allocator never wrapps around at the end of the address space.
@@ -4489,6 +4486,10 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       locked = 1;
     }
 
+    check_top(av);
+
+    _md_p = hashtable_lookup(av, p);
+
     nextchunk = chunk_at_offset(p, size);
 
     /* Lightweight tests: check whether the block is already the
@@ -4586,17 +4587,19 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       consolidate into top
     */
 
-    else {  /* nextchunk != av->top */
+    else {  /* nextchunk == av->top */
+
       size += nextsize;
       set_head(p, size | PREV_INUSE);
-      av->top = p;
 
+      
       if(_md_p == NULL){  //FIXME after twinning
 	_md_p = register_chunk(av, p);
       } else {
 	update(_md_p, p);
       }
       
+      av->top = p;
       av->_md_top = _md_p;
 
       check_top(av);

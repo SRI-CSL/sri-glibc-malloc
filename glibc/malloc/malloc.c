@@ -1024,12 +1024,6 @@ int      __posix_memalign(void **, size_t, size_t);
 #define RETURN_ADDRESS(X_) (NULL)
 #endif
 
-
-/* Forward declarations.  */
-struct malloc_chunk;
-typedef struct malloc_chunk* mchunkptr;
-
-
 /* On some platforms we can compile internal, not exported functions better.
    Let the environment provide a macro and define it to be empty if it
    is not available.  */
@@ -1037,7 +1031,12 @@ typedef struct malloc_chunk* mchunkptr;
 # define internal_function
 #endif
 
+/* Forward declarations.  */
+struct malloc_chunk;
+typedef struct malloc_chunk* mchunkptr;
+
 /* Internal routines.  */
+
 static chunkinfoptr new_chunkinfoptr(mstate av);
 static bool replenish_metadata_cache(mstate av);
 
@@ -1098,12 +1097,10 @@ static void      free_atfork(void* mem, const void *caller);
 #define glibc_MMAP(addr, size, prot, flags) \
  __mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0)
 
-/* iam: i plan to see if we can inline most of the #defines  as part of a code cleanup */
+/* SRI: we plan to see if we can inline most of the #defines as part of a code cleanup */
 static inline void *MMAP(void *addr, size_t length, int prot, int flags){
   return __mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 }
-
-
 
 /*
   -----------------------  Chunk representations -----------------------

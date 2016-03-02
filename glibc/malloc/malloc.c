@@ -3336,10 +3336,13 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   INTERNAL_SIZE_T offset = p->prev_size;
   INTERNAL_SIZE_T size = chunksize (p);
   char *cp, *ocp;
-  bool moved;
+  mchunkptr op;
 
   assert (chunk_is_mmapped (p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
+
+  /* remember for later */
+  op = p;
 
   _md_p = hashtable_lookup(av, p);
       
@@ -3359,8 +3362,6 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   if (cp == MAP_FAILED)
     return 0;
 
-  moved = (cp != ocp);
-  
   p = (mchunkptr) (cp + offset);
 
   assert (aligned_OK ((unsigned long)chunk2mem (p)));
@@ -3368,11 +3369,12 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   assert ((p->prev_size == offset));
   set_head (p, (new_size - offset) | IS_MMAPPED);
 
-  if(moved){
-    update(_md_p, p);
-  } else {
-    //FIXME: remove the old one.
+  if(p != op){
+    /* remove the old one */
+    hashtable_remove(av, op);
     register_chunk(av, p);
+  } else {
+    update(_md_p, p);
   }
 
   INTERNAL_SIZE_T new;

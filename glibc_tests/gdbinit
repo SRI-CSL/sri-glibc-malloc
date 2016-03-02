@@ -1,0 +1,10 @@
+# this file contains the incantations need for 
+# multithreaded gdb startup (against ../../Variants/glibc-install).
+#
+# N.B. to load this file you will need to disable security by putting
+#  set auto-load safe-path /
+# in your ~/.gdbinit
+#
+
+set auto-load safe-path ../../Variants/glibc-install/lib:$debugdir:$datadir/auto-load
+set libthread-db-search-path ../../Variants/glibc-install/lib

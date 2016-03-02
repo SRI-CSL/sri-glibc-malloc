@@ -661,44 +661,92 @@ heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = GLRO (dl_pagesize);
-  mchunkptr top_chunk = ar_ptr->top, p, bck, fwd;
+  mchunkptr top_chunk = ar_ptr->top, bck, fwd;
+
+  mchunkptr p;
+  chunkinfoptr _md_p;
+
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
 
   /* Can this heap go away completely? */
+  /*
+   * SRI: the mstate part of the header only occurs in the first heap
+   * of this arena. all subsequent heaps in the arena start out
+   * with their top being the next pointer after the heap_info
+   * header.
+   *
+   * so this condition is asking: is this non-first heap of
+   * this arena empty.
+  */
   while (top_chunk == chunk_at_offset (heap, sizeof (*heap)))
     {
+      /* 
+       * SRI: note that we know prev_heap is not null,
+       * because we are in a non-first heap of this arena. 
+       */
       prev_heap = heap->prev;
       prev_size = prev_heap->size - (MINSIZE - 2 * SIZE_SZ);
+
+      /* SRI: we are going to delete this heap and consolidate the tail of the previous heap */
       p = chunk_at_offset (prev_heap, prev_size);
+ 
+
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
       p = chunk_at_offset (prev_heap, prev_size - misalign);
+      _md_p = hashtable_lookup(ar_ptr, p);
+
+      if(_md_p == NULL){
+	missing_metadata(ar_ptr, p); //FIXME: once twinned
+	return 0;
+      }
       assert (p->size == (0 | PREV_INUSE)); /* must be fencepost */
+
+
+      hashtable_remove(ar_ptr, p); /* SRI: pulling out the fencepost */
       p = prev_chunk (p);
+      _md_p = hashtable_lookup(ar_ptr, p);
+      if(_md_p == NULL){
+	missing_metadata(ar_ptr, p); //FIXME: once twinned
+      }
+
       new_size = chunksize (p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
-      if (!prev_inuse (p))
+      if (!prev_inuse (p)){
         new_size += p->prev_size;
+      }
       assert (new_size > 0 && new_size < HEAP_MAX_SIZE);
-      if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)
-        break;
+
+      if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz){
+        break;  /* SRI: are we in a sane state here? */
+      }
+
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
       delete_heap (heap);
       heap = prev_heap;
-      if (!prev_inuse (p)) /* consolidate backward */
+
+      if (!prev_inuse (p)) /* consolidate backward; SRI: size already done above */
         {
+	  hashtable_remove(ar_ptr, p);
           p = prev_chunk (p);
+	  _md_p = hashtable_lookup(ar_ptr, p);
+	  if(_md_p == NULL){
+	    missing_metadata(ar_ptr, p); //FIXME: once twinned
+	  }
           unlink (ar_ptr, p, bck, fwd);
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));
       ar_ptr->top = top_chunk = p;
+      ar_ptr->_md_top = _md_p;
       set_head (top_chunk, new_size | PREV_INUSE);
-      /*check_chunk(ar_ptr, top_chunk);*/
-    }
+      update(_md_p, p);
+      do_check_top(ar_ptr, __FILE__, __LINE__);
+      /*check_chunk(ar_ptr, top_chunk); */
+    } /* while */
 
   /* Uses similar logic for per-thread arenas as the main arena with systrim
      and _int_free by preserving the top pad and rounding down to the nearest
@@ -726,6 +774,9 @@ heap_trim (heap_info *heap, size_t pad)
 
   /* Success. Adjust top accordingly. */
   set_head (top_chunk, (top_size - extra) | PREV_INUSE);
+  update(ar_ptr->_md_top, top_chunk);
+  do_check_top(ar_ptr, __FILE__, __LINE__);
+
   /*check_chunk(ar_ptr, top_chunk);*/
   return 1;
 }
@@ -782,6 +833,8 @@ _int_new_arena (size_t size)
     ptr += MALLOC_ALIGNMENT - misalign;
   a->top = (mchunkptr) ptr;
   set_head (a->top, (((char *) h + h->size) - ptr) | PREV_INUSE);
+  a->_md_top = register_chunk(a, a->top);
+  do_check_top(a, __FILE__, __LINE__);
 
   LIBC_PROBE (memory_arena_new, 2, a, size);
   mstate replaced_arena = thread_arena;

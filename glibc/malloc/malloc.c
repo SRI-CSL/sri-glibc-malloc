@@ -2312,6 +2312,8 @@ free_perturb (char *p, size_t n)
 #include <stap-probe.h>
 
 /* ------------------- Support for multiple arenas -------------------- */
+static bool do_check_top(mstate av, const char* file, int lineno);
+
 #include "arena.c"
 
 /*
@@ -2735,7 +2737,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     {
       char *mm;           /* return value from mmap call*/
 
-    try_mmap:  //FIXME: we should be using the main arena here!!
+    try_mmap:
       /*
          Round up size to nearest page.  For mmapped chunks, the overhead
          is one SIZE_SZ unit larger than for normal chunks, because there
@@ -2788,8 +2790,17 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   set_head (p, size | IS_MMAPPED);
                 }
 	      
-	      /* FIXME: relying on av == &main_arena HERE. */
-	      register_chunk(av, p);
+	      /* SRI: the main_arena has jurisdiction over mmapped memory */
+	      
+	      if(is_main_arena(av)){
+		register_chunk(av, p);
+	      } else {
+		(void)mutex_unlock(&av->mutex);
+		(void)mutex_lock(&main_arena.mutex);
+		register_chunk(&main_arena, p);
+		(void)mutex_unlock(&main_arena.mutex);
+		(void)mutex_lock(&av->mutex);
+	      }
 
               /* update statistics */
 
@@ -3336,10 +3347,13 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   INTERNAL_SIZE_T offset = p->prev_size;
   INTERNAL_SIZE_T size = chunksize (p);
   char *cp, *ocp;
-  bool moved;
+  mchunkptr op;
 
   assert (chunk_is_mmapped (p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
+
+  /* remember for later */
+  op = p;
 
   _md_p = hashtable_lookup(av, p);
       
@@ -3359,8 +3373,6 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   if (cp == MAP_FAILED)
     return 0;
 
-  moved = (cp != ocp);
-  
   p = (mchunkptr) (cp + offset);
 
   assert (aligned_OK ((unsigned long)chunk2mem (p)));
@@ -3368,11 +3380,12 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   assert ((p->prev_size == offset));
   set_head (p, (new_size - offset) | IS_MMAPPED);
 
-  if(moved){
-    update(_md_p, p);
-  } else {
-    //FIXME: remove the old one.
+  if(p != op){
+    /* remove the old one */
+    hashtable_remove(av, op);
     register_chunk(av, p);
+  } else {
+    update(_md_p, p);
   }
 
   INTERNAL_SIZE_T new;
@@ -3391,8 +3404,6 @@ __libc_malloc (size_t bytes)
   mstate ar_ptr;
   void *victim;
 
-  mchunkptr p;
-  chunkinfoptr _md_p;
     
   void *(*hook) (size_t, const void *)
     = atomic_forced_read (__malloc_hook);
@@ -3426,12 +3437,17 @@ __libc_malloc (size_t bytes)
   
   if(ar_ptr != NULL)check_top(ar_ptr);
 
-  //FIXME: temporary hack to spot misses
+  /* This is not correct  in multithreaded mode because of mmapped memory.
+     We would need to switch locks.
+    //FIXME: temporary hack to spot misses
   if (ar_ptr != NULL){
+    mchunkptr p;
+    chunkinfoptr _md_p;
     p = mem2chunk(victim);
     _md_p = hashtable_lookup(ar_ptr, p);
-    if (_md_p == NULL) { missing_metadata(ar_ptr, p);  /* FIXME */ }
+    if (_md_p == NULL) { missing_metadata(ar_ptr, p);  }
   }
+  */
 
   return victim;
 }

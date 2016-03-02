@@ -239,20 +239,21 @@ static int
 internal_function
 top_check (void)
 {
-  mchunkptr t = main_arena.top;
+  mchunkptr ot = main_arena.top;
+  INTERNAL_SIZE_T ot_sz = chunksize(ot);
   char *brk, *new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
   unsigned long pagesz = GLRO (dl_pagesize);
 
-  if (t == &main_arena.initial_top ||
-      (!chunk_is_mmapped (t) &&
-       chunksize (t) >= MINSIZE &&
-       prev_inuse (t) &&
+  if (ot == &main_arena.initial_top ||
+      (!chunk_is_mmapped (ot) &&
+       ot_sz >= MINSIZE &&
+       prev_inuse (ot) &&
        (!contiguous (&main_arena) ||
-        (char *) t + chunksize (t) == mp_.sbrk_base + main_arena.system_mem)))
+        (char *) ot + ot_sz == mp_.sbrk_base + main_arena.system_mem)))
     return 0;
 
-  malloc_printerr (check_action, "malloc: top chunk is corrupt", t,
+  malloc_printerr (check_action, "malloc: top chunk is corrupt", ot,
 		   &main_arena);
 
   /* Try to set up a new top chunk. */
@@ -273,9 +274,10 @@ top_check (void)
   if (hook)
     (*hook)();
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
-
+  
   main_arena.top = (mchunkptr) (brk + front_misalign);
   set_head (main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
+  main_arena._md_top = register_chunk(&main_arena, main_arena.top);
 
   return 0;
 }

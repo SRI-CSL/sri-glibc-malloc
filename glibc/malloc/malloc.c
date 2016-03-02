@@ -1044,7 +1044,7 @@ static bool replenish_metadata_cache(mstate av);
 static chunkinfoptr hashtable_lookup (mstate av, mchunkptr p);
 
 static bool hashtable_add (mstate av, chunkinfoptr ci);
-//static bool hashtable_remove (mstate av, mchunkptr p, int tag) 
+static bool hashtable_remove (mstate av, mchunkptr p);
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p);
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
@@ -1066,7 +1066,7 @@ static void* internal_function mem2mem_check(void *p, size_t sz);
 static int internal_function top_check(void);
 static void internal_function munmap_chunk(mchunkptr p);
 #if HAVE_MREMAP
-static mchunkptr internal_function mremap_chunk(mchunkptr p, size_t new_size);
+static mchunkptr internal_function mremap_chunk(mstate av, mchunkptr p, size_t new_size);
 #endif
 
 static void*   malloc_check(size_t sz, const void *caller);
@@ -2094,15 +2094,14 @@ hashtable_add (mstate av, chunkinfoptr ci)
   return metadata_add(&av->htbl, ci);
 }
 
-/* Remove the metadata from the hashtable; tag temp feature, if true we tag the chunk
+/* Remove the metadata from the hashtable */
 static bool
-hashtable_remove (mstate av, mchunkptr p, int tag) 
+hashtable_remove (mstate av, mchunkptr p) 
 {
   assert(av != NULL);
   assert(p != NULL);
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
-*/
 
 static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
 {
@@ -3333,15 +3332,21 @@ munmap_chunk (mchunkptr p)
 
 static mchunkptr
 internal_function
-mremap_chunk (mchunkptr p, size_t new_size)
+mremap_chunk (mstate av, mchunkptr p, size_t new_size)
 {
+  chunkinfoptr _md_p;
   size_t pagesize = GLRO (dl_pagesize);
   INTERNAL_SIZE_T offset = p->prev_size;
   INTERNAL_SIZE_T size = chunksize (p);
-  char *cp;
+  char *cp, *ocp;
+  bool moved;
 
   assert (chunk_is_mmapped (p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
+
+  _md_p = hashtable_lookup(av, p);
+      
+  if (_md_p == NULL) { missing_metadata(av, p); }
 
   /* Note the extra SIZE_SZ overhead as in mmap_chunk(). */
   new_size = ALIGN_UP (new_size + offset + SIZE_SZ, pagesize);
@@ -3350,18 +3355,28 @@ mremap_chunk (mchunkptr p, size_t new_size)
   if (size + offset == new_size)
     return p;
 
-  cp = (char *) __mremap ((char *) p - offset, size + offset, new_size,
-                          MREMAP_MAYMOVE);
+  ocp = (char *) p - offset;
+
+  cp = (char *) __mremap (ocp, size + offset, new_size, MREMAP_MAYMOVE);
 
   if (cp == MAP_FAILED)
     return 0;
 
+  moved = (cp != ocp);
+  
   p = (mchunkptr) (cp + offset);
 
   assert (aligned_OK ((unsigned long)chunk2mem (p)));
 
   assert ((p->prev_size == offset));
   set_head (p, (new_size - offset) | IS_MMAPPED);
+
+  if(moved){
+    update(_md_p, p);
+  } else {
+    //FIXME: remove the old one.
+    register_chunk(av, p);
+  }
 
   INTERNAL_SIZE_T new;
   new = atomic_exchange_and_add (&mp_.mmapped_mem, new_size - size - offset)
@@ -3447,6 +3462,15 @@ __libc_free (void *mem)
 
   if (chunk_is_mmapped (p))                       /* release mmapped memory. */
     {
+      (void)mutex_lock(&main_arena.mutex);
+      
+      _md_p = hashtable_lookup(&main_arena, p);  //FIXME: just a sanity check.
+  
+      if (_md_p == NULL) { 
+	missing_metadata(&main_arena, p);
+      }
+
+
       /* see if the dynamic brk/mmap threshold needs adjusting */
       if (!mp_.no_dyn_threshold
           && p->size > mp_.mmap_threshold
@@ -3457,7 +3481,12 @@ __libc_free (void *mem)
           LIBC_PROBE (memory_mallopt_free_dyn_thresholds, 2,
                       mp_.mmap_threshold, mp_.trim_threshold);
         }
+      
+      hashtable_remove(&main_arena, p);
+
       munmap_chunk (p);
+
+      (void)mutex_unlock(&main_arena.mutex);
       return;
     }
 
@@ -3516,7 +3545,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   const INTERNAL_SIZE_T oldsize = chunksize (oldp);
 
   if (chunk_is_mmapped (oldp))
-    ar_ptr = NULL;  /* FIXME: this will need to be the main arena once we are twinned */
+    ar_ptr = &main_arena;  
   else
     ar_ptr = arena_for_chunk (oldp);
 
@@ -3541,7 +3570,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       void *newmem;
 
 #if HAVE_MREMAP
-      newp = mremap_chunk (oldp, nb);
+      newp = mremap_chunk (ar_ptr, oldp, nb);
       if (newp)
         return chunk2mem (newp);
 #endif
@@ -4334,6 +4363,7 @@ _int_malloc (mstate av, size_t bytes)
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (remainder, remainder_size);
+		  register_chunk(av, remainder);
                 }
 	      
 	      update(_md_victim, victim);
@@ -4536,6 +4566,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
     }
 
     _md_p = hashtable_lookup(av, p);
+    if (_md_p == NULL) { missing_metadata(av, p);  /* FIXME */ }
 
     nextchunk = chunk_at_offset(p, size);
 
@@ -4574,9 +4605,14 @@ _int_free (mstate av, mchunkptr p, int have_lock)
     /* consolidate backward */
     if (!prev_inuse(p)) {
       prevsize = p->prev_size;
+
+      if(prevsize == 0){
+	abort();
+      }
+
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
-      _md_p = hashtable_lookup(av, p);             //FIXME: if prevsize != 0 the old _md_p nees reclaiming
+      _md_p = hashtable_lookup(av, p);             //FIXME: if prevsize != 0 the old _md_p needs reclaiming
       unlink(av, p, bck, fwd);                     //FIXME: probably also malloc_consolidate
     }
 
@@ -4853,7 +4889,6 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   void*            newmem;          /* corresponding user mem */
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
-  chunkinfoptr     _md_next;        /* metadata of next contiguous chunk after oldp */
 
   mchunkptr        remainder;       /* extra space at end of newp */
   unsigned long    remainder_size;  /* its size */
@@ -4936,15 +4971,12 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
                (unsigned long) (nb))
         {
 
-	  _md_next = hashtable_lookup(av, next);
-  
-	  /* iam: this should be removable once we get our global act together */
-	  if (_md_next == NULL) { missing_metadata(av, next);  }
-
-	  //FIXME: _md_next should get the flick!
- 
           newp = oldp;
           unlink (av, next, bck, fwd);
+
+	  //FIXME: next should get the flick!
+	  hashtable_remove(av, next);
+
         }
 
       /* allocate, copy, free */
@@ -5036,6 +5068,12 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
     }
 
   check_inuse_chunk (av, newp);
+    
+  _md_newp = hashtable_lookup(av, newp);
+    
+  if (_md_newp == NULL) { missing_metadata(av, newp);  /* FIXME */ }
+
+
   return chunk2mem (newp);
 }
 

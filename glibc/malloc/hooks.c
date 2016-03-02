@@ -364,7 +364,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
   if (chunk_is_mmapped (oldp))
     {
 #if HAVE_MREMAP
-      mchunkptr newp = mremap_chunk (oldp, nb);
+      mchunkptr newp = mremap_chunk (&main_arena, oldp, nb);
       if (newp)
         newmem = chunk2mem (newp);
       else

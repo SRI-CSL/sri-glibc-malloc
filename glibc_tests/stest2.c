@@ -53,8 +53,15 @@ int main(void) {
     printf("Reallocated %"PRIu32" blocks of size %lu;  usable = %lu\n", i, (unsigned long) sz, (unsigned long)  malloc_usable_size(test));
   }
 
+  printf("step 2\n");
+
   for (step = 2; step < 5; step ++) {
     for (i=0; i<BNK_SIZE; i+=step) {
+      
+      if(step == 4 && i == 24){
+	fprintf(stderr, "Here\n");
+      }
+
       sz = (size_t) (random() % 2000000);
       if (bank[i] != NULL) {
 	free(bank[i]);

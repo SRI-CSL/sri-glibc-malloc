@@ -2737,7 +2737,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     {
       char *mm;           /* return value from mmap call*/
 
-    try_mmap:  //FIXME: we should be using the main arena here!!
+    try_mmap:
       /*
          Round up size to nearest page.  For mmapped chunks, the overhead
          is one SIZE_SZ unit larger than for normal chunks, because there
@@ -2790,8 +2790,17 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   set_head (p, size | IS_MMAPPED);
                 }
 	      
-	      /* FIXME: relying on av == &main_arena HERE. */
-	      register_chunk(av, p);
+	      /* SRI: the main_arena has jurisdiction over mmapped memory */
+	      
+	      if(is_main_arena(av)){
+		register_chunk(av, p);
+	      } else {
+		(void)mutex_unlock(&av->mutex);
+		(void)mutex_lock(&main_arena.mutex);
+		register_chunk(&main_arena, p);
+		(void)mutex_unlock(&main_arena.mutex);
+		(void)mutex_lock(&av->mutex);
+	      }
 
               /* update statistics */
 
@@ -3395,8 +3404,6 @@ __libc_malloc (size_t bytes)
   mstate ar_ptr;
   void *victim;
 
-  mchunkptr p;
-  chunkinfoptr _md_p;
     
   void *(*hook) (size_t, const void *)
     = atomic_forced_read (__malloc_hook);
@@ -3430,12 +3437,17 @@ __libc_malloc (size_t bytes)
   
   if(ar_ptr != NULL)check_top(ar_ptr);
 
-  //FIXME: temporary hack to spot misses
+  /* This is not correct  in multithreaded mode because of mmapped memory.
+     We would need to switch locks.
+    //FIXME: temporary hack to spot misses
   if (ar_ptr != NULL){
+    mchunkptr p;
+    chunkinfoptr _md_p;
     p = mem2chunk(victim);
     _md_p = hashtable_lookup(ar_ptr, p);
-    if (_md_p == NULL) { missing_metadata(ar_ptr, p);  /* FIXME */ }
+    if (_md_p == NULL) { missing_metadata(ar_ptr, p);  }
   }
+  */
 
   return victim;
 }

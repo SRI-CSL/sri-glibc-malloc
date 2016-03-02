@@ -2312,6 +2312,8 @@ free_perturb (char *p, size_t n)
 #include <stap-probe.h>
 
 /* ------------------- Support for multiple arenas -------------------- */
+static bool do_check_top(mstate av, const char* file, int lineno);
+
 #include "arena.c"
 
 /*

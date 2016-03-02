@@ -2030,7 +2030,7 @@ static bool replenish_metadata_cache(mstate av){
    Other internal utilities operating on mstates
  */
 
-static void *sysmalloc (INTERNAL_SIZE_T, mstate);
+static chunkinfoptr sysmalloc (INTERNAL_SIZE_T, mstate);
 static int   systrim (size_t, mstate);
 static void  malloc_consolidate (mstate);
 
@@ -2697,7 +2697,7 @@ do_check_malloc_state (mstate av)
    be extended or replaced.
  */
 
-static void *
+static chunkinfoptr
 sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 {
   mchunkptr old_top;              /* incoming value of av->top */
@@ -2793,11 +2793,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	      /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      
 	      if(is_main_arena(av)){
-		register_chunk(av, p);
+		_md_p = register_chunk(av, p);
 	      } else {
 		(void)mutex_unlock(&av->mutex);
 		(void)mutex_lock(&main_arena.mutex);
-		register_chunk(&main_arena, p);
+		_md_p = register_chunk(&main_arena, p);
 		(void)mutex_unlock(&main_arena.mutex);
 		(void)mutex_lock(&av->mutex);
 	      }
@@ -2813,7 +2813,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
               check_chunk (av, p);
 
-              return chunk2mem (p);
+              return _md_p;
             }
         }
     }
@@ -3201,24 +3201,14 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   /* check that one of the above allocation paths succeeded */
   if ((unsigned long) (size) >= (unsigned long) (nb + MINSIZE))
     {
-      /*
-      remainder_size = size - nb;
-      remainder = chunk_at_offset (p, nb);
-      av->top = remainder;
-      set_head (p, nb | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
-      set_head (remainder, remainder_size | PREV_INUSE);
-      check_malloced_chunk (av, p, nb);
-      return chunk2mem (p);
-      */
-
-      av->_md_top = split_chunk(av, _md_p, p, size, nb);  //FIXME: needs to be split_top
+      av->_md_top = split_chunk(av, _md_p, p, size, nb);  
       av->top = chunkinfo2chunk(av->_md_top);
 
       check_top(av);
 
       check_malloced_chunk(av, p, nb);
 
-      return chunkinfo2mem(_md_p);
+      return _md_p;
  
     }
 
@@ -3926,6 +3916,10 @@ _int_malloc (mstate av, size_t bytes)
   mchunkptr fwd;                    /* misc temp for linking */
   mchunkptr bck;                    /* misc temp for linking */
 
+
+  chunkinfoptr _md_p;               /* result of sysmalloc */
+  void* mem;                        /* mem of _md_p        */
+
   const char *errstr = NULL;
 
   /*
@@ -3945,10 +3939,11 @@ _int_malloc (mstate av, size_t bytes)
      mmap.  */
   if (__glibc_unlikely (av == NULL))
     {
-      void *p = sysmalloc (nb, av);
-      if (p != NULL)
-	alloc_perturb (p, bytes);
-      return p;
+      _md_p = sysmalloc (nb, av);
+      mem = chunkinfo2mem(_md_p);
+      if (mem != NULL)
+	alloc_perturb (mem, bytes);
+      return mem;
     }
 
   /*
@@ -4436,10 +4431,11 @@ _int_malloc (mstate av, size_t bytes)
        */
       else
         {
-          void *p = sysmalloc (nb, av);
-          if (p != NULL)
-            alloc_perturb (p, bytes);
-          return p;
+          _md_p  = sysmalloc (nb, av);
+	  mem = chunkinfo2mem(_md_p);
+          if (mem != NULL)
+            alloc_perturb (mem, bytes);
+          return mem;
         }
     }
 }

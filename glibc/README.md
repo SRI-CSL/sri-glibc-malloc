@@ -9,7 +9,8 @@ To build and run this malloc you do the following steps.
 ## 1.  Make sure you have extracted the glibc git submodule:
 
 ```
-cd ${HEAPMETADATA}/Variants/glibc; git submodule update --remote
+cd ${HEAPMETADATA}/Variants/glibc
+git submodule update --init
 ```
 
 ## 2. Build the puppy.

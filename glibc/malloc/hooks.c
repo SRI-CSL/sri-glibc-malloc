@@ -421,6 +421,7 @@ static void *
 memalign_check (size_t alignment, size_t bytes, const void *caller)
 {
   void *mem;
+  chunkinfoptr _md_mem;
 
   if (alignment <= MALLOC_ALIGNMENT)
     return malloc_check (bytes, NULL);
@@ -453,8 +454,9 @@ memalign_check (size_t alignment, size_t bytes, const void *caller)
     }
 
   (void) mutex_lock (&main_arena.mutex);
-  mem = (top_check () >= 0) ? _int_memalign (&main_arena, alignment, bytes + 1) :
+  _md_mem = (top_check () >= 0) ? _int_memalign (&main_arena, alignment, bytes + 1) :
         NULL;
+  mem = chunkinfo2mem(_md_mem);
   (void) mutex_unlock (&main_arena.mutex);
   return mem2mem_check (mem, bytes);
 }

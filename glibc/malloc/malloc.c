@@ -1056,7 +1056,7 @@ static chunkinfoptr  _int_malloc(mstate, size_t);
 static void   _int_free(mstate, mchunkptr, int);
 static chunkinfoptr  _int_realloc(mstate, mchunkptr, INTERNAL_SIZE_T,
 				  INTERNAL_SIZE_T);
-static void*  _int_memalign(mstate, size_t, size_t);
+static chunkinfoptr _int_memalign(mstate, size_t, size_t);
 static void*  _mid_memalign(size_t, size_t, void *);
 
 static void malloc_printerr(int action, const char *str, void *ptr, mstate av);
@@ -3644,6 +3644,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
 {
   mstate ar_ptr;
   void *p;
+  chunkinfoptr _md_p;
 
   void *(*hook) (size_t, size_t, const void *) =
     atomic_forced_read (__memalign_hook);
@@ -3693,16 +3694,18 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
   }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
 
-  p = _int_memalign (ar_ptr, alignment, bytes);
-  if (!p && ar_ptr != NULL)
+  _md_p = _int_memalign (ar_ptr, alignment, bytes);
+  if (!_md_p && ar_ptr != NULL)
     {
       LIBC_PROBE (memory_memalign_retry, 2, bytes, alignment);
       ar_ptr = arena_get_retry (ar_ptr, bytes);
-      p = _int_memalign (ar_ptr, alignment, bytes);
+      _md_p = _int_memalign (ar_ptr, alignment, bytes);
     }
 
   if (ar_ptr != NULL)
     (void) mutex_unlock (&ar_ptr->mutex);
+
+  p = chunkinfo2mem(_md_p);
 
   assert (!p || chunk_is_mmapped (mem2chunk (p)) ||
           ar_ptr == arena_for_chunk (mem2chunk (p)));
@@ -5134,15 +5137,16 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
    ------------------------------ memalign ------------------------------
  */
 
-static void *
+static chunkinfoptr
 _int_memalign (mstate av, size_t alignment, size_t bytes)
 {
   INTERNAL_SIZE_T nb;             /* padded  request size */
   char *m;                        /* memory returned by malloc call */
-  chunkinfoptr _md_m;             /* metadata of memory returned by malloc call */
-  mchunkptr p;                    /* corresponding chunk */
+  chunkinfoptr _md_p;             /* metadata of memory returned by malloc call */
+  mchunkptr p;                    /* corresponding chunk returned by malloc call */
   char *brk;                      /* alignment point within p */
   mchunkptr newp;                 /* chunk to return */
+  chunkinfoptr _md_newp;          /* metadata of chunk to return */
   INTERNAL_SIZE_T newsize;        /* its size */
   INTERNAL_SIZE_T leadsize;       /* leading space before alignment point */
   mchunkptr remainder;            /* spare room at end to split off */
@@ -5163,8 +5167,8 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
   /* Call malloc with worst case padding to hit alignment. */
 
-  _md_m = _int_malloc (av, nb + alignment + MINSIZE);
-  m = (char *) (chunkinfo2mem(_md_m));
+  _md_p = _int_malloc (av, nb + alignment + MINSIZE);
+  m = (char *) (chunkinfo2mem(_md_p));
 
   if (m == 0)
     return 0;           /* propagate failure */
@@ -5194,17 +5198,19 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
         {
           newp->prev_size = p->prev_size + leadsize;
           set_head (newp, newsize | IS_MMAPPED);
-          return chunk2mem (newp);
+	  _md_newp = register_chunk(av, newp);
+          return _md_newp;
         }
 
       /* Otherwise, give back leader, use the rest */
-      set_head (newp, newsize | PREV_INUSE |
-                (av != &main_arena ? NON_MAIN_ARENA : 0));
+      set_head (newp, newsize | PREV_INUSE | arena_bit(av));
       set_inuse_bit_at_offset (newp, newsize);
-      set_head_size (p, leadsize | (av != &main_arena ? NON_MAIN_ARENA : 0));
+      _md_newp = register_chunk(av, newp);
+      set_head_size (p, leadsize | arena_bit(av));
+      update(_md_p, p);
       _int_free (av, p, 1);
       p = newp;
-
+      _md_p = _md_newp;
       assert (newsize >= nb &&
               (((unsigned long) (chunk2mem (p))) % alignment) == 0);
     }
@@ -5217,15 +5223,16 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
         {
           remainder_size = size - nb;
           remainder = chunk_at_offset (p, nb);
-          set_head (remainder, remainder_size | PREV_INUSE |
-                    (av != &main_arena ? NON_MAIN_ARENA : 0));
+          set_head (remainder, remainder_size | PREV_INUSE | arena_bit(av));
+	  register_chunk(av, remainder);
           set_head_size (p, nb);
+	  update(_md_p, p);
           _int_free (av, remainder, 1);
         }
     }
 
   check_inuse_chunk (av, p);
-  return chunk2mem (p);
+  return _md_p;
 }
 
 

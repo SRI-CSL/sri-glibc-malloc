@@ -137,22 +137,25 @@ ATFORK_MEM;
 static void *
 malloc_atfork (size_t sz, const void *caller)
 {
-  void *victim;
+  chunkinfoptr _md_victim;
+  void *mem;
 
   if (thread_arena == ATFORK_ARENA_PTR)
     {
       /* We are the only thread that may allocate at all.  */
       if (save_malloc_hook != malloc_check)
         {
-          return _int_malloc (&main_arena, sz);
+	  _md_victim = _int_malloc (&main_arena, sz);
+          return chunkinfo2mem(_md_victim);
         }
       else
         {
           if (top_check () < 0)
             return 0;
 
-          victim = _int_malloc (&main_arena, sz + 1);
-          return mem2mem_check (victim, sz);
+          _md_victim = _int_malloc (&main_arena, sz + 1);
+	  mem = chunkinfo2mem(_md_victim);
+          return mem2mem_check (mem, sz);
         }
     }
   else

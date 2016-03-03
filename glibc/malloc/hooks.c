@@ -285,7 +285,8 @@ top_check (void)
 static void *
 malloc_check (size_t sz, const void *caller)
 {
-  void *victim;
+  chunkinfoptr _md_victim;
+  void *mem;
 
   if (sz + 1 == 0)
     {
@@ -294,9 +295,10 @@ malloc_check (size_t sz, const void *caller)
     }
 
   (void) mutex_lock (&main_arena.mutex);
-  victim = (top_check () >= 0) ? _int_malloc (&main_arena, sz + 1) : NULL;
+  _md_victim = (top_check () >= 0) ? _int_malloc (&main_arena, sz + 1) : NULL;
   (void) mutex_unlock (&main_arena.mutex);
-  return mem2mem_check (victim, sz);
+  mem = chunkinfo2mem(_md_victim);
+  return mem2mem_check (mem, sz);
 }
 
 static void
@@ -332,6 +334,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 {
   INTERNAL_SIZE_T nb;
   void *newmem = 0;
+  chunkinfoptr _md_newmem;
   unsigned char *magic_p;
 
   if (bytes + 1 == 0)
@@ -378,8 +381,10 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
         else
           {
             /* Must alloc, copy, free. */
-            if (top_check () >= 0)
-              newmem = _int_malloc (&main_arena, bytes + 1);
+            if (top_check () >= 0){
+              _md_newmem = _int_malloc (&main_arena, bytes + 1);
+	      newmem = chunkinfo2mem(_md_newmem);
+	    }
             if (newmem)
               {
                 memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);

@@ -401,7 +401,8 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 	  if ( !checked_request2size (bytes + 1, &nb) ){
 	    return 0;
 	  }
-          newmem = _int_realloc (&main_arena, oldp, oldsize, nb);
+          _md_newmem = _int_realloc (&main_arena, oldp, oldsize, nb);
+	  newmem = chunkinfo2mem(_md_newmem);
         }
     }
 

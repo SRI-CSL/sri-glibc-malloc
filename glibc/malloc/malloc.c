@@ -1054,8 +1054,8 @@ static void*  chunkinfo2mem(chunkinfoptr _md_victim);
 
 static chunkinfoptr  _int_malloc(mstate, size_t);
 static void   _int_free(mstate, mchunkptr, int);
-static void*  _int_realloc(mstate, mchunkptr, INTERNAL_SIZE_T,
-			   INTERNAL_SIZE_T);
+static chunkinfoptr  _int_realloc(mstate, mchunkptr, INTERNAL_SIZE_T,
+				  INTERNAL_SIZE_T);
 static void*  _int_memalign(mstate, size_t, size_t);
 static void*  _mid_memalign(size_t, size_t, void *);
 
@@ -3527,7 +3527,10 @@ __libc_realloc (void *oldmem, size_t bytes)
   mstate ar_ptr;
   INTERNAL_SIZE_T nb;         /* padded request size */
 
-  void *newp;             /* chunk to return */
+  void *mem;                  /* mem to return  */
+  mchunkptr newp;             /* chunk of mem to return  */
+  chunkinfoptr _md_newp;      /* metadata of mem */
+  
 
   void *(*hook) (void *, size_t, const void *) =
     atomic_forced_read (__realloc_hook);
@@ -3603,27 +3606,29 @@ __libc_realloc (void *oldmem, size_t bytes)
     return NULL;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
   
-  newp = _int_realloc (ar_ptr, oldp, oldsize, nb);
+  _md_newp = _int_realloc (ar_ptr, oldp, oldsize, nb);
+  newp = chunkinfo2chunk(_md_newp);
+  mem = chunkinfo2mem(_md_newp);
 
   (void) mutex_unlock (&ar_ptr->mutex);
-  assert (!newp || chunk_is_mmapped (mem2chunk (newp)) ||
-          ar_ptr == arena_for_chunk (mem2chunk (newp)));
+  assert (!mem || chunk_is_mmapped (newp) ||
+          ar_ptr == arena_for_chunk (newp));
 
-  if (newp == NULL)
+  if (mem == NULL)
     {
       /* Try harder to allocate memory in other arenas.  */
       LIBC_PROBE (memory_realloc_retry, 2, bytes, oldmem);
-      newp = __libc_malloc (bytes);
-      if (newp != NULL)
+      mem = __libc_malloc (bytes);
+      if (mem != NULL)
         {
-          memcpy (newp, oldmem, oldsize - SIZE_SZ);
+          memcpy (mem, oldmem, oldsize - SIZE_SZ);
           _int_free (ar_ptr, oldp, 0);
         }
     }
 
   if(ar_ptr != NULL) check_top(ar_ptr);
 
-  return newp;
+  return mem;
 }
 libc_hidden_def (__libc_realloc)
 
@@ -4897,7 +4902,7 @@ static void malloc_consolidate(mstate av)
   ------------------------------ realloc ------------------------------
 */
 
-void*
+chunkinfoptr
 _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 	     INTERNAL_SIZE_T nb)
 {
@@ -4906,6 +4911,8 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   chunkinfoptr     _md_oldp;        /* FIXME metadata of old chunk */
   INTERNAL_SIZE_T  newsize;         /* its size */
   void*            newmem;          /* corresponding user mem */
+
+  mchunkptr        malloced_chunk;  /* keep track of the malloced chunk */
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
 
@@ -4919,6 +4926,9 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   unsigned int     ncopies;         /* INTERNAL_SIZE_T words to copy */
   INTERNAL_SIZE_T* s;               /* copy source */
   INTERNAL_SIZE_T* d;               /* copy destination */
+
+  mchunkptr    top;                 /* av->top  */
+
 
   const char *errstr = NULL;
 
@@ -4940,11 +4950,13 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 
   _md_oldp = hashtable_lookup(av, oldp);
   
-  /* iam: this should be removable once we get our global act together */
+  /* FIXME: this should be removable once we get our global act together */
   if (_md_oldp == NULL) { missing_metadata(av, oldp);  }
         
 
   next = chunk_at_offset (oldp, oldsize);
+  
+  top = av->top;                
 
 
   INTERNAL_SIZE_T nextsize = chunksize (next);
@@ -4966,21 +4978,28 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   else
     {
       /* Try to expand forward into top */
-      if (next == av->top &&
+      if (next == top &&
           (unsigned long) (newsize = oldsize + nextsize) >=
           (unsigned long) (nb + MINSIZE))
         {
-          set_head_size (oldp, nb | arena_bit(av));
+	  /* SRI: we are going to move top nb bytes along; so we'll need to provide new metadata */ 
+	  hashtable_remove(av, top);
+
+	  /* update oldp's metadata */
+	  set_head_size (oldp, nb | arena_bit(av));
 	  update(_md_oldp, oldp);
 
+	  /* move top along nb bytes */
           av->top = chunk_at_offset (oldp, nb);
           set_head (av->top, (newsize - nb) | PREV_INUSE);
+
+	  /* removing invalidates; need to get a fresh one */
 	  av->_md_top = register_chunk(av, av->top);
 
 	  check_top(av);
 
           check_inuse_chunk (av, oldp);
-          return chunk2mem (oldp);
+          return _md_oldp;
         }
 
       /* Try to expand forward into next chunk;  split off remainder below */
@@ -4992,8 +5011,7 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 
           newp = oldp;
           unlink (av, next, bck, fwd);
-
-	  //FIXME: next should get the flick!
+	  /* don't leak next's metadata */
 	  hashtable_remove(av, next);
 
         }
@@ -5002,12 +5020,13 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
       else
         {
           _md_newp = _int_malloc (av, nb - MALLOC_ALIGN_MASK);
+
           if (_md_newp == 0)
-            return 0; /* propagate failure */
+            return 0; /* propagate failure */  //FIXME: why sometimes NULL sometimes 0?
 	  
           newp = chunkinfo2chunk(_md_newp);
 	  newmem = chunkinfo2mem(_md_newp);
-
+	  malloced_chunk = newp;
 
           newsize = chunksize (newp);
 
@@ -5017,7 +5036,8 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
           if (newp == next)
             {
               newsize += oldsize;
-              newp = oldp;
+              newp = oldp;  /* now we have newp != malloced_chunk */
+	      hashtable_remove(av, malloced_chunk);
             }
           else
             {
@@ -5060,10 +5080,21 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
 
               _int_free (av, oldp, 1);
               check_inuse_chunk (av, newp);
-              return chunk2mem (newp);
+              return _md_newp;
             }
+	  
+	  /* SRI: need to be careful here. newp == oldp */
+
         }
-    }
+    } /* SRI: hunk is already big enough */
+
+  /* FIXME: I think there is a metadata leak here currently when ($$) above holds ??FIXED?? */
+  
+  assert(newp == oldp);
+  if (newp != oldp) {
+    return 0;
+  }
+  _md_newp = _md_oldp;
 
   /* If possible, free extra space in old or extended chunk */
 
@@ -5096,7 +5127,7 @@ _int_realloc(mstate av, mchunkptr oldp, INTERNAL_SIZE_T oldsize,
   if (_md_newp == NULL) { missing_metadata(av, newp);  /* FIXME */ }
 
 
-  return chunk2mem (newp);
+  return _md_newp;
 }
 
 /*

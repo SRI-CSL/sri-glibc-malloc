@@ -29,12 +29,10 @@ MALLOCOBJ = $(METAOBJ) malloc.o malloc-stats.o
 
 LIB_MALLOC = libmalloc.a
 
-TESTS = t-test1 t-test2 tst-mallocstate tst-mstats stest0 stest0 stest1 stest2
-
 %.o: %.c %.h 
 	$(CC) $(CFLAGS) $(M_FLAGS) $< -c 
 
-all: $(METAOBJ) malloc.so $(LIB_MALLOC) $(TESTS) replay mtreplay gmtreplay
+all: $(METAOBJ) malloc.so $(LIB_MALLOC) replay mtreplay gmtreplay
 
 libmalloc.a: $(MALLOCOBJ)
 	ar cr $@ $(MALLOCOBJ)

@@ -325,7 +325,7 @@ free_check (void *mem, const void *caller)
       munmap_chunk (p);
       return;
     }
-  _int_free (&main_arena, p, 1);
+  _int_free (&main_arena, NULL, p, 1);
   (void) mutex_unlock (&main_arena.mutex);
 }
 
@@ -336,6 +336,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
   void *newmem = 0;
   chunkinfoptr _md_newmem;
   unsigned char *magic_p;
+  chunkinfoptr _md_oldp;
 
   if (bytes + 1 == 0)
     {
@@ -352,6 +353,12 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
     }
   (void) mutex_lock (&main_arena.mutex);
   const mchunkptr oldp = mem2chunk_check (oldmem, &magic_p);
+
+  if(oldp){
+    _md_oldp = hashtable_lookup(&main_arena, oldp);
+    if (_md_oldp == NULL) { missing_metadata(&main_arena, oldp); }
+  }
+
   (void) mutex_unlock (&main_arena.mutex);
   if (!oldp)
     {
@@ -401,7 +408,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 	  if ( !checked_request2size (bytes + 1, &nb) ){
 	    return 0;
 	  }
-          _md_newmem = _int_realloc (&main_arena, oldp, oldsize, nb);
+          _md_newmem = _int_realloc (&main_arena, _md_oldp, oldsize, nb);
 	  newmem = chunkinfo2mem(_md_newmem);
         }
     }

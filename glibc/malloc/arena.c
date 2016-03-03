@@ -187,7 +187,7 @@ free_atfork (void *mem, const void *caller)
     }
 
   ar_ptr = arena_for_chunk (p);
-  _int_free (ar_ptr, p, thread_arena == ATFORK_ARENA_PTR);
+  _int_free (ar_ptr, NULL, p, thread_arena == ATFORK_ARENA_PTR);
 }
 
 

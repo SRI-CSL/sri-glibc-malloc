@@ -1095,7 +1095,8 @@ static void      free_atfork(void* mem, const void *caller);
 
 
 /* SRI: we plan to see if we can inline most of the #defines as part of a code cleanup */
-static inline void *MMAP(void *addr, size_t length, int prot, int flags){
+static inline void *MMAP(void *addr, size_t length, int prot, int flags)
+{
   return __mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 }
 
@@ -1217,11 +1218,13 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* conversion from malloc headers to user pointers, and back */
 
-static inline void *chunk2mem(void* p){
+static inline void *chunk2mem(void* p)
+{
   return ((void*)((char*)p + 2*SIZE_SZ));
 } 
 
-static inline mchunkptr mem2chunk(void* mem){
+static inline mchunkptr mem2chunk(void* mem)
+{
   return ((mchunkptr)((char*)mem - 2*SIZE_SZ));
 }
 
@@ -1235,11 +1238,13 @@ static inline mchunkptr mem2chunk(void* mem){
 
 /* Check if m has acceptable alignment */
 
-static inline bool aligned_OK(unsigned long m){
+static inline bool aligned_OK(unsigned long m)
+{
   return (((unsigned long)m & MALLOC_ALIGN_MASK) == 0);
 }
 
-static inline int misaligned_chunk(void* p){
+static inline int misaligned_chunk(void* p)
+{
   return ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? p : chunk2mem(p)) & MALLOC_ALIGN_MASK);
 }
 
@@ -1249,7 +1254,8 @@ static inline int misaligned_chunk(void* p){
    low enough so that adding MINSIZE will also not wrap around zero.
  */
 
-static inline bool REQUEST_OUT_OF_RANGE(size_t req){
+static inline bool REQUEST_OUT_OF_RANGE(size_t req)
+{
   return (unsigned long)req >=	 (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE);
 }
 
@@ -1262,7 +1268,8 @@ static inline bool REQUEST_OUT_OF_RANGE(size_t req){
 
 /*  Same, except also perform argument check */
 
-static inline bool checked_request2size(size_t req, size_t *sz){
+static inline bool checked_request2size(size_t req, size_t *sz)
+{
   assert(sz != NULL);
   if (REQUEST_OUT_OF_RANGE (req)) {
     __set_errno (ENOMEM);	
@@ -1283,7 +1290,8 @@ static inline bool checked_request2size(size_t req, size_t *sz){
 #define PREV_INUSE 0x1
 
 /* extract inuse bit of previous chunk */
-static inline bool prev_inuse(mchunkptr p){
+static inline bool prev_inuse(mchunkptr p)
+{
   return (p->size & PREV_INUSE) == PREV_INUSE;
 }
 
@@ -1292,7 +1300,8 @@ static inline bool prev_inuse(mchunkptr p){
 #define IS_MMAPPED 0x2
 
 /* check for mmap()'ed chunk */
-static inline bool chunk_is_mmapped(mchunkptr p){
+static inline bool chunk_is_mmapped(mchunkptr p)
+{
   return (p->size & IS_MMAPPED) == IS_MMAPPED;
 }
 
@@ -1302,7 +1311,8 @@ static inline bool chunk_is_mmapped(mchunkptr p){
 #define NON_MAIN_ARENA 0x4
 
 /* check for chunk from non-main arena */
-static inline bool chunk_non_main_arena(mchunkptr p){
+static inline bool chunk_non_main_arena(mchunkptr p)
+{
   return (p->size & NON_MAIN_ARENA) == NON_MAIN_ARENA;
 }
 
@@ -1318,55 +1328,64 @@ static inline bool chunk_non_main_arena(mchunkptr p){
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
-static inline INTERNAL_SIZE_T chunksize(mchunkptr p){
+static inline INTERNAL_SIZE_T chunksize(mchunkptr p)
+{
   return p->size & ~(SIZE_BITS);
 }
 
 /* Ptr to next physical malloc_chunk. */
-static inline mchunkptr next_chunk(mchunkptr p){
+static inline mchunkptr next_chunk(mchunkptr p)
+{
   return ((mchunkptr) (((char *) p) + (p->size & ~SIZE_BITS)));
 }
 
 /* Ptr to previous physical malloc_chunk */
-static inline mchunkptr prev_chunk(mchunkptr p){
+static inline mchunkptr prev_chunk(mchunkptr p)
+{
   return ((mchunkptr) (((char *)p) - (p->prev_size)));
 }
 
 /* Treat space at ptr + offset as a chunk */
-static inline mchunkptr chunk_at_offset(void* p, size_t s){
+static inline mchunkptr chunk_at_offset(void* p, size_t s)
+{
   return ((mchunkptr) (((char *) p) + s));
 }
 
 /* extract p's inuse bit [iam: used anywhere?] */
-static inline bool inuse(mchunkptr p){
+static inline bool inuse(mchunkptr p)
+{
   return ((((mchunkptr) (((char *)p) +
 			 (p->size & ~SIZE_BITS)))->size) 
 	  & PREV_INUSE) == PREV_INUSE;
 }
 
 /* set/clear chunk as being inuse without otherwise disturbing [SRI: used anywhere?]  */
-static inline void set_inuse(mchunkptr p){
+static inline void set_inuse(mchunkptr p)
+{
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size |= PREV_INUSE;
 }
 
 /*
-static inline void clear_inuse(mstate av, mchunkptr p){
+static inline void clear_inuse(mstate av, mchunkptr p)
+{
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE);
 }
 */
 
 /* check/set/clear inuse bits in known places */
-static inline int inuse_bit_at_offset(mchunkptr p, size_t s){
+static inline int inuse_bit_at_offset(mchunkptr p, size_t s)
+{
   return (((mchunkptr) (((char *)p) + (s)))->size & PREV_INUSE);
 }
 
-static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
+static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s)
+{
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
-  if(_md_prev_chunk != NULL){
+  if (_md_prev_chunk != NULL) {
     _md_prev_chunk->size |= PREV_INUSE;
   } else {
     fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
@@ -1376,13 +1395,14 @@ static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
   prev_chunk->size |= PREV_INUSE;
 }
 
-static inline void clear_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
+static inline void clear_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s)
+{
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
-  if(_md_prev_chunk != NULL){
+  if (_md_prev_chunk != NULL) {
     _md_prev_chunk->size &= ~PREV_INUSE;
   } else {
     fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
@@ -1393,25 +1413,28 @@ static inline void clear_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
 }
 
 /* Set size at head, without disturbing its use bit */
-static inline void set_head_size(mchunkptr p, size_t s){
+static inline void set_head_size(mchunkptr p, size_t s)
+{
   p->size = (p->size & SIZE_BITS) | s;
 }
 
 /* Set size/use field */
-static inline void set_head(mchunkptr p, size_t s){
+static inline void set_head(mchunkptr p, size_t s)
+{
   p->size = s;
 }
 
 
 /* Set size at footer (only when chunk is not in use) */
-static inline void set_foot(mstate av, mchunkptr p, size_t s){
+static inline void set_foot(mstate av, mchunkptr p, size_t s)
+{
  chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
 
   prev_chunk = (mchunkptr)((char*)p + s);
   _md_prev_chunk = hashtable_lookup(av, prev_chunk);
 
-  if(_md_prev_chunk != NULL){
+  if (_md_prev_chunk != NULL) {
     _md_prev_chunk->prev_size =  s;
   } else {
     fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
@@ -1840,7 +1863,8 @@ static inline int arena_bit(mstate av)
 }
 
 
-static inline void set_arena_bit(mstate av, mchunkptr victim){
+static inline void set_arena_bit(mstate av, mchunkptr victim)
+{
   if (av != &main_arena)
     victim->size |= NON_MAIN_ARENA;
 }
@@ -1868,13 +1892,15 @@ static int check_action = DEFAULT_CHECK_ACTION;
 /* Bins -- relocated to after definition of mstate */
 
 /* addressing -- note that bin_at(0) does not exist */
-static inline mbinptr bin_at(mstate av, int i){
+static inline mbinptr bin_at(mstate av, int i)
+{
   return (mbinptr) (((char *) &(av->bins[(i - 1) * 2]))	- offsetof (struct malloc_chunk, fd));
 }
 
 
 /* analog of ++bin */
-static inline mbinptr next_bin(mbinptr b){
+static inline mbinptr next_bin(mbinptr b)
+{
   return ((mbinptr) ((char *)b + (sizeof (mchunkptr) << 1)));
 }
 
@@ -1920,7 +1946,7 @@ static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 {
-  if (SMALLBIN_WIDTH == 16){
+  if (SMALLBIN_WIDTH == 16) {
     return ((unsigned int)sz) >> 4;
   } else {
     return (((unsigned int)sz) >> 3) + SMALLBIN_CORRECTION;
@@ -1961,76 +1987,92 @@ static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz)
 	  126);
 }
 
-static inline unsigned int largebin_index(INTERNAL_SIZE_T sz){
+static inline unsigned int largebin_index(INTERNAL_SIZE_T sz)
+{
   return (SIZE_SZ == 8 ? largebin_index_64 (sz)
 	  : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)
 	  : largebin_index_32 (sz));
 }
 
-static inline unsigned int bin_index(INTERNAL_SIZE_T sz){
+static inline unsigned int bin_index(INTERNAL_SIZE_T sz)
+{
   return ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz));
 }
 
-static inline void mark_bin(mstate av, int i){
+static inline void mark_bin(mstate av, int i)
+{
   av->binmap[idx2block(i)] |= idx2bit(i);
 }
 
 
-static inline void unmark_bin(mstate av, int i){
+static inline void unmark_bin(mstate av, int i)
+{
   av->binmap[idx2block(i)] &= ~idx2bit(i);
 }
 
-static inline unsigned int get_binmap(mstate av, int i){
+static inline unsigned int get_binmap(mstate av, int i)
+{
   return av->binmap[idx2block(i)] & idx2bit (i);
 }
 
 /* Maximum size of memory handled in fastbins.  */
 static INTERNAL_SIZE_T global_max_fast;
 
-static inline bool have_fastchunks(mstate av){
+static inline bool have_fastchunks(mstate av)
+{
   return (av->flags & FASTCHUNKS_BIT) == 0;
 }
 
-static inline void clear_fastchunks(mstate av){
+static inline void clear_fastchunks(mstate av)
+{
   catomic_or (&av->flags, FASTCHUNKS_BIT);
 }
 
-static inline void set_fastchunks(mstate av){
+static inline void set_fastchunks(mstate av)
+{
   catomic_and (&av->flags, ~FASTCHUNKS_BIT);
 }
 
-static inline bool contiguous(mstate av){
+static inline bool contiguous(mstate av)
+{
   return (av->flags & NONCONTIGUOUS_BIT) == 0;
 }
 
-static inline bool noncontiguous(mstate av){
+static inline bool noncontiguous(mstate av)
+{
   return (av->flags & NONCONTIGUOUS_BIT) != 0;
 }
 
-static inline void set_noncontiguous(mstate av){
+static inline void set_noncontiguous(mstate av)
+{
   av->flags |= NONCONTIGUOUS_BIT;
 }
 
-static inline void set_contiguous(mstate av){
+static inline void set_contiguous(mstate av)
+{
   av->flags &= ~NONCONTIGUOUS_BIT;
 }
 
-static inline bool arena_is_corrupt(mstate av){
+static inline bool arena_is_corrupt(mstate av)
+{
   return av->flags & ARENA_CORRUPTION_BIT;
 }
-static inline void set_arena_corrupt(mstate av){
+static inline void set_arena_corrupt(mstate av)
+{
   av->flags |= ARENA_CORRUPTION_BIT;
 }
 
-static void set_max_fast(INTERNAL_SIZE_T sz){
-  if(sz == 0){
+static void set_max_fast(INTERNAL_SIZE_T sz)
+{
+  if (sz == 0) {
     global_max_fast = SMALLBIN_WIDTH;
   } else {
     global_max_fast = ((sz + SIZE_SZ) & ~MALLOC_ALIGN_MASK);
   }
 }
 
-static INTERNAL_SIZE_T get_max_fast(void){
+static INTERNAL_SIZE_T get_max_fast(void)
+{
   return global_max_fast;
 }
 
@@ -2085,7 +2127,7 @@ malloc_init_state (mstate av)
   av->arena_is_initialized = true;
 
 
-  if ( ! replenish_metadata_cache(av) ){
+  if ( ! replenish_metadata_cache(av) ) {
     abort();
   }
   
@@ -2094,20 +2136,21 @@ malloc_init_state (mstate av)
   
 }
 
-static bool replenish_metadata_cache(mstate av){
+static bool replenish_metadata_cache(mstate av)
+{
   int i;
   chunkinfoptr _md_p;
   int count = av->metadata_cache_count;
 
   /* we only replenish if av has already been initialized */
-  if( ! av->arena_is_initialized){  return true; }
+  if ( ! av->arena_is_initialized) {  return true; }
 
   assert(METADATA_CACHE_SIZE >= count && count >= 0);
 
-  for(i = count; i < METADATA_CACHE_SIZE; i++){
-    if(av->metadata_cache[i] == NULL){
+  for(i = count; i < METADATA_CACHE_SIZE; i++) {
+    if (av->metadata_cache[i] == NULL) {
       _md_p = allocate_chunkinfoptr(&(av->htbl));
-      if(_md_p != NULL){
+      if (_md_p != NULL) {
 	av->metadata_cache[i] = _md_p;
       } else {
 	return false;
@@ -2155,7 +2198,7 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   chunkinfoptr retval;
   assert(av != NULL);
   assert(av->metadata_cache_count > 0);
-  if(av->metadata_cache_count <= 0){
+  if (av->metadata_cache_count <= 0) {
     abort();
   }
   retval = av->metadata_cache[--av->metadata_cache_count];
@@ -2250,7 +2293,7 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p)
 /* FIXME: will eventually replace all occurrences of chunksize */
 static inline INTERNAL_SIZE_T _md_chunksize(chunkinfoptr ci)
 {
-  if(ci == NULL)
+  if (ci == NULL)
     return 0;
   else 
     return (ci->size & ~(SIZE_BITS));
@@ -2267,7 +2310,9 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 
 
 /* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
-static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata)
+static chunkinfoptr split_chunk(mstate av, 
+				chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, 
+				INTERNAL_SIZE_T desiderata)
 {
   INTERNAL_SIZE_T remainder_size;
   mchunkptr remainder; 
@@ -2319,8 +2364,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     }
 
     //FIXME: false && ==> poof!
-    if(!prev_inuse(c)){
-      if(ci->prev_size != c->prev_size){
+    if (!prev_inuse(c)) {
+      if (ci->prev_size != c->prev_size) {
 	  fprintf(stderr, "check_metadata_chunk of %p:\nci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
 		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
 	  fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
@@ -2417,9 +2462,10 @@ static bool do_check_top(mstate av, const char* file, int lineno);
    in malloc. In which case, please report it!)
  */
 
-static bool do_check_top(mstate av, const char* file, int lineno){
-  if(av->_md_top){
-    if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top, file, lineno)){
+static bool do_check_top(mstate av, const char* file, int lineno)
+{
+  if (av->_md_top) {
+    if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top, file, lineno)) {
       fprintf(stderr, "check top failed @ %s line %d\n", file, lineno);
       return false;
     }
@@ -2469,7 +2515,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
   metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
 
   //FIXME... assert(metadata_ok);
-  if(!metadata_ok){
+  if (!metadata_ok) {
     fprintf(stderr,  "do_check_chunk: metadata_ok, ...not. %s:%d\n", file, lineno);
   }
 
@@ -2899,7 +2945,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	      
 	      /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      
-	      if(is_main_arena(av)){
+	      if (is_main_arena(av)) {
 		_md_p = register_chunk(av, p);
 	      } else {
 		(void)mutex_unlock(&av->mutex);
@@ -3476,7 +3522,7 @@ mremap_chunk (mstate av, mchunkptr p, size_t new_size)
   assert ((p->prev_size == offset));
   set_head (p, (new_size - offset) | IS_MMAPPED);
 
-  if(p != op){
+  if (p != op) {
     /* remove the old one */
     hashtable_remove(av, op);
     register_chunk(av, p);
@@ -3511,7 +3557,7 @@ __libc_malloc (size_t bytes)
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
-  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return NULL;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
@@ -3534,12 +3580,12 @@ __libc_malloc (size_t bytes)
   assert (!mem || chunk_is_mmapped (mem2chunk (mem)) ||
           ar_ptr == arena_for_chunk (mem2chunk (mem)));
   
-  if(ar_ptr != NULL)check_top(ar_ptr);
+  if (ar_ptr != NULL)check_top(ar_ptr);
 
   /* This is not correct  in multithreaded mode because of mmapped memory.
      We would need to switch locks.
     //FIXME: temporary hack to spot misses
-  if (ar_ptr != NULL){
+  if (ar_ptr != NULL) {
     mchunkptr p;
     chunkinfoptr _md_p;
     p = mem2chunk(mem);
@@ -3663,7 +3709,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       return NULL;
     }
 
-  if ( !checked_request2size (bytes, &nb) ){
+  if ( !checked_request2size (bytes, &nb) ) {
     return 0;
   }
 
@@ -3694,7 +3740,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
-  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return NULL;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
@@ -3722,7 +3768,7 @@ __libc_realloc (void *oldmem, size_t bytes)
         }
     }
 
-  if(ar_ptr != NULL) check_top(ar_ptr);
+  if (ar_ptr != NULL) check_top(ar_ptr);
 
   return mem;
 }
@@ -3784,7 +3830,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
-  if(ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)){
+  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return NULL;
   }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
@@ -3889,7 +3935,7 @@ __libc_calloc (size_t n, size_t elem_size)
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
-  if(av != NULL && !replenish_metadata_cache(av)){
+  if (av != NULL && !replenish_metadata_cache(av)) {
     (void) mutex_unlock (&av->mutex);
     return NULL;
   }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
@@ -4043,7 +4089,7 @@ _int_malloc (mstate av, size_t bytes)
      aligned.
    */
 
-  if ( !checked_request2size (bytes, &nb) ){
+  if ( !checked_request2size (bytes, &nb) ) {
     return 0;
   }
 
@@ -4594,14 +4640,14 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
 
-  if(_md_p == NULL){
+  if (_md_p == NULL) {
 
-    if(!have_lock){
+    if (!have_lock) {
       (void) mutex_lock (&av->mutex);
       locked = 1;
     }
 
-    if(av != NULL && !replenish_metadata_cache(av)){
+    if (av != NULL && !replenish_metadata_cache(av)) {
       (void) mutex_unlock (&av->mutex);
       return;
     } 
@@ -4611,7 +4657,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     if (_md_p == NULL) { missing_metadata(av, p);  }
 
     /* FIXME: if we don't do this we hang on building!!!! */
-    if(!have_lock){
+    if (!have_lock) {
       (void) mutex_unlock (&av->mutex);
       locked = 0;
     }
@@ -4774,7 +4820,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     if (!prev_inuse(p)) {
       prevsize = p->prev_size;
 
-      if(prevsize == 0){
+      if (prevsize == 0) {
 	abort();
       }
 
@@ -4821,7 +4867,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       set_head(p, size | PREV_INUSE);
       set_foot(av, p, size);
 
-      if(_md_p == NULL){
+      if (_md_p == NULL) {
 	register_chunk(av, p);
       } else {
 	update(_md_p, p);
@@ -4844,7 +4890,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       set_head(p, size | PREV_INUSE);
 
       
-      if(_md_p == NULL){  //FIXME after twinning
+      if (_md_p == NULL) {  //FIXME after twinning
 	_md_p = register_chunk(av, p);
       } else {
 	update(_md_p, p);
@@ -5004,7 +5050,7 @@ static void malloc_consolidate(mstate av)
 	    p->bk = unsorted_bin;
 	    p->fd = first_unsorted;
 	    set_foot(av, p, size);
-	    if(_md_p != NULL){ //FIXME: should not happen once we are twinned
+	    if (_md_p != NULL) { //FIXME: should not happen once we are twinned
 	      update(_md_p, p);
 	    } else {
 	      register_chunk(av, p);
@@ -5016,7 +5062,7 @@ static void malloc_consolidate(mstate av)
 	    size += nextsize;
 	    set_head(p, size | PREV_INUSE);
 
-	    if(_md_p == NULL){
+	    if (_md_p == NULL) {
 	      //FIX ME: should go away when twinning done
 	      _md_p = register_chunk(av, p);
 	    } else {
@@ -5291,7 +5337,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
 
 
-  if ( !checked_request2size (bytes, &nb) ){
+  if ( !checked_request2size (bytes, &nb) ) {
     return 0;
   }
 

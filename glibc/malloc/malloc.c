@@ -2223,7 +2223,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       return false; 
     }
 
-    if(!prev_inuse(c)){
+    //FIXME: false && ==> poof!
+    if(false && !prev_inuse(c)){
       if(ci->prev_size != c->prev_size){
 	  fprintf(stderr, "check_metadata_chunk of %p:\nci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
 		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
@@ -2234,7 +2235,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     }
 
     /* iam: can get away with the cast as long as our metadata chunks **look** like chunks */
-    if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
+    //FIXME: false && ==> poof! 
+    if (false && prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
       fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) = %d, main arena: %d @ %s line %d\n",
 	      chunk2mem(c), prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
       fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
@@ -2244,7 +2246,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     
     return true;
   } 
-  return false;
+  //FIXME: true ==> false when bins become chunkinfoptrs
+  return true;
 }
 
 
@@ -2312,6 +2315,8 @@ free_perturb (char *p, size_t n)
 #include <stap-probe.h>
 
 /* ------------------- Support for multiple arenas -------------------- */
+
+/* used in arena.c as well as here in malloc.c */
 static bool do_check_top(mstate av, const char* file, int lineno);
 
 #include "arena.c"
@@ -2345,28 +2350,43 @@ static bool do_check_top(mstate av, const char* file, int lineno){
 # define check_remalloced_chunk(A, P, MD_P, N)
 # define check_malloced_chunk(A, P, MD_P, N)
 # define check_malloc_state(A)
+# define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
+
+# warning "using do_check_* in ! MALLOC_DEBUG mode"
 
 #else
 
 # define check_top(A)                           assert(do_check_top(A,__FILE__,__LINE__))
-# define check_chunk(A, P, MD_P)                do_check_chunk (A, P, MD_P)
-# define check_free_chunk(A, P, MD_P)           do_check_free_chunk (A, P, MD_P)
-# define check_inuse_chunk(A, P, MD_P)          do_check_inuse_chunk (A, P, MD_P)
-# define check_remalloced_chunk(A, P, MD_P, N)  do_check_remalloced_chunk (A, P, MD_P, N)
-# define check_malloced_chunk(A, P, MD_P, N)    do_check_malloced_chunk (A, P, MD_P, N)
-# define check_malloc_state(A)                  do_check_malloc_state (A)
+# define check_chunk(A, P, MD_P)                do_check_chunk (A, P, MD_P,__FILE__,__LINE__)
+# define check_free_chunk(A, P, MD_P)           do_check_free_chunk (A, P, MD_P,__FILE__,__LINE__)
+# define check_inuse_chunk(A, P, MD_P)          do_check_inuse_chunk (A, P, MD_P,__FILE__,__LINE__)
+# define check_remalloced_chunk(A, P, MD_P, N)  do_check_remalloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
+# define check_malloced_chunk(A, P, MD_P, N)    do_check_malloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
+# define check_malloc_state(A)                  do_check_malloc_state (A,__FILE__,__LINE__)
+# define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
 /*
    Properties of all chunks
  */
 
 static void
-do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
+do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
   unsigned long sz = chunksize (p);
   /* min and max possible addresses assuming contiguous allocation */
   char *max_address = (char *) (av->top) + chunksize (av->top);
   char *min_address = max_address - av->system_mem;
+  bool metadata_ok;
+  
+  check_top(av);
+
+  metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
+
+  //FIXME... assert(metadata_ok);
+  if(!metadata_ok){
+    fprintf(stderr,  "do_check_chunk: metadata_ok, ...not. %s:%d\n", file, lineno);
+  }
+
 
   if (!chunk_is_mmapped (p))
     {
@@ -2406,12 +2426,12 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
  */
 
 static void
-do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
+do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
   mchunkptr next = chunk_at_offset (p, sz);
 
-  do_check_chunk (av, p, _md_p);
+  do_check_chunk (av, p, _md_p, file, lineno);
 
   /* Chunk must claim to be free ... */
   assert (!inuse (p));
@@ -2441,11 +2461,11 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
  */
 
 static void
-do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
+do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
   mchunkptr next;
 
-  do_check_chunk (av, p, _md_p);
+  do_check_chunk (av, p, _md_p, file, lineno);
 
   if (chunk_is_mmapped (p))
     return; /* mmapped chunks have no next/prev */
@@ -2464,7 +2484,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
       /* Note that we cannot even look at prev unless it is not inuse */
       mchunkptr prv = prev_chunk (p);
       assert (next_chunk (prv) == p);
-      do_check_free_chunk (av, prv, NULL);
+      do_check_free_chunk (av, prv, NULL, file, lineno);
     }
 
   if (next == av->top)
@@ -2473,7 +2493,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
       assert (chunksize (next) >= MINSIZE);
     }
   else if (!inuse (next))
-    do_check_free_chunk (av, next, NULL);
+    do_check_free_chunk (av, next, NULL, file, lineno);
 }
 
 /*
@@ -2481,7 +2501,8 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p)
  */
 
 static void
-do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
+do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, 
+			   INTERNAL_SIZE_T s, const char* file, int lineno)
 {
   INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
 
@@ -2494,7 +2515,7 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_
         assert (av == &main_arena);
     }
 
-  do_check_inuse_chunk (av, p, _md_p);
+  do_check_inuse_chunk (av, p, _md_p, file, lineno);
 
   /* Legal size ... */
   assert ((sz & MALLOC_ALIGN_MASK) == 0);
@@ -2511,10 +2532,10 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_
  */
 
 static void
-do_check_malloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s)
+do_check_malloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s, const char* file, int lineno)
 {
   /* same as recycled case ... */
-  do_check_remalloced_chunk (av, p, _md_p, s);
+  do_check_remalloced_chunk (av, p, _md_p, s, file, lineno);
 
   /*
      ... plus,  must obey implementation invariant that prev_inuse is
@@ -2542,7 +2563,7 @@ do_check_malloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SI
  */
 
 static void
-do_check_malloc_state (mstate av)
+do_check_malloc_state (mstate av, const char* file, int lineno)
 {
   int i;
   mchunkptr p;
@@ -2600,7 +2621,7 @@ do_check_malloc_state (mstate av)
       while (p != 0)
         {
           /* each chunk claims to be inuse */
-          do_check_inuse_chunk (av, p, NULL);
+          do_check_inuse_chunk (av, p, NULL, file, lineno);
           total += chunksize (p);
           /* chunk belongs in this bin */
           assert (fastbin_index (chunksize (p)) == i);
@@ -2632,7 +2653,7 @@ do_check_malloc_state (mstate av)
       for (p = last (b); p != b; p = p->bk)
         {
           /* each chunk claims to be free */
-          do_check_free_chunk (av, p, NULL);
+          do_check_free_chunk (av, p, NULL, file, lineno);
           size = chunksize (p);
           total += size;
           if (i >= 2)
@@ -2674,7 +2695,7 @@ do_check_malloc_state (mstate av)
                (q != av->top && inuse (q) &&
                 (unsigned long) (chunksize (q)) >= MINSIZE);
                q = next_chunk (q))
-            do_check_inuse_chunk (av, q, NULL);
+            do_check_inuse_chunk (av, q, NULL, file, lineno);
         }
     }
 

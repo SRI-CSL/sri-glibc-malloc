@@ -5536,7 +5536,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         if (newp == next) {
           newsize += oldsize;
           newp = oldp;
-	  hashtable_remove(av, malloced_chunk);
+	  hashtable_remove(av, malloced_chunk, true);
         }
         else {
           /*

@@ -1889,6 +1889,12 @@ static inline int arena_bit(mstate av)
 }
 
 
+static inline void set_arena_bit(mstate av, mchunkptr victim){
+  if (av != &main_arena)
+    victim->size |= NON_MAIN_ARENA;
+}
+
+
 static bool is_main_arena(mstate av)
 {
   return arena_bit(av) == 0;
@@ -4003,8 +4009,9 @@ _int_malloc (mstate av, size_t bytes)
               bin->bk = bck;
               bck->fd = bin;
 	      
-              if (av != &main_arena)
-                victim->size |= NON_MAIN_ARENA;
+	      set_arena_bit(av, victim);
+              //if (av != &main_arena)
+	      // victim->size |= NON_MAIN_ARENA;
 	      update(_md_victim, victim);
               check_malloced_chunk (av, victim, _md_victim, nb);
               void *p = chunk2mem (victim);
@@ -4108,8 +4115,9 @@ _int_malloc (mstate av, size_t bytes)
           if (size == nb)
             {
               set_inuse_bit_at_offset (av, victim, size);
-              if (av != &main_arena)
-                victim->size |= NON_MAIN_ARENA;
+	      set_arena_bit(av, victim);
+              //if (av != &main_arena)
+	      //  victim->size |= NON_MAIN_ARENA;
 	      update(_md_victim, victim);
               check_malloced_chunk (av, victim, _md_victim, nb);
               void *p = chunk2mem (victim);
@@ -4218,8 +4226,9 @@ _int_malloc (mstate av, size_t bytes)
               if (remainder_size < MINSIZE)
                 {
                   set_inuse_bit_at_offset (av, victim, size);
-                  if (av != &main_arena)
-                    victim->size |= NON_MAIN_ARENA;
+		  set_arena_bit(av, victim);
+                  //if (av != &main_arena)
+                  //  victim->size |= NON_MAIN_ARENA;
                 }
               /* Split */
               else
@@ -4328,8 +4337,9 @@ _int_malloc (mstate av, size_t bytes)
               if (remainder_size < MINSIZE)
                 {
                   set_inuse_bit_at_offset (av, victim, size);
-                  if (av != &main_arena)
-                    victim->size |= NON_MAIN_ARENA;
+		  set_arena_bit(av, victim);
+                  //if (av != &main_arena)
+                  //  victim->size |= NON_MAIN_ARENA;
                 }
 	      
               /* Split */

@@ -5161,7 +5161,10 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
   else   /* split remainder */
     {
       remainder = chunk_at_offset (newp, nb);
+
       set_head_size (newp, nb | arena_bit(av));
+      update(_md_newp, newp);
+
       set_head (remainder, remainder_size | PREV_INUSE | arena_bit(av));
       /* Mark remainder as inuse so free() won't complain */
       set_inuse_bit_at_offset (remainder, remainder_size);

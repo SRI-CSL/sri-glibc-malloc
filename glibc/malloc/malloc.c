@@ -1094,9 +1094,6 @@ static void      free_atfork(void* mem, const void *caller);
 #endif
 
 
-#define glibc_MMAP(addr, size, prot, flags) \
- __mmap((addr), (size), (prot), (flags)|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0)
-
 /* SRI: we plan to see if we can inline most of the #defines as part of a code cleanup */
 static inline void *MMAP(void *addr, size_t length, int prot, int flags){
   return __mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
@@ -1220,9 +1217,6 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* conversion from malloc headers to user pointers, and back */
 
-#define glibc_chunk2mem(p)   ((void*)((char*)(p) + 2*SIZE_SZ))
-#define glibc_mem2chunk(mem) ((mchunkptr)((char*)(mem) - 2*SIZE_SZ))
-
 static inline void *chunk2mem(void* p){
   return ((void*)((char*)p + 2*SIZE_SZ));
 } 
@@ -1241,15 +1235,9 @@ static inline mchunkptr mem2chunk(void* mem){
 
 /* Check if m has acceptable alignment */
 
-#define glibc_aligned_OK(m)  (((unsigned long)(m) & MALLOC_ALIGN_MASK) == 0)
-
 static inline bool aligned_OK(unsigned long m){
   return (((unsigned long)m & MALLOC_ALIGN_MASK) == 0);
 }
-
-#define glibc_misaligned_chunk(p) \
-  ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? (p) : chunk2mem (p)) \
-   & MALLOC_ALIGN_MASK)
 
 static inline int misaligned_chunk(void* p){
   return ((uintptr_t)(MALLOC_ALIGNMENT == 2 * SIZE_SZ ? p : chunk2mem(p)) & MALLOC_ALIGN_MASK);
@@ -1260,10 +1248,6 @@ static inline int misaligned_chunk(void* p){
    padded and aligned. To simplify some other code, the bound is made
    low enough so that adding MINSIZE will also not wrap around zero.
  */
-
-#define glibc_REQUEST_OUT_OF_RANGE(req)                           \
-  ((unsigned long) (req) >=				          \
-   (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE))
 
 static inline bool REQUEST_OUT_OF_RANGE(size_t req){
   return (unsigned long)req >=	 (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE);
@@ -1277,13 +1261,6 @@ static inline bool REQUEST_OUT_OF_RANGE(size_t req){
    ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
 /*  Same, except also perform argument check */
-
-#define glibc_checked_request2size(req, sz)					\
-  if (REQUEST_OUT_OF_RANGE (req)) {					\
-    __set_errno (ENOMEM);						\
-    return 0;								\
-  }									\
-  (sz) = request2size (req);
 
 static inline bool checked_request2size(size_t req, size_t *sz){
   assert(sz != NULL);
@@ -1306,8 +1283,6 @@ static inline bool checked_request2size(size_t req, size_t *sz){
 #define PREV_INUSE 0x1
 
 /* extract inuse bit of previous chunk */
-#define glibc_prev_inuse(p)       ((p)->size & PREV_INUSE)
-
 static inline bool prev_inuse(mchunkptr p){
   return (p->size & PREV_INUSE) == PREV_INUSE;
 }
@@ -1317,8 +1292,6 @@ static inline bool prev_inuse(mchunkptr p){
 #define IS_MMAPPED 0x2
 
 /* check for mmap()'ed chunk */
-#define glibc_chunk_is_mmapped(p) ((p)->size & IS_MMAPPED)
-
 static inline bool chunk_is_mmapped(mchunkptr p){
   return (p->size & IS_MMAPPED) == IS_MMAPPED;
 }
@@ -1376,10 +1349,11 @@ static inline void set_inuse(mchunkptr p){
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size |= PREV_INUSE;
 }
 
+/*
 static inline void clear_inuse(mstate av, mchunkptr p){
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE);
 }
-
+*/
 
 /* check/set/clear inuse bits in known places */
 static inline int inuse_bit_at_offset(mchunkptr p, size_t s){
@@ -1387,15 +1361,36 @@ static inline int inuse_bit_at_offset(mchunkptr p, size_t s){
 }
 
 static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
-  (((mchunkptr) (((char *)p) + s))->size |= PREV_INUSE);
+  chunkinfoptr _md_prev_chunk;
+  mchunkptr prev_chunk;
+  prev_chunk = (mchunkptr)(((char*)p) + s);
+  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+
+  if(_md_prev_chunk != NULL){
+    _md_prev_chunk->size |= PREV_INUSE;
+  } else {
+    fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
+	    prev_chunk,  s);
+  }
+
+  prev_chunk->size |= PREV_INUSE;
 }
 
 static inline void clear_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
-  (((mchunkptr) (((char *)p) + s))->size &= ~(PREV_INUSE));
+  chunkinfoptr _md_prev_chunk;
+  mchunkptr prev_chunk;
+  prev_chunk = (mchunkptr)(((char*)p) + s);
+  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+
+  if(_md_prev_chunk != NULL){
+    _md_prev_chunk->size &= ~PREV_INUSE;
+  } else {
+    fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
+	    prev_chunk,  s);
+  }
+
+  prev_chunk->size &= ~PREV_INUSE;
 }
-
-
-
 
 /* Set size at head, without disturbing its use bit */
 static inline void set_head_size(mchunkptr p, size_t s){
@@ -1410,7 +1405,21 @@ static inline void set_head(mchunkptr p, size_t s){
 
 /* Set size at footer (only when chunk is not in use) */
 static inline void set_foot(mstate av, mchunkptr p, size_t s){
-  ((mchunkptr)((char *)p + s))->prev_size = s;
+ chunkinfoptr _md_prev_chunk;
+  mchunkptr prev_chunk;
+
+  prev_chunk = (mchunkptr)((char*)p + s);
+  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+
+  if(_md_prev_chunk != NULL){
+    _md_prev_chunk->prev_size =  s;
+  } else {
+    fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
+	    prev_chunk,  s);
+  }
+
+  prev_chunk->prev_size = s;
+
 }
 
 
@@ -2193,7 +2202,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     }
 
     //FIXME: false && ==> poof!
-    if(false && !prev_inuse(c)){
+    if(!prev_inuse(c)){
       if(ci->prev_size != c->prev_size){
 	  fprintf(stderr, "check_metadata_chunk of %p:\nci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
 		  chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
@@ -2205,7 +2214,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 
     /* iam: can get away with the cast as long as our metadata chunks **look** like chunks */
     //FIXME: false && ==> poof! 
-    if (false && prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
+    if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
       fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) = %d, main arena: %d @ %s line %d\n",
 	      chunk2mem(c), prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
       fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",

@@ -1323,15 +1323,12 @@ static inline bool chunk_is_mmapped(mchunkptr p){
   return (p->size & IS_MMAPPED) == IS_MMAPPED;
 }
 
-
 /* size field is or'ed with NON_MAIN_ARENA if the chunk was obtained
    from a non-main arena.  This is only set immediately before handing
    the chunk to the user, if necessary.  */
 #define NON_MAIN_ARENA 0x4
 
 /* check for chunk from non-main arena */
-#define glibc_chunk_non_main_arena(p) ((p)->size & NON_MAIN_ARENA)
-
 static inline bool chunk_non_main_arena(mchunkptr p){
   return (p->size & NON_MAIN_ARENA) == NON_MAIN_ARENA;
 }
@@ -1348,78 +1345,52 @@ static inline bool chunk_non_main_arena(mchunkptr p){
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
-#define glibc_chunksize(p)         ((p)->size & ~(SIZE_BITS))
-
 static inline INTERNAL_SIZE_T chunksize(mchunkptr p){
   return p->size & ~(SIZE_BITS);
 }
 
 /* Ptr to next physical malloc_chunk. */
-#define glibc_next_chunk(p) ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))
-
 static inline mchunkptr next_chunk(mchunkptr p){
   return ((mchunkptr) (((char *) p) + (p->size & ~SIZE_BITS)));
 }
 
 /* Ptr to previous physical malloc_chunk */
-#define glibc_prev_chunk(p) ((mchunkptr) (((char *) (p)) - ((p)->prev_size)))
-
 static inline mchunkptr prev_chunk(mchunkptr p){
   return ((mchunkptr) (((char *)p) - (p->prev_size)));
 }
 
 /* Treat space at ptr + offset as a chunk */
-#define glibc_chunk_at_offset(p, s)  ((mchunkptr) (((char *) (p)) + (s)))
-
 static inline mchunkptr chunk_at_offset(void* p, size_t s){
   return ((mchunkptr) (((char *) p) + s));
 }
 
 /* extract p's inuse bit [iam: used anywhere?] */
-#define glibc_inuse(p)							      \
-  ((((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size) & PREV_INUSE)
-
 static inline bool inuse(mchunkptr p){
   return ((((mchunkptr) (((char *)p) +
 			 (p->size & ~SIZE_BITS)))->size) 
 	  & PREV_INUSE) == PREV_INUSE;
 }
 
-/* set/clear chunk as being inuse without otherwise disturbing [iam: used anywhere?]  */
-#define glibc_set_inuse(p)							      \
-  ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size |= PREV_INUSE
-
+/* set/clear chunk as being inuse without otherwise disturbing [SRI: used anywhere?]  */
 static inline void set_inuse(mchunkptr p){
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size |= PREV_INUSE;
 }
 
-#define glibc_clear_inuse(p)							      \
-  ((mchunkptr) (((char *) (p)) + ((p)->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE)
-
-static inline void clear_inuse(mchunkptr p){
+static inline void clear_inuse(mstate av, mchunkptr p){
   ((mchunkptr) (((char *)p) + (p->size & ~SIZE_BITS)))->size &= ~(PREV_INUSE);
 }
 
 
 /* check/set/clear inuse bits in known places */
-#define glibc_inuse_bit_at_offset(p, s)					      \
-  (((mchunkptr) (((char *) (p)) + (s)))->size & PREV_INUSE)
-
 static inline int inuse_bit_at_offset(mchunkptr p, size_t s){
   return (((mchunkptr) (((char *)p) + (s)))->size & PREV_INUSE);
 }
 
-#define glibc_set_inuse_bit_at_offset(p, s)					      \
-  (((mchunkptr) (((char *) (p)) + (s)))->size |= PREV_INUSE)
-
-static inline void set_inuse_bit_at_offset(mchunkptr p, size_t s){
+static inline void set_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
   (((mchunkptr) (((char *)p) + s))->size |= PREV_INUSE);
 }
 
-#define glibc_clear_inuse_bit_at_offset(p, s)					      \
-  (((mchunkptr) (((char *) (p)) + (s)))->size &= ~(PREV_INUSE))
-
-static inline void clear_inuse_bit_at_offset(mchunkptr p, size_t s){
+static inline void clear_inuse_bit_at_offset(mstate av, mchunkptr p, size_t s){
   (((mchunkptr) (((char *)p) + s))->size &= ~(PREV_INUSE));
 }
 
@@ -1427,28 +1398,20 @@ static inline void clear_inuse_bit_at_offset(mchunkptr p, size_t s){
 
 
 /* Set size at head, without disturbing its use bit */
-#define glibc_set_head_size(p, s)  ((p)->size = (((p)->size & SIZE_BITS) | (s)))
-
 static inline void set_head_size(mchunkptr p, size_t s){
   p->size = (p->size & SIZE_BITS) | s;
 }
 
 /* Set size/use field */
-#define glibc_set_head(p, s)       ((p)->size = (s))
-
 static inline void set_head(mchunkptr p, size_t s){
   p->size = s;
 }
 
 
 /* Set size at footer (only when chunk is not in use) */
-#define glibc_set_foot(p, s)       (((mchunkptr) ((char *) (p) + (s)))->prev_size = (s))
-
-static inline void set_foot(mchunkptr p, size_t s){
+static inline void set_foot(mstate av, mchunkptr p, size_t s){
   ((mchunkptr)((char *)p + s))->prev_size = s;
 }
-
-
 
 
 /*
@@ -2912,7 +2875,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
             {
 	      fencepost = chunk_at_offset (old_top, old_size);
               set_head (fencepost, (2 * SIZE_SZ) | PREV_INUSE);
-              set_foot (fencepost, (2 * SIZE_SZ));
+              set_foot (av, fencepost, (2 * SIZE_SZ));
 	      register_chunk(av, fencepost);
 
               set_head (old_top, old_size | PREV_INUSE | NON_MAIN_ARENA);
@@ -2922,7 +2885,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           else
             {
               set_head (old_top, (old_size + 2 * SIZE_SZ) | PREV_INUSE);
-              set_foot (old_top, (old_size + 2 * SIZE_SZ));
+              set_foot (av, old_top, (old_size + 2 * SIZE_SZ));
 	      update(_md_old_top, old_top);
             }
         }
@@ -4036,7 +3999,7 @@ _int_malloc (mstate av, size_t bytes)
                   errstr = "malloc(): smallbin double linked list corrupted";
                   goto errout;
                 }
-              set_inuse_bit_at_offset (victim, nb);
+              set_inuse_bit_at_offset (av, victim, nb);
               bin->bk = bck;
               bck->fd = bin;
 	      
@@ -4117,7 +4080,7 @@ _int_malloc (mstate av, size_t bytes)
               set_head (victim, nb | PREV_INUSE | arena_bit(av));
 	      update(_md_victim, victim);
               set_head (remainder, remainder_size | PREV_INUSE);
-              set_foot (remainder, remainder_size);
+              set_foot (av, remainder, remainder_size);
 	      _md_remainder = register_chunk(av, remainder);
 
               unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = remainder;
@@ -4144,7 +4107,7 @@ _int_malloc (mstate av, size_t bytes)
 
           if (size == nb)
             {
-              set_inuse_bit_at_offset (victim, size);
+              set_inuse_bit_at_offset (av, victim, size);
               if (av != &main_arena)
                 victim->size |= NON_MAIN_ARENA;
 	      update(_md_victim, victim);
@@ -4254,7 +4217,7 @@ _int_malloc (mstate av, size_t bytes)
               /* Exhaust */
               if (remainder_size < MINSIZE)
                 {
-                  set_inuse_bit_at_offset (victim, size);
+                  set_inuse_bit_at_offset (av, victim, size);
                   if (av != &main_arena)
                     victim->size |= NON_MAIN_ARENA;
                 }
@@ -4282,7 +4245,7 @@ _int_malloc (mstate av, size_t bytes)
                     }
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
-                  set_foot (remainder, remainder_size);
+                  set_foot (av, remainder, remainder_size);
 		  _md_remainder = register_chunk(av, remainder);
                 }
 	      
@@ -4364,7 +4327,7 @@ _int_malloc (mstate av, size_t bytes)
               /* Exhaust */
               if (remainder_size < MINSIZE)
                 {
-                  set_inuse_bit_at_offset (victim, size);
+                  set_inuse_bit_at_offset (av, victim, size);
                   if (av != &main_arena)
                     victim->size |= NON_MAIN_ARENA;
                 }
@@ -4398,7 +4361,7 @@ _int_malloc (mstate av, size_t bytes)
                     }
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
-                  set_foot (remainder, remainder_size);
+                  set_foot (av, remainder, remainder_size);
 		  register_chunk(av, remainder);
                 }
 	      
@@ -4703,7 +4666,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 	unlink(av, nextchunk, bck, fwd);
 	size += nextsize;
       } else
-	clear_inuse_bit_at_offset(nextchunk, 0);
+	clear_inuse_bit_at_offset(av, nextchunk, 0);
 
       /*
 	Place the chunk in unsorted chunk list. Chunks are
@@ -4729,7 +4692,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       fwd->bk = p;
 
       set_head(p, size | PREV_INUSE);
-      set_foot(p, size);
+      set_foot(av, p, size);
 
       if(_md_p == NULL){
 	register_chunk(av, p);
@@ -4899,7 +4862,7 @@ static void malloc_consolidate(mstate av)
 	      size += nextsize;
 	      unlink(av, nextchunk, bck, fwd);
 	    } else
-	      clear_inuse_bit_at_offset(nextchunk, 0);
+	      clear_inuse_bit_at_offset(av, nextchunk, 0);
 
 	    first_unsorted = unsorted_bin->fd;
 	    unsorted_bin->fd = p;
@@ -4913,7 +4876,7 @@ static void malloc_consolidate(mstate av)
 	    set_head(p, size | PREV_INUSE);
 	    p->bk = unsorted_bin;
 	    p->fd = first_unsorted;
-	    set_foot(p, size);
+	    set_foot(av, p, size);
 	    if(_md_p != NULL){ //FIXME: should not happen once we are twinned
 	      update(_md_p, p);
 	    } else {
@@ -5155,7 +5118,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
   if (remainder_size < MINSIZE)   /* not enough extra to split off */
     {
       set_head_size (newp, newsize | arena_bit(av));
-      set_inuse_bit_at_offset (newp, newsize);
+      set_inuse_bit_at_offset (av, newp, newsize);
       update(_md_newp, newp);
     }
   else   /* split remainder */
@@ -5167,7 +5130,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
 
       set_head (remainder, remainder_size | PREV_INUSE | arena_bit(av));
       /* Mark remainder as inuse so free() won't complain */
-      set_inuse_bit_at_offset (remainder, remainder_size);
+      set_inuse_bit_at_offset (av, remainder, remainder_size);
       _md_remainder = register_chunk(av, remainder);
       
       _int_free (av, _md_remainder, remainder, 1);
@@ -5250,7 +5213,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
       /* Otherwise, give back leader, use the rest */
       set_head (newp, newsize | PREV_INUSE | arena_bit(av));
-      set_inuse_bit_at_offset (newp, newsize);
+      set_inuse_bit_at_offset (av, newp, newsize);
       _md_newp = register_chunk(av, newp);
       set_head_size (p, leadsize | arena_bit(av));
       update(_md_p, p);

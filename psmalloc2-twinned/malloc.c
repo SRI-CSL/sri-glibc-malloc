@@ -5403,6 +5403,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
   INTERNAL_SIZE_T  newsize;         /* its size */
   Void_t*          newmem;          /* corresponding user mem */
 
+  mchunkptr        malloced_chunk;  /* another (more permanent) name for newp */
+
   mchunkptr        next;            /* next contiguous chunk after oldp */
   chunkinfoptr     _md_next;        /* next contiguous chunk after oldp */
 
@@ -5508,6 +5510,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
           return 0; /* propagate failure */
 
         newp = chunkinfo2chunk(_md_newp);
+	malloced_chunk = newp;
         newmem = chunkinfo2mem(_md_newp);
         newsize = _md_chunksize(_md_newp);
 
@@ -5517,6 +5520,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, size_t bytes)
         if (newp == next) {
           newsize += oldsize;
           newp = oldp;
+	  hashtable_remove(av, malloced_chunk);
         }
         else {
           /*

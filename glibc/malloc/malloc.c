@@ -1482,15 +1482,9 @@ static inline mbinptr bin_at(mstate av, int i);
 /* analog of ++bin */
 static inline mbinptr next_bin(mbinptr b);
 
-static inline mbinptr first(mbinptr b)
-{
-  return b->fd;
-}
-
-static inline mbinptr last(mbinptr b)
-{
-  return b->bk;
-}
+/* Reminders about list directionality within bins */
+#define first(b)     ((b)->fd)
+#define last(b)      ((b)->bk)
 
 /* Take a chunk off a bin list */
 static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp);
@@ -1874,25 +1868,15 @@ static int check_action = DEFAULT_CHECK_ACTION;
 /* Bins -- relocated to after definition of mstate */
 
 /* addressing -- note that bin_at(0) does not exist */
-#define _glibc_bin_at(m, i) \
-  (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2]))			      \
-             - offsetof (struct malloc_chunk, fd))
-
 static inline mbinptr bin_at(mstate av, int i){
   return (mbinptr) (((char *) &(av->bins[(i - 1) * 2]))	- offsetof (struct malloc_chunk, fd));
 }
 
 
 /* analog of ++bin */
-#define _glibc_next_bin(b)  ((mbinptr) ((char *) (b) + (sizeof (mchunkptr) << 1)))
-
 static inline mbinptr next_bin(mbinptr b){
   return ((mbinptr) ((char *)b + (sizeof (mchunkptr) << 1)));
 }
-
-/* Reminders about list directionality within bins */
-#define first(b)     ((b)->fd)
-#define last(b)      ((b)->bk)
 
 /* Take a chunk off a bin list */
 static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp) {
@@ -1928,68 +1912,23 @@ static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr 
 }
 
 
-/* Take a chunk off a bin list */
-#define _glibc_unlink(AV, P, BK, FD) {                                        \
-    FD = P->fd;								      \
-    BK = P->bk;								      \
-    if (__builtin_expect (FD->bk != P || BK->fd != P, 0))		      \
-      malloc_printerr (check_action, "corrupted double-linked list", P, AV);  \
-    else {								      \
-        FD->bk = BK;							      \
-        BK->fd = FD;							      \
-        if (!in_smallbin_range (P->size)				      \
-            && __builtin_expect (P->fd_nextsize != NULL, 0)) {		      \
-	    if (__builtin_expect (P->fd_nextsize->bk_nextsize != P, 0)	      \
-		|| __builtin_expect (P->bk_nextsize->fd_nextsize != P, 0))    \
-	      malloc_printerr (check_action,				      \
-			       "corrupted double-linked list (not small)",    \
-			       P, AV);					      \
-            if (FD->fd_nextsize == NULL) {				      \
-                if (P->fd_nextsize == P)				      \
-                  FD->fd_nextsize = FD->bk_nextsize = FD;		      \
-                else {							      \
-                    FD->fd_nextsize = P->fd_nextsize;			      \
-                    FD->bk_nextsize = P->bk_nextsize;			      \
-                    P->fd_nextsize->bk_nextsize = FD;			      \
-                    P->bk_nextsize->fd_nextsize = FD;			      \
-                  }							      \
-              } else {							      \
-                P->fd_nextsize->bk_nextsize = P->bk_nextsize;		      \
-                P->bk_nextsize->fd_nextsize = P->fd_nextsize;		      \
-              }								      \
-          }								      \
-      }									      \
+
+static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
+{
+  return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
 }
 
-#define _glibc_in_smallbin_range(sz)  \
-  ((unsigned long) (sz) < (unsigned long) MIN_LARGE_SIZE)
-
-static inline bool in_smallbin_range(INTERNAL_SIZE_T sz){
-return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
-}
-
-#define _glibc_smallbin_index(sz)					\
-  ((SMALLBIN_WIDTH == 16 ? (((unsigned) (sz)) >> 4) : (((unsigned) (sz)) >> 3))	\
-   + SMALLBIN_CORRECTION)
-
-static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz){
-  if(SMALLBIN_WIDTH == 16){
+static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
+{
+  if (SMALLBIN_WIDTH == 16){
     return ((unsigned int)sz) >> 4;
   } else {
     return (((unsigned int)sz) >> 3) + SMALLBIN_CORRECTION;
   }
 }
 
-
-#define _glibc_largebin_index_32(sz)					\
-  (((((unsigned long) (sz)) >> 6) <= 38) ?  56 + (((unsigned long) (sz)) >> 6) : \
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) : \
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) : \
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) : \
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) : \
-   126)
-
-static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz){
+static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz)
+{
   return (((((unsigned long) sz) >> 6) <= 38) ?  56 + (((unsigned long) sz) >> 6) :
 	  ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
 	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -1999,15 +1938,8 @@ static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz){
 } 
 
 
-#define _glibc_largebin_index_32_big(sz)                                            \
-  (((((unsigned long) (sz)) >> 6) <= 45) ?  49 + (((unsigned long) (sz)) >> 6) :\
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
-   126)
-
-static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz){
+static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz)
+{
   return (((((unsigned long) sz) >> 6) <= 45) ?  49 + (((unsigned long) sz) >> 6) :
       ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
 	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -2019,19 +1951,8 @@ static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz){
 // XXX It remains to be seen whether it is good to keep the widths of
 // XXX the buckets the same or whether it should be scaled by a factor
 // XXX of two as well.
-#define _glibc_largebin_index_64(sz)                                                \
-  (((((unsigned long) (sz)) >> 6) <= 48) ?  48 + (((unsigned long) (sz)) >> 6) :\
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
-   126)
-
-
-// XXX It remains to be seen whether it is good to keep the widths of
-// XXX the buckets the same or whether it should be scaled by a factor
-// XXX of two as well.
-static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz){
+static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz)
+{
   return (((((unsigned long) sz) >> 6) <= 48) ?  48 + (((unsigned long) sz) >> 6) :
 	  ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
 	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -2040,38 +1961,24 @@ static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz){
 	  126);
 }
 
-#define _glibc_largebin_index(sz) \
-  (SIZE_SZ == 8 ? largebin_index_64 (sz)                                     \
-   : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)                     \
-   : largebin_index_32 (sz))
-
 static inline unsigned int largebin_index(INTERNAL_SIZE_T sz){
   return (SIZE_SZ == 8 ? largebin_index_64 (sz)
 	  : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)
 	  : largebin_index_32 (sz));
 }
 
-#define _glibc_bin_index(sz) \
-  ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz))
-
 static inline unsigned int bin_index(INTERNAL_SIZE_T sz){
   return ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz));
 }
-
-#define _glibc_mark_bin(m, i)    ((m)->binmap[idx2block (i)] |= idx2bit (i))
 
 static inline void mark_bin(mstate av, int i){
   av->binmap[idx2block(i)] |= idx2bit(i);
 }
 
 
-#define _glibc_unmark_bin(m, i)  ((m)->binmap[idx2block (i)] &= ~(idx2bit (i)))
-
 static inline void unmark_bin(mstate av, int i){
   av->binmap[idx2block(i)] &= ~idx2bit(i);
 }
-
-#define _glibc_get_binmap(m, i)  ((m)->binmap[idx2block (i)] & idx2bit (i))
 
 static inline unsigned int get_binmap(mstate av, int i){
   return av->binmap[idx2block(i)] & idx2bit (i);

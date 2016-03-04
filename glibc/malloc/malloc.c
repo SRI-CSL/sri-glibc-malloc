@@ -1477,49 +1477,24 @@ static inline void set_foot(mstate av, mchunkptr p, size_t s){
 typedef struct malloc_chunk *mbinptr;
 
 /* addressing -- note that bin_at(0) does not exist */
-#define bin_at(m, i) \
-  (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2]))			      \
-             - offsetof (struct malloc_chunk, fd))
+static inline mbinptr bin_at(mstate av, int i);
 
 /* analog of ++bin */
-#define next_bin(b)  ((mbinptr) ((char *) (b) + (sizeof (mchunkptr) << 1)))
+static inline mbinptr next_bin(mbinptr b);
 
-/* Reminders about list directionality within bins */
-#define first(b)     ((b)->fd)
-#define last(b)      ((b)->bk)
+static inline mbinptr first(mbinptr b)
+{
+  return b->fd;
+}
+
+static inline mbinptr last(mbinptr b)
+{
+  return b->bk;
+}
 
 /* Take a chunk off a bin list */
-#define unlink(AV, P, BK, FD) {                                            \
-    FD = P->fd;								      \
-    BK = P->bk;								      \
-    if (__builtin_expect (FD->bk != P || BK->fd != P, 0))		      \
-      malloc_printerr (check_action, "corrupted double-linked list", P, AV);  \
-    else {								      \
-        FD->bk = BK;							      \
-        BK->fd = FD;							      \
-        if (!in_smallbin_range (P->size)				      \
-            && __builtin_expect (P->fd_nextsize != NULL, 0)) {		      \
-	    if (__builtin_expect (P->fd_nextsize->bk_nextsize != P, 0)	      \
-		|| __builtin_expect (P->bk_nextsize->fd_nextsize != P, 0))    \
-	      malloc_printerr (check_action,				      \
-			       "corrupted double-linked list (not small)",    \
-			       P, AV);					      \
-            if (FD->fd_nextsize == NULL) {				      \
-                if (P->fd_nextsize == P)				      \
-                  FD->fd_nextsize = FD->bk_nextsize = FD;		      \
-                else {							      \
-                    FD->fd_nextsize = P->fd_nextsize;			      \
-                    FD->bk_nextsize = P->bk_nextsize;			      \
-                    P->fd_nextsize->bk_nextsize = FD;			      \
-                    P->bk_nextsize->fd_nextsize = FD;			      \
-                  }							      \
-              } else {							      \
-                P->fd_nextsize->bk_nextsize = P->bk_nextsize;		      \
-                P->bk_nextsize->fd_nextsize = P->fd_nextsize;		      \
-              }								      \
-          }								      \
-      }									      \
-}
+static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp);
+
 
 /*
    Indexing
@@ -1551,47 +1526,13 @@ typedef struct malloc_chunk *mbinptr;
 #define SMALLBIN_CORRECTION (MALLOC_ALIGNMENT > 2 * SIZE_SZ)
 #define MIN_LARGE_SIZE    ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)
 
-#define in_smallbin_range(sz)  \
-  ((unsigned long) (sz) < (unsigned long) MIN_LARGE_SIZE)
-
-#define smallbin_index(sz) \
-  ((SMALLBIN_WIDTH == 16 ? (((unsigned) (sz)) >> 4) : (((unsigned) (sz)) >> 3))\
-   + SMALLBIN_CORRECTION)
-
-#define largebin_index_32(sz)                                                \
-  (((((unsigned long) (sz)) >> 6) <= 38) ?  56 + (((unsigned long) (sz)) >> 6) :\
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
-   126)
-
-#define largebin_index_32_big(sz)                                            \
-  (((((unsigned long) (sz)) >> 6) <= 45) ?  49 + (((unsigned long) (sz)) >> 6) :\
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
-   126)
-
-// XXX It remains to be seen whether it is good to keep the widths of
-// XXX the buckets the same or whether it should be scaled by a factor
-// XXX of two as well.
-#define largebin_index_64(sz)                                                \
-  (((((unsigned long) (sz)) >> 6) <= 48) ?  48 + (((unsigned long) (sz)) >> 6) :\
-   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
-   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
-   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
-   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
-   126)
-
-#define largebin_index(sz) \
-  (SIZE_SZ == 8 ? largebin_index_64 (sz)                                     \
-   : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)                     \
-   : largebin_index_32 (sz))
-
-#define bin_index(sz) \
-  ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz))
+static inline bool in_smallbin_range(INTERNAL_SIZE_T sz);
+static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz);
+static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz);
+static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz);
+static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz);
+static inline unsigned int largebin_index(INTERNAL_SIZE_T sz);
+static inline unsigned int bin_index(INTERNAL_SIZE_T sz);
 
 
 /*
@@ -1642,12 +1583,20 @@ typedef struct malloc_chunk *mbinptr;
 #define BITSPERMAP       (1U << BINMAPSHIFT)
 #define BINMAPSIZE       (NBINS / BITSPERMAP)
 
-#define idx2block(i)     ((i) >> BINMAPSHIFT)
-#define idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT) - 1))))
+static inline unsigned int idx2block(unsigned  int i)
+{
+  return i >> BINMAPSHIFT;
+}
 
-#define mark_bin(m, i)    ((m)->binmap[idx2block (i)] |= idx2bit (i))
-#define unmark_bin(m, i)  ((m)->binmap[idx2block (i)] &= ~(idx2bit (i)))
-#define get_binmap(m, i)  ((m)->binmap[idx2block (i)] & idx2bit (i))
+static inline unsigned  int idx2bit(unsigned int i)
+{
+  return ((1U << (i & ((1U << BINMAPSHIFT) - 1))));
+}
+
+static inline void mark_bin(mstate av, int i);
+static inline void unmark_bin(mstate av, int i);
+static inline unsigned int get_binmap(mstate av, int i);
+
 
 /*
    Fastbins
@@ -1667,12 +1616,13 @@ typedef struct malloc_chunk *mbinptr;
  */
 
 typedef struct malloc_chunk *mfastbinptr;
-#define fastbin(ar_ptr, idx) ((ar_ptr)->fastbinsY[idx])
+
+#define fastbin(ar_ptr, idx) \
+  ((ar_ptr)->fastbinsY[idx])
 
 /* offset 2 to use otherwise unindexable first 2 bins */
 #define fastbin_index(sz) \
   ((((unsigned int) (sz)) >> (SIZE_SZ == 8 ? 4 : 3)) - 2)
-
 
 /* The maximum fastbin request size we support */
 #define MAX_FAST_SIZE     (80 * SIZE_SZ / 4)
@@ -1709,9 +1659,11 @@ typedef struct malloc_chunk *mfastbinptr;
 
 #define FASTCHUNKS_BIT        (1U)
 
-#define have_fastchunks(M)     (((M)->flags & FASTCHUNKS_BIT) == 0)
-#define clear_fastchunks(M)    catomic_or (&(M)->flags, FASTCHUNKS_BIT)
-#define set_fastchunks(M)      catomic_and (&(M)->flags, ~FASTCHUNKS_BIT)
+/* SRI: definitions move to after mstate definition */
+static inline bool have_fastchunks(mstate av);
+static inline void clear_fastchunks(mstate av);
+static inline void set_fastchunks(mstate av);
+
 
 /*
    NONCONTIGUOUS_BIT indicates that MORECORE does not return contiguous
@@ -1724,10 +1676,10 @@ typedef struct malloc_chunk *mfastbinptr;
 
 #define NONCONTIGUOUS_BIT     (2U)
 
-#define contiguous(M)          (((M)->flags & NONCONTIGUOUS_BIT) == 0)
-#define noncontiguous(M)       (((M)->flags & NONCONTIGUOUS_BIT) != 0)
-#define set_noncontiguous(M)   ((M)->flags |= NONCONTIGUOUS_BIT)
-#define set_contiguous(M)      ((M)->flags &= ~NONCONTIGUOUS_BIT)
+static inline bool contiguous(mstate av);
+static inline bool noncontiguous(mstate av);
+static inline void set_noncontiguous(mstate av);
+static inline void set_contiguous(mstate av);
 
 /* ARENA_CORRUPTION_BIT is set if a memory corruption was detected on the
    arena.  Such an arena is no longer used to allocate chunks.  Chunks
@@ -1735,11 +1687,8 @@ typedef struct malloc_chunk *mfastbinptr;
 
 #define ARENA_CORRUPTION_BIT (4U)
 
-#define arena_is_corrupt(A)	(((A)->flags & ARENA_CORRUPTION_BIT))
-#define set_arena_corrupt(A)	((A)->flags |= ARENA_CORRUPTION_BIT)
-
-
-
+static inline bool arena_is_corrupt(mstate av);
+static inline void set_arena_corrupt(mstate av);
 
 /*
    Set value of max_fast.
@@ -1748,10 +1697,9 @@ typedef struct malloc_chunk *mfastbinptr;
    Setting the value clears fastchunk bit but preserves noncontiguous bit.
  */
 
-#define set_max_fast(s) \
-  global_max_fast = (((s) == 0)						      \
-                     ? SMALLBIN_WIDTH : ((s + SIZE_SZ) & ~MALLOC_ALIGN_MASK))
-#define get_max_fast() global_max_fast
+static void set_max_fast(INTERNAL_SIZE_T sz);
+static INTERNAL_SIZE_T get_max_fast(void);
+
 
 /*
    ----------- Internal state representation and initialization -----------
@@ -1914,8 +1862,270 @@ static bool is_main_arena(mstate av)
 #define M_ARENA_MAX  -8
 
 
+/* ---------------- Error behavior ------------------------------------ */
+
+#ifndef DEFAULT_CHECK_ACTION
+# define DEFAULT_CHECK_ACTION 3
+#endif
+
+static int check_action = DEFAULT_CHECK_ACTION;
+
+
+/* Bins -- relocated to after definition of mstate */
+
+/* addressing -- note that bin_at(0) does not exist */
+#define _glibc_bin_at(m, i) \
+  (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2]))			      \
+             - offsetof (struct malloc_chunk, fd))
+
+static inline mbinptr bin_at(mstate av, int i){
+  return (mbinptr) (((char *) &(av->bins[(i - 1) * 2]))	- offsetof (struct malloc_chunk, fd));
+}
+
+
+/* analog of ++bin */
+#define _glibc_next_bin(b)  ((mbinptr) ((char *) (b) + (sizeof (mchunkptr) << 1)))
+
+static inline mbinptr next_bin(mbinptr b){
+  return ((mbinptr) ((char *)b + (sizeof (mchunkptr) << 1)));
+}
+
+/* Reminders about list directionality within bins */
+#define first(b)     ((b)->fd)
+#define last(b)      ((b)->bk)
+
+/* Take a chunk off a bin list */
+static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp) {
+  *fdp = p->fd;
+  *bkp = p->bk;
+  if (__builtin_expect ((*fdp)->bk != p || (*bkp)->fd != p, 0))
+    malloc_printerr (check_action, "corrupted double-linked list", p, av);
+  else {
+    (*fdp)->bk = *bkp;
+    (*bkp)->fd = *fdp;
+    if (!in_smallbin_range (p->size)
+	&& __builtin_expect (p->fd_nextsize != NULL, 0)) {
+      if (__builtin_expect (p->fd_nextsize->bk_nextsize != p, 0)
+	  || __builtin_expect (p->bk_nextsize->fd_nextsize != p, 0))
+	malloc_printerr (check_action,
+			 "corrupted double-linked list (not small)",
+			 p, av);
+      if ((*fdp)->fd_nextsize == NULL) {
+	if (p->fd_nextsize == p)
+	  (*fdp)->fd_nextsize = (*fdp)->bk_nextsize = *fdp;
+	else {
+	  (*fdp)->fd_nextsize = p->fd_nextsize;
+	  (*fdp)->bk_nextsize = p->bk_nextsize;
+	  p->fd_nextsize->bk_nextsize = *fdp;
+	  p->bk_nextsize->fd_nextsize = *fdp;
+	}
+      } else {
+	p->fd_nextsize->bk_nextsize = p->bk_nextsize;
+	p->bk_nextsize->fd_nextsize = p->fd_nextsize;
+      }
+    }
+  }
+}
+
+
+/* Take a chunk off a bin list */
+#define _glibc_unlink(AV, P, BK, FD) {                                        \
+    FD = P->fd;								      \
+    BK = P->bk;								      \
+    if (__builtin_expect (FD->bk != P || BK->fd != P, 0))		      \
+      malloc_printerr (check_action, "corrupted double-linked list", P, AV);  \
+    else {								      \
+        FD->bk = BK;							      \
+        BK->fd = FD;							      \
+        if (!in_smallbin_range (P->size)				      \
+            && __builtin_expect (P->fd_nextsize != NULL, 0)) {		      \
+	    if (__builtin_expect (P->fd_nextsize->bk_nextsize != P, 0)	      \
+		|| __builtin_expect (P->bk_nextsize->fd_nextsize != P, 0))    \
+	      malloc_printerr (check_action,				      \
+			       "corrupted double-linked list (not small)",    \
+			       P, AV);					      \
+            if (FD->fd_nextsize == NULL) {				      \
+                if (P->fd_nextsize == P)				      \
+                  FD->fd_nextsize = FD->bk_nextsize = FD;		      \
+                else {							      \
+                    FD->fd_nextsize = P->fd_nextsize;			      \
+                    FD->bk_nextsize = P->bk_nextsize;			      \
+                    P->fd_nextsize->bk_nextsize = FD;			      \
+                    P->bk_nextsize->fd_nextsize = FD;			      \
+                  }							      \
+              } else {							      \
+                P->fd_nextsize->bk_nextsize = P->bk_nextsize;		      \
+                P->bk_nextsize->fd_nextsize = P->fd_nextsize;		      \
+              }								      \
+          }								      \
+      }									      \
+}
+
+#define _glibc_in_smallbin_range(sz)  \
+  ((unsigned long) (sz) < (unsigned long) MIN_LARGE_SIZE)
+
+static inline bool in_smallbin_range(INTERNAL_SIZE_T sz){
+return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
+}
+
+#define _glibc_smallbin_index(sz)					\
+  ((SMALLBIN_WIDTH == 16 ? (((unsigned) (sz)) >> 4) : (((unsigned) (sz)) >> 3))	\
+   + SMALLBIN_CORRECTION)
+
+static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz){
+  if(SMALLBIN_WIDTH == 16){
+    return ((unsigned int)sz) >> 4;
+  } else {
+    return (((unsigned int)sz) >> 3) + SMALLBIN_CORRECTION;
+  }
+}
+
+
+#define _glibc_largebin_index_32(sz)					\
+  (((((unsigned long) (sz)) >> 6) <= 38) ?  56 + (((unsigned long) (sz)) >> 6) : \
+   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) : \
+   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) : \
+   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) : \
+   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) : \
+   126)
+
+static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz){
+  return (((((unsigned long) sz) >> 6) <= 38) ?  56 + (((unsigned long) sz) >> 6) :
+	  ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
+	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
+	  ((((unsigned long) sz) >> 15) <= 4) ? 119 + (((unsigned long) sz) >> 15) :
+	  ((((unsigned long) sz) >> 18) <= 2) ? 124 + (((unsigned long) sz) >> 18) :
+	  126);
+} 
+
+
+#define _glibc_largebin_index_32_big(sz)                                            \
+  (((((unsigned long) (sz)) >> 6) <= 45) ?  49 + (((unsigned long) (sz)) >> 6) :\
+   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
+   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
+   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
+   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
+   126)
+
+static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz){
+  return (((((unsigned long) sz) >> 6) <= 45) ?  49 + (((unsigned long) sz) >> 6) :
+      ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
+	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
+	  ((((unsigned long) sz) >> 15) <= 4) ? 119 + (((unsigned long) sz) >> 15) :
+	  ((((unsigned long) sz) >> 18) <= 2) ? 124 + (((unsigned long) sz) >> 18) :
+	  126);
+}
+
+// XXX It remains to be seen whether it is good to keep the widths of
+// XXX the buckets the same or whether it should be scaled by a factor
+// XXX of two as well.
+#define _glibc_largebin_index_64(sz)                                                \
+  (((((unsigned long) (sz)) >> 6) <= 48) ?  48 + (((unsigned long) (sz)) >> 6) :\
+   ((((unsigned long) (sz)) >> 9) <= 20) ?  91 + (((unsigned long) (sz)) >> 9) :\
+   ((((unsigned long) (sz)) >> 12) <= 10) ? 110 + (((unsigned long) (sz)) >> 12) :\
+   ((((unsigned long) (sz)) >> 15) <= 4) ? 119 + (((unsigned long) (sz)) >> 15) :\
+   ((((unsigned long) (sz)) >> 18) <= 2) ? 124 + (((unsigned long) (sz)) >> 18) :\
+   126)
+
+
+// XXX It remains to be seen whether it is good to keep the widths of
+// XXX the buckets the same or whether it should be scaled by a factor
+// XXX of two as well.
+static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz){
+  return (((((unsigned long) sz) >> 6) <= 48) ?  48 + (((unsigned long) sz) >> 6) :
+	  ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
+	  ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
+	  ((((unsigned long) sz) >> 15) <= 4) ? 119 + (((unsigned long) sz) >> 15) :
+	  ((((unsigned long) sz) >> 18) <= 2) ? 124 + (((unsigned long) sz) >> 18) :
+	  126);
+}
+
+#define _glibc_largebin_index(sz) \
+  (SIZE_SZ == 8 ? largebin_index_64 (sz)                                     \
+   : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)                     \
+   : largebin_index_32 (sz))
+
+static inline unsigned int largebin_index(INTERNAL_SIZE_T sz){
+  return (SIZE_SZ == 8 ? largebin_index_64 (sz)
+	  : MALLOC_ALIGNMENT == 16 ? largebin_index_32_big (sz)
+	  : largebin_index_32 (sz));
+}
+
+#define _glibc_bin_index(sz) \
+  ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz))
+
+static inline unsigned int bin_index(INTERNAL_SIZE_T sz){
+  return ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz));
+}
+
+#define _glibc_mark_bin(m, i)    ((m)->binmap[idx2block (i)] |= idx2bit (i))
+
+static inline void mark_bin(mstate av, int i){
+  av->binmap[idx2block(i)] |= idx2bit(i);
+}
+
+
+#define _glibc_unmark_bin(m, i)  ((m)->binmap[idx2block (i)] &= ~(idx2bit (i)))
+
+static inline void unmark_bin(mstate av, int i){
+  av->binmap[idx2block(i)] &= ~idx2bit(i);
+}
+
+#define _glibc_get_binmap(m, i)  ((m)->binmap[idx2block (i)] & idx2bit (i))
+
+static inline unsigned int get_binmap(mstate av, int i){
+  return av->binmap[idx2block(i)] & idx2bit (i);
+}
+
 /* Maximum size of memory handled in fastbins.  */
 static INTERNAL_SIZE_T global_max_fast;
+
+static inline bool have_fastchunks(mstate av){
+  return (av->flags & FASTCHUNKS_BIT) == 0;
+}
+
+static inline void clear_fastchunks(mstate av){
+  catomic_or (&av->flags, FASTCHUNKS_BIT);
+}
+
+static inline void set_fastchunks(mstate av){
+  catomic_and (&av->flags, ~FASTCHUNKS_BIT);
+}
+
+static inline bool contiguous(mstate av){
+  return (av->flags & NONCONTIGUOUS_BIT) == 0;
+}
+
+static inline bool noncontiguous(mstate av){
+  return (av->flags & NONCONTIGUOUS_BIT) != 0;
+}
+
+static inline void set_noncontiguous(mstate av){
+  av->flags |= NONCONTIGUOUS_BIT;
+}
+
+static inline void set_contiguous(mstate av){
+  av->flags &= ~NONCONTIGUOUS_BIT;
+}
+
+static inline bool arena_is_corrupt(mstate av){
+  return av->flags & ARENA_CORRUPTION_BIT;
+}
+static inline void set_arena_corrupt(mstate av){
+  av->flags |= ARENA_CORRUPTION_BIT;
+}
+
+static void set_max_fast(INTERNAL_SIZE_T sz){
+  if(sz == 0){
+    global_max_fast = SMALLBIN_WIDTH;
+  } else {
+    global_max_fast = ((sz + SIZE_SZ) & ~MALLOC_ALIGN_MASK);
+  }
+}
+
+static INTERNAL_SIZE_T get_max_fast(void){
+  return global_max_fast;
+}
 
 /*
    Initialize a malloc_state struct.
@@ -2259,15 +2469,6 @@ void *weak_variable (*__memalign_hook)
   (size_t __alignment, size_t __size, const void *)
   = memalign_hook_ini;
 void weak_variable (*__after_morecore_hook) (void) = NULL;
-
-
-/* ---------------- Error behavior ------------------------------------ */
-
-#ifndef DEFAULT_CHECK_ACTION
-# define DEFAULT_CHECK_ACTION 3
-#endif
-
-static int check_action = DEFAULT_CHECK_ACTION;
 
 
 /* ------------------ Testing support ----------------------------------*/
@@ -4225,7 +4426,7 @@ _int_malloc (mstate av, size_t bytes)
                 victim = victim->fd;
 
               remainder_size = size - nb;
-              unlink (av, victim, bck, fwd);
+              bin_unlink (av, victim, &bck, &fwd);
 
 	      _md_victim = hashtable_lookup(av, victim);
 	      if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
@@ -4340,7 +4541,7 @@ _int_malloc (mstate av, size_t bytes)
               remainder_size = size - nb;
 
               /* unlink */
-              unlink (av, victim, bck, fwd);
+              bin_unlink (av, victim, &bck, &fwd);
 
               /* Exhaust */
               if (remainder_size < MINSIZE)
@@ -4672,8 +4873,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
-      _md_p = hashtable_lookup(av, p);             //FIXME: if prevsize != 0 the old _md_p needs reclaiming
-      unlink(av, p, bck, fwd);                     //FIXME: probably also malloc_consolidate
+      _md_p = hashtable_lookup(av, p);             
+      bin_unlink(av, p, &bck, &fwd);                     
     }
 
     if (nextchunk != av->top) {
@@ -4682,7 +4883,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
       /* consolidate forward */
       if (!nextinuse) {
-	unlink(av, nextchunk, bck, fwd);
+	bin_unlink(av, nextchunk, &bck, &fwd);
 	size += nextsize;
       } else
 	clear_inuse_bit_at_offset(av, nextchunk, 0);
@@ -4871,7 +5072,7 @@ static void malloc_consolidate(mstate av)
 	    size += prevsize;
 	    p = chunk_at_offset(p, -((long) prevsize));
 	    _md_p = hashtable_lookup (av, p);
-	    unlink(av, p, bck, fwd);
+	    bin_unlink(av, p, &bck, &fwd);
 	  }
 
 	  if (nextchunk != av->top) {
@@ -4879,7 +5080,7 @@ static void malloc_consolidate(mstate av)
 
 	    if (!nextinuse) {
 	      size += nextsize;
-	      unlink(av, nextchunk, bck, fwd);
+	      bin_unlink(av, nextchunk, &bck, &fwd);
 	    } else
 	      clear_inuse_bit_at_offset(av, nextchunk, 0);
 
@@ -5042,7 +5243,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
         {
 
           newp = oldp;
-          unlink (av, next, bck, fwd);
+          bin_unlink (av, next, &bck, &fwd);
 	  /* don't leak next's metadata */
 	  hashtable_remove(av, next);
 

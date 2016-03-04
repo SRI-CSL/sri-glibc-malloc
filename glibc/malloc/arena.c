@@ -739,7 +739,7 @@ heap_trim (heap_info *heap, size_t pad)
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p); //FIXME: once twinned
 	  }
-          unlink (ar_ptr, p, bck, fwd);
+          bin_unlink(ar_ptr, p, &bck, &fwd);
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));

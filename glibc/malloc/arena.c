@@ -173,16 +173,19 @@ static void
 free_atfork (void *mem, const void *caller)
 {
   mstate ar_ptr;
-  mchunkptr p;                          /* chunk corresponding to mem */
+  mchunkptr p;                 /* chunk corresponding to mem */
+  chunkinfoptr _md_p;          /* metadata of chunk  */
 
-  if (mem == 0)                              /* free(0) has no effect */
+
+  if (mem == 0)                /* free(0) has no effect */
     return;
 
   p = mem2chunk (mem);         /* do not bother to replicate free_check here */
 
-  if (chunk_is_mmapped (p))                       /* release mmapped memory. */
+  if (chunk_is_mmapped (p))    /* release mmapped memory. */
     {
-      munmap_chunk (p);
+      _md_p = hashtable_lookup(&main_arena, p);  //SRI: do we have the lock here?
+      munmap_chunk(_md_p);
       return;
     }
 
@@ -716,7 +719,7 @@ heap_trim (heap_info *heap, size_t pad)
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
       }
 
-      new_size = chunksize (p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
+      new_size = _md_chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
       if (!prev_inuse (p)){
         new_size += p->prev_size;
@@ -756,7 +759,7 @@ heap_trim (heap_info *heap, size_t pad)
   /* Uses similar logic for per-thread arenas as the main arena with systrim
      and _int_free by preserving the top pad and rounding down to the nearest
      page.  */
-  top_size = chunksize (top_chunk);
+  top_size = _md_chunksize (ar_ptr->_md_top);
   if ((unsigned long)(top_size) <
       (unsigned long)(mp_.trim_threshold))
     return 0;

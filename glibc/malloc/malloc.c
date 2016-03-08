@@ -1062,9 +1062,9 @@ static void malloc_printerr(int action, const char *str, void *ptr, mstate av);
 
 static void* internal_function mem2mem_check(void *p, size_t sz);
 static int internal_function top_check(void);
-static void internal_function munmap_chunk(mchunkptr p);
+static void internal_function munmap_chunk(chunkinfoptr _md_p);
 #if HAVE_MREMAP
-static mchunkptr internal_function mremap_chunk(mstate av, mchunkptr p, size_t new_size);
+static mchunkptr internal_function mremap_chunk(mstate av, chunkinfoptr p, size_t new_size);
 #endif
 
 static void*   malloc_check(size_t sz, const void *caller);
@@ -1329,11 +1329,13 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 */
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
-/* Get size, ignoring use bits */
+/* Get size, ignoring use bits
 static inline INTERNAL_SIZE_T chunksize(mchunkptr p)
 {
   return p->size & ~(SIZE_BITS);
 }
+*/
+
 
 /* Ptr to next physical malloc_chunk. */
 static inline mchunkptr next_chunk(mchunkptr p)
@@ -3498,9 +3500,10 @@ systrim (size_t pad, mstate av)
 
 static void
 internal_function
-munmap_chunk (mchunkptr p)
+munmap_chunk (chunkinfoptr _md_p)
 {
-  INTERNAL_SIZE_T size = chunksize (p); //FIXME: need the metadata ...
+  INTERNAL_SIZE_T size = _md_chunksize (_md_p);
+  mchunkptr p = chunkinfo2chunk(_md_p);
 
   assert (chunk_is_mmapped (p));
 
@@ -3531,23 +3534,23 @@ munmap_chunk (mchunkptr p)
 
 static mchunkptr
 internal_function
-mremap_chunk (mstate av, mchunkptr p, size_t new_size)
+mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 {
-  chunkinfoptr _md_p;
-  size_t pagesize = GLRO (dl_pagesize);
-  INTERNAL_SIZE_T offset = p->prev_size;
-  INTERNAL_SIZE_T size = chunksize (p);  //FIXME: need the metadata
+  size_t pagesize;
+  INTERNAL_SIZE_T offset, size;
   char *cp, *ocp;
-  mchunkptr op;
+  mchunkptr p, op;
+
+  pagesize = GLRO (dl_pagesize);
+  size = _md_chunksize (_md_p);
+  p = chunkinfo2chunk(_md_p);
+  offset = p->prev_size;
 
   assert (chunk_is_mmapped (p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
 
   /* remember for later */
   op = p;
-
-  _md_p = hashtable_lookup(av, p);
-  if (_md_p == NULL) { missing_metadata(av, p); }
 
   /* Note the extra SIZE_SZ overhead as in mmap_chunk(). */
   new_size = ALIGN_UP (new_size + offset + SIZE_SZ, pagesize);
@@ -3677,7 +3680,7 @@ __libc_free (void *mem)
         }
       
 
-      munmap_chunk (p); //FIXME: pass in the metadata
+      munmap_chunk (_md_p); 
 
       hashtable_remove(&main_arena, p);
 
@@ -3726,13 +3729,21 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   /* chunk corresponding to oldmem */
   const mchunkptr oldp = mem2chunk (oldmem);
-  /* its size */
-  const INTERNAL_SIZE_T oldsize = chunksize (oldp);  //FIXME: need the metadata
 
   if (chunk_is_mmapped (oldp))
     ar_ptr = &main_arena;  
   else
     ar_ptr = arena_for_chunk (oldp);
+
+
+  (void) mutex_lock (&ar_ptr->mutex);
+
+  _md_oldp = hashtable_lookup(ar_ptr, oldp);
+  if (_md_oldp == NULL) { missing_metadata(ar_ptr, oldp); }
+
+  /* its size */
+  const INTERNAL_SIZE_T oldsize = _md_chunksize (_md_oldp);
+
 
   /* Little security check which won't hurt performance: the
      allocator never wraps around at the end of the address space.
@@ -3743,22 +3754,25 @@ __libc_realloc (void *oldmem, size_t bytes)
     {
       malloc_printerr (check_action, "realloc(): invalid pointer", oldmem,
                        ar_ptr);
+      (void) mutex_unlock (&ar_ptr->mutex);
       return 0;
     }
 
   if ( !checked_request2size (bytes, &nb) ) {
+    (void) mutex_unlock (&ar_ptr->mutex);
     return 0;
   }
 
   if (chunk_is_mmapped (oldp))
     {
       void *newmem;
-      //FIXME: need the lock and the _md_oldp
-      
+
 #if HAVE_MREMAP
-      newp = mremap_chunk (ar_ptr, oldp, nb);
-      if (newp)
+      newp = mremap_chunk (ar_ptr, _md_oldp, nb);
+      if (newp){
+	(void) mutex_unlock (&ar_ptr->mutex);
         return chunk2mem (newp);
+      }
 #endif
 
       
@@ -3772,11 +3786,12 @@ __libc_realloc (void *oldmem, size_t bytes)
         return 0;              /* propagate failure */
 
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
-      munmap_chunk (oldp);
+      munmap_chunk (_md_oldp);
+      hashtable_remove(&main_arena, oldp);
+      (void) mutex_unlock (&ar_ptr->mutex);
       return newmem;
     }
 
-  (void) mutex_lock (&ar_ptr->mutex);
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
@@ -3785,14 +3800,12 @@ __libc_realloc (void *oldmem, size_t bytes)
     return 0;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
-  _md_oldp = hashtable_lookup(ar_ptr, oldp);
-  if (_md_oldp == NULL) { missing_metadata(ar_ptr, oldp); }
-
   _md_newp = _int_realloc (ar_ptr, _md_oldp, oldsize, nb);
   newp = chunkinfo2chunk(_md_newp);
   mem = chunkinfo2mem(_md_newp);
 
   (void) mutex_unlock (&ar_ptr->mutex);
+
   assert (!mem || chunk_is_mmapped (newp) ||
           ar_ptr == arena_for_chunk (newp));
 
@@ -4738,25 +4751,36 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   check_inuse_chunk(av, p, _md_p);
 
+
+  mchunkptr tempnext;
+  chunkinfoptr _md_tempnext;
+  INTERNAL_SIZE_T tempnext_sz;
+  
+  tempnext = chunk_at_offset(p, size);  
+  //FIXME: this needs the lock. should get them above, and 
+  //eliminate their retrieval below too.
+  _md_tempnext = hashtable_lookup(av, tempnext);
+  if(_md_tempnext == NULL){ missing_metadata(av, tempnext); }
+  tempnext_sz = _md_chunksize (_md_tempnext);
+
   /*
     If eligible, place chunk on a fastbin so it can be found
     and used quickly in malloc.
   */
 
-  if ((unsigned long)(size) <= (unsigned long)(get_max_fast ())
 
+  if ((unsigned long)(size) <= (unsigned long)(get_max_fast ())
 #if TRIM_FASTBINS
       /*
         If TRIM_FASTBINS set, don't place chunks
         bordering top into fastbins
       */
-      && (chunk_at_offset(p, size) != av->top)
+      && (_md_tempnext != av->_md_top)
 #endif
       ) {
 
-    if (__builtin_expect (chunk_at_offset (p, size)->size <= 2 * SIZE_SZ, 0)  //FIXME!
-        || __builtin_expect (chunksize (chunk_at_offset (p, size))//FIXME!
-                             >= av->system_mem, 0))
+    if (__builtin_expect (_md_tempnext->size <= 2 * SIZE_SZ, 0)
+        || __builtin_expect (tempnext_sz >= av->system_mem, 0))
       {
         /* We might not have a lock at this point and concurrent modifications
            of system_mem might have let to a false positive.  Redo the test
@@ -4765,8 +4789,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
             || ({ assert (locked == 0);
                 mutex_lock(&av->mutex);
                 locked = 1;
-                chunk_at_offset (p, size)->size <= 2 * SIZE_SZ  //FIXME!
-                  || chunksize (chunk_at_offset (p, size)) >= av->system_mem; //FIXME!
+                _md_tempnext->size <= 2 * SIZE_SZ
+                  || tempnext_sz >= av->system_mem; 
               }))
           {
             errstr = "free(): invalid next size (fast)";
@@ -4984,8 +5008,20 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   */
 
   else {
-    //FIXME: need the lock and need to release the metdata?
-    munmap_chunk (p);
+
+    if (have_lock || locked) {
+      (void)mutex_unlock(&av->mutex);
+      locked = 0;
+    }
+
+    (void)mutex_lock(&main_arena.mutex);
+
+    munmap_chunk (_md_p);
+    hashtable_remove(&main_arena, p);
+
+    (void)mutex_unlock(&main_arena.mutex);
+
+
   }
 
 }
@@ -5406,7 +5442,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
       newp = (mchunkptr) brk;
       leadsize = brk - (char *) (p);
-      newsize = chunksize (p) - leadsize;
+      newsize = _md_chunksize (_md_p) - leadsize;
 
       /* For mmapped chunks, just adjust offset */
       if (chunk_is_mmapped (p))
@@ -5433,7 +5469,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
   /* Also give back spare room at the end */
   if (!chunk_is_mmapped (p))
     {
-      size = chunksize (p);
+      size = _md_chunksize (_md_p);
       if ((unsigned long) (size) > (unsigned long) (nb + MINSIZE))
         {
           remainder_size = size - nb;
@@ -5547,7 +5583,13 @@ __malloc_trim (size_t s)
 static size_t
 musable (void *mem)
 {
+  mstate ar_ptr;
   mchunkptr p;
+  chunkinfoptr _md_p;
+  size_t retval;
+
+  retval = 0;
+
   if (mem != 0)
     {
       p = mem2chunk (mem);
@@ -5555,14 +5597,29 @@ musable (void *mem)
       if (__builtin_expect (using_malloc_checking == 1, 0))
         return malloc_check_get_size (p);
 
-      if (chunk_is_mmapped (p))
-        return chunksize (p) - 2 * SIZE_SZ;
-      else if (inuse (p))
-        return chunksize (p) - SIZE_SZ;
-    }
-  return 0;
-}
 
+      ar_ptr = arena_for_chunk(p);
+
+      (void)mutex_lock(&ar_ptr->mutex);
+
+      _md_p = hashtable_lookup(ar_ptr, p);
+
+      if (_md_p == NULL) {
+	missing_metadata(ar_ptr, p);
+      } 
+      
+      if (chunk_is_mmapped(p)){
+	retval = _md_chunksize(_md_p) - 2*SIZE_SZ; 
+      }
+      else if (inuse(p)){
+	retval = _md_chunksize(_md_p) - SIZE_SZ; 
+      }
+    
+      (void)mutex_unlock(&ar_ptr->mutex);
+
+    }
+      return retval;
+}
 
 size_t
 __malloc_usable_size (void *m)
@@ -5596,7 +5653,7 @@ int_mallinfo (mstate av, struct mallinfo *m)
   check_malloc_state (av);
 
   /* Account for top */
-  avail = chunksize (av->top);
+  avail = _md_chunksize (av->_md_top);
   nblocks = 1;  /* top always exists */
 
   /* traverse fastbins */
@@ -5636,7 +5693,7 @@ int_mallinfo (mstate av, struct mallinfo *m)
       m->hblks = mp_.n_mmaps;
       m->hblkhd = mp_.mmapped_mem;
       m->usmblks = mp_.max_total_mem;
-      m->keepcost = chunksize (av->top);
+      m->keepcost = _md_chunksize (av->_md_top);
     }
 }
 

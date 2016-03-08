@@ -119,17 +119,17 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #SRI hack to compile our version of malloc without optimizations.
 #you will need to make sure that you have commented out line 4 
 # of config.h in the glibc-build directory.
-ifeq ($(SRI_DEBUG), 1)
+#ifeq ($(SRI_DEBUG),1)
 CFLAGS-malloc.c =  -O0 -DMALLOC_DEBUG=1
 CFLAGS-utils.c =  -O0
 CFLAGS-memcxt.c =  -O0
 CFLAGS-metadata.c =  -O0
-else
-CFLAGS-malloc.c =  -O2
-CFLAGS-utils.c =  -O2
-CFLAGS-memcxt.c =  -O2
-CFLAGS-metadata.c =  -O2
-endif
+#else
+#CFLAGS-malloc.c =  -O2
+#CFLAGS-utils.c =  -O2
+#CFLAGS-memcxt.c =  -O2
+#CFLAGS-metadata.c =  -O2
+#endif
 
 
 $(objpfx)libmcheck.a: $(objpfx)mcheck-init.o

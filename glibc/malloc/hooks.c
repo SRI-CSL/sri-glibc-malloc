@@ -86,7 +86,7 @@ __malloc_check_init (void)
 /* A simple, standard set of debugging hooks.  Overhead is `only' one
    byte per chunk; still this will catch most cases of double frees or
    overruns.  The goal here is to avoid obscure crashes due to invalid
-   usage, unlike in the MALLOC_DEBUG code. */
+   usage, unlike in the MALLOC_DEBUG code.
 
 static unsigned char
 magicbyte (const void *p)
@@ -94,12 +94,12 @@ magicbyte (const void *p)
   unsigned char magic;
 
   magic = (((uintptr_t) p >> 3) ^ ((uintptr_t) p >> 11)) & 0xFF;
-  /* Do not return 1.  See the comment in mem2mem_check().  */
+  // Do not return 1.  See the comment in mem2mem_check().  
   if (magic == 1)
     ++magic;
   return magic;
 }
-
+ */
 
 /* Visualize the chunk as being partitioned into blocks of 255 bytes from the
    highest address of the chunk, downwards.  The end of each block tells
@@ -110,6 +110,7 @@ magicbyte (const void *p)
 static size_t
 malloc_check_get_size (mchunkptr p)
 {
+  /*
   size_t size;
   unsigned char c;
   unsigned char magic = magicbyte (p);
@@ -129,8 +130,11 @@ malloc_check_get_size (mchunkptr p)
         }
     }
 
-  /* chunk2mem size.  */
+  // chunk2mem size. 
   return size - 2 * SIZE_SZ;
+  */
+
+  return 0;  //FIXME!!! my guess is this is all assuming a single main_arena.
 }
 
 /* Instrument a chunk with overrun detector byte(s) and convert it
@@ -140,6 +144,7 @@ static void *
 internal_function
 mem2mem_check (void *ptr, size_t req_sz)
 {
+  /*
   mchunkptr p;
   unsigned char *m_ptr = ptr;
   size_t max_sz, block_sz, i;
@@ -156,8 +161,8 @@ mem2mem_check (void *ptr, size_t req_sz)
   for (i = max_sz - 1; i > req_sz; i -= block_sz)
     {
       block_sz = MIN (i - req_sz, 0xff);
-      /* Don't allow the magic byte to appear in the chain of length bytes.
-         For the following to work, magicbyte cannot return 0x01.  */
+      // Don't allow the magic byte to appear in the chain of length bytes.
+      //   For the following to work, magicbyte cannot return 0x01.  
       if (block_sz == magic)
         --block_sz;
 
@@ -165,6 +170,8 @@ mem2mem_check (void *ptr, size_t req_sz)
     }
   m_ptr[req_sz] = magic;
   return (void *) m_ptr;
+  */
+  return NULL; //FIXME!!! my guess is this is all assuming a single main_arena.
 }
 
 /* Convert a pointer to be free()d or realloc()ed to a valid chunk
@@ -174,6 +181,7 @@ static mchunkptr
 internal_function
 mem2chunk_check (void *mem, unsigned char **magic_p)
 {
+  /*
   mchunkptr p;
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
@@ -186,7 +194,7 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
   magic = magicbyte (p);
   if (!chunk_is_mmapped (p))
     {
-      /* Must be a chunk in conventional heap memory. */
+      // Must be a chunk in conventional heap memory. 
       int contig = contiguous (&main_arena);
       if ((contig &&
            ((char *) p < mp_.sbrk_base ||
@@ -207,9 +215,9 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
     {
       unsigned long offset, page_mask = GLRO (dl_pagesize) - 1;
 
-      /* mmap()ed chunks have MALLOC_ALIGNMENT or higher power-of-two
-         alignment relative to the beginning of a page.  Check this
-         first. */
+      // mmap()ed chunks have MALLOC_ALIGNMENT or higher power-of-two
+      //   alignment relative to the beginning of a page.  Check this
+      //   first. 
       offset = (unsigned long) mem & page_mask;
       if ((offset != MALLOC_ALIGNMENT && offset != 0 && offset != 0x10 &&
            offset != 0x20 && offset != 0x40 && offset != 0x80 && offset != 0x100 &&
@@ -230,6 +238,8 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
   if (magic_p)
     *magic_p = (unsigned char *) p + sz;
   return p;
+  */
+  return NULL;
 }
 
 /* Check for corruption of the top chunk, and try to recover if
@@ -239,6 +249,7 @@ static int
 internal_function
 top_check (void)
 {
+  /*
   mchunkptr ot = main_arena.top;
   INTERNAL_SIZE_T ot_sz = chunksize(ot);
   char *brk, *new_brk;
@@ -256,7 +267,7 @@ top_check (void)
   malloc_printerr (check_action, "malloc: top chunk is corrupt", ot,
 		   &main_arena);
 
-  /* Try to set up a new top chunk. */
+  // Try to set up a new top chunk. 
   brk = MORECORE (0);
   front_misalign = (unsigned long) chunk2mem (brk) & MALLOC_ALIGN_MASK;
   if (front_misalign > 0)
@@ -269,7 +280,7 @@ top_check (void)
       __set_errno (ENOMEM);
       return -1;
     }
-  /* Call the `morecore' hook if necessary.  */
+  // Call the `morecore' hook if necessary.  
   void (*hook) (void) = atomic_forced_read (__after_morecore_hook);
   if (hook)
     (*hook)();
@@ -278,7 +289,7 @@ top_check (void)
   main_arena.top = (mchunkptr) (brk + front_misalign);
   set_head (main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
   main_arena._md_top = register_chunk(&main_arena, main_arena.top);
-
+  */
   return 0;
 }
 
@@ -305,6 +316,8 @@ static void
 free_check (void *mem, const void *caller)
 {
   mchunkptr p;
+  chunkinfoptr _md_p;
+
 
   if (!mem)
     return;
@@ -321,8 +334,10 @@ free_check (void *mem, const void *caller)
     }
   if (chunk_is_mmapped (p))
     {
+      _md_p = hashtable_lookup(&main_arena, p);  
+      munmap_chunk(_md_p);
+      hashtable_remove(&main_arena, p); 
       (void) mutex_unlock (&main_arena.mutex);
-      munmap_chunk (p);
       return;
     }
   _int_free (&main_arena, NULL, p, 1);
@@ -366,7 +381,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 		       &main_arena);
       return malloc_check (bytes, NULL);
     }
-  const INTERNAL_SIZE_T oldsize = chunksize (oldp);
+  const INTERNAL_SIZE_T oldsize = _md_chunksize (_md_oldp);
 
   if ( !checked_request2size (bytes + 1, &nb) ){
     return 0;
@@ -375,8 +390,9 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 
   if (chunk_is_mmapped (oldp))
     {
+
 #if HAVE_MREMAP
-      mchunkptr newp = mremap_chunk (&main_arena, oldp, nb);
+      mchunkptr newp = mremap_chunk (&main_arena, _md_oldp, nb);
       if (newp)
         newmem = chunk2mem (newp);
       else
@@ -395,7 +411,8 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
             if (newmem)
               {
                 memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
-                munmap_chunk (oldp);
+                munmap_chunk (_md_oldp);
+		hashtable_remove(&main_arena, oldp); 
               }
           }
       }

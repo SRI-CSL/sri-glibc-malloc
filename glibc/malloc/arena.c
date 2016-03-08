@@ -713,7 +713,7 @@ heap_trim (heap_info *heap, size_t pad)
 
 
       hashtable_remove(ar_ptr, p); /* SRI: pulling out the fencepost */
-      p = prev_chunk (p);
+      p = prev_chunk (_md_p, p);
       _md_p = hashtable_lookup(ar_ptr, p);
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
@@ -721,7 +721,7 @@ heap_trim (heap_info *heap, size_t pad)
 
       new_size = _md_chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
-      if (!prev_inuse (p)){
+      if (!prev_inuse(_md_p, p)){
         new_size += p->prev_size;
       }
       assert (new_size > 0 && new_size < HEAP_MAX_SIZE);
@@ -736,10 +736,11 @@ heap_trim (heap_info *heap, size_t pad)
       delete_heap (heap);
       heap = prev_heap;
 
-      if (!prev_inuse (p)) /* consolidate backward; SRI: size already done above */
+      if (!prev_inuse(_md_p, p)) /* consolidate backward; SRI: size already done above */
         {
-	  hashtable_remove(ar_ptr, p);
-          p = prev_chunk (p);
+	  mchunkptr op = p;
+          p = prev_chunk (_md_p, p);
+	  hashtable_remove(ar_ptr, op);
 	  _md_p = hashtable_lookup(ar_ptr, p);
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p); //FIXME: once twinned

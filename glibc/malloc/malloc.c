@@ -1292,7 +1292,7 @@ static inline bool checked_request2size(size_t req, size_t *sz)
 #define PREV_INUSE 0x1
 
 /* extract inuse bit of previous chunk */
-static inline bool prev_inuse(mchunkptr p)
+static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 {
   return (p->size & PREV_INUSE) == PREV_INUSE;
 }
@@ -1329,22 +1329,14 @@ static inline bool chunk_non_main_arena(mchunkptr p)
 */
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
-/* Get size, ignoring use bits
-static inline INTERNAL_SIZE_T chunksize(mchunkptr p)
-{
-  return p->size & ~(SIZE_BITS);
-}
-*/
-
-
 /* Ptr to next physical malloc_chunk. */
-static inline mchunkptr next_chunk(mchunkptr p)
+static inline mchunkptr next_chunk(chunkinfoptr _md_p, mchunkptr p)
 {
   return ((mchunkptr) (((char *) p) + (p->size & ~SIZE_BITS)));
 }
 
 /* Ptr to previous physical malloc_chunk */
-static inline mchunkptr prev_chunk(mchunkptr p)
+static inline mchunkptr prev_chunk(chunkinfoptr _md_p, mchunkptr p)
 {
   return ((mchunkptr) (((char *)p) - (p->prev_size)));
 }
@@ -1355,8 +1347,8 @@ static inline mchunkptr chunk_at_offset(void* p, size_t s)
   return ((mchunkptr) (((char *) p) + s));
 }
 
-/* extract p's inuse bit [iam: used anywhere?] */
-static inline bool inuse(mchunkptr p)
+/* extract p's inuse bit */
+static inline bool inuse(mstate av, chunkinfoptr _md_p, mchunkptr p)
 {
   return ((((mchunkptr) (((char *)p) +
                          (p->size & ~SIZE_BITS)))->size) 
@@ -1729,7 +1721,7 @@ static INTERNAL_SIZE_T get_max_fast(void);
   Maximum number of metadata needed to service a request to the
   malloc api
 */
-#define METADATA_CACHE_SIZE 4
+#define METADATA_CACHE_SIZE 8
 
 struct malloc_state
 {
@@ -2187,7 +2179,7 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 }
 
 
-/* Get a free chunkinfo from av's metadata cache */
+/* Get a free chunkinfo from av's metadata cache
 static chunkinfoptr new_chunkinfoptr(mstate av)
 {
   chunkinfoptr retval;
@@ -2199,6 +2191,18 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   retval = av->metadata_cache[--av->metadata_cache_count];
   av->metadata_cache[av->metadata_cache_count] = NULL;
   
+  return retval;
+}
+*/
+
+
+/* Get a free chunkinfo */
+static chunkinfoptr
+new_chunkinfoptr(mstate av)
+{
+  chunkinfoptr retval;
+  assert(av != NULL);
+  retval = allocate_chunkinfoptr(&(av->htbl));
   return retval;
 }
 
@@ -2331,7 +2335,7 @@ static chunkinfoptr split_chunk(mstate av,
   return _md_remainder;
 }
 
-/* temporary hack for testing sanity */
+/* sanity check */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
   if (ci != NULL) {
@@ -2340,41 +2344,6 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
               chunk2mem(c), file, lineno);
       return false;
     }
-
-    /* SRI: can get away with the cast as long as our metadata chunks **look** like chunks */
-    if (chunk_is_mmapped((mchunkptr)ci) != chunk_is_mmapped(c)) { 
-      fprintf(stderr, "check_metadata_chunk of %p:\nis_mmapped bits do not match is_mmapped(ci) = %d  is_mmapped(c) = %d @ %s line %d\n",
-              chunk2mem(c), chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), file, lineno);
-      return false; 
-    }
-
-    if (size2chunksize(ci->size) != size2chunksize(c->size)) {
-      fprintf(stderr, "check_metadata_chunk of %p:\nci->size = %zu  c->size = %zu main arena: %d @ %s line %d\n",
-              chunk2mem(c), ci->size, c->size, is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-              chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-      return false; 
-    }
-
-    if (!prev_inuse(c)) {
-      if (ci->prev_size != c->prev_size) {
-        fprintf(stderr, "check_metadata_chunk of %p:\nci->prev_size = %zu  c->prev_size = %zu main arena: %d @ %s line %d\n",
-                chunk2mem(c), ci->prev_size, c->prev_size, is_main_arena(av), file, lineno);
-        fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-                chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-        return false;
-      }
-    }
-
-    /* SRI: can get away with the cast as long as our metadata chunks **look** like chunks */
-    if (prev_inuse((mchunkptr)ci) != prev_inuse(c)) {  
-      fprintf(stderr, "check_metadata_chunk of %p:\nprev_inuse bits do not match prev_inuse(ci) = %d  prev_inuse(c) = %d, main arena: %d @ %s line %d\n",
-              chunk2mem(c), prev_inuse((mchunkptr)ci), prev_inuse(c),  is_main_arena(av), file, lineno);
-      fprintf(stderr, "is_mmapped(ci) = %d  is_mmapped(c) = %d chunk_non_main_arena(c) = %d\n",
-              chunk_is_mmapped((mchunkptr)ci), chunk_is_mmapped(c), chunk_non_main_arena(c));
-      return false;
-    }
-    
     return true;
   } 
   return false;
@@ -2534,7 +2503,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
           /* top size is always at least MINSIZE */
           assert ((unsigned long) (sz) >= MINSIZE);
           /* top predecessor always marked inuse */
-          assert (prev_inuse (p));
+          assert (prev_inuse(_md_p, p));
         }
     }
   else
@@ -2573,7 +2542,7 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
   if (_md_next == NULL) { missing_metadata(av, next); }
   
   /* Chunk must claim to be free ... */
-  assert (!inuse (p));
+  assert (!inuse(av, _md_p, p));
   assert (!chunk_is_mmapped (p));
 
   /* Unless a special marker, must have OK fields */
@@ -2584,8 +2553,8 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
       /* ... matching footer field */
       assert (next->prev_size == sz);
       /* ... and is fully consolidated */
-      assert (prev_inuse (p));
-      assert (next == av->top || inuse (next));
+      assert (prev_inuse(_md_p, p));
+      assert (next == av->top || inuse(av, _md_next, next));
 
       /* ... and has minimally sane links */
       assert (_md_p->fd->bk == _md_p);
@@ -2616,9 +2585,9 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
     return; /* mmapped chunks have no next/prev */
 
   /* Check whether it claims to be in use ... */
-  assert (inuse (p));
+  assert (inuse(av, _md_p, p));
 
-  next = next_chunk (p);
+  next = next_chunk (_md_p, p);
   _md_next = hashtable_lookup(av, next);
   if (_md_next == NULL) { missing_metadata(av, next); }
 
@@ -2627,22 +2596,22 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
      Since more things can be checked with free chunks than inuse ones,
      if an inuse chunk borders them and debug is on, it's worth doing them.
   */
-  if (!prev_inuse (p))
+  if (!prev_inuse(_md_p, p))
     {
       /* Note that we cannot even look at prev unless it is not inuse */
-      prv = prev_chunk (p);
+      prv = prev_chunk (_md_p, p);
       _md_prv = hashtable_lookup(av, prv);
       if (_md_prv == NULL) { missing_metadata(av, prv); }
-      assert (next_chunk (prv) == p);
+      assert (next_chunk (_md_prv, prv) == p);
       do_check_free_chunk (av, prv, _md_prv, file, lineno);
     }
 
   if (next == av->top)
     {
-      assert (prev_inuse (next));
+      assert (prev_inuse(_md_next, next));
       assert (_md_chunksize (_md_next) >= MINSIZE);
     }
-  else if (!inuse (next))
+  else if (!inuse(av, _md_next, next))
     do_check_free_chunk (av, next, _md_next, file, lineno);
 }
 
@@ -2706,7 +2675,7 @@ do_check_malloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SI
     recycled via fastbins.
   */
 
-  assert (prev_inuse (p));
+  assert (prev_inuse(_md_p, p));
 }
 
 
@@ -2865,12 +2834,12 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
             assert (_md_p->fd_nextsize == NULL && _md_p->bk_nextsize == NULL);
 
           /* chunk is followed by a legal chain of inuse chunks */
-	  q = next_chunk(p);
+	  q = next_chunk(_md_p, p);
 	  _md_q = hashtable_lookup(av, q);
 	  if (_md_q == NULL) { missing_metadata(av, q); }
-	  while(q != top && inuse(q) && (unsigned long)(_md_chunksize(_md_q)) >= MINSIZE){
+	  while(q != top && inuse(av, _md_q, q) && (unsigned long)(_md_chunksize(_md_q)) >= MINSIZE){
 	    do_check_inuse_chunk(av, q, _md_q, file, lineno);
-	    q = next_chunk(q);
+	    q = next_chunk(_md_q, q);
 	    _md_q = hashtable_lookup(av, q);
 	  }
 
@@ -2921,7 +2890,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
   size_t pagesize = GLRO (dl_pagesize);
   bool tried_mmap = false;
-
 
   /*
     If have mmap, and the request size meets the mmap threshold, and
@@ -3041,7 +3009,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
   assert ((old_top == &av->initial_top && old_size == 0) ||
           ((unsigned long) (old_size) >= MINSIZE &&
-           prev_inuse (old_top) &&
+           prev_inuse(_md_old_top, old_top) &&
            ((unsigned long) old_end & (pagesize - 1)) == 0));
 
   /* Precondition: not enough current space to satisfy nb request */
@@ -3741,6 +3709,15 @@ __libc_realloc (void *oldmem, size_t bytes)
   _md_oldp = hashtable_lookup(ar_ptr, oldp);
   if (_md_oldp == NULL) { missing_metadata(ar_ptr, oldp); }
 
+
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache */
+  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
+    (void) mutex_unlock (&ar_ptr->mutex);
+    return 0;
+  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+  
+
   /* its size */
   const INTERNAL_SIZE_T oldsize = _md_chunksize (_md_oldp);
 
@@ -3792,13 +3769,6 @@ __libc_realloc (void *oldmem, size_t bytes)
       return newmem;
     }
 
-
-  /* gracefully fail is we do not have enough memory to 
-     replenish our metadata cache */
-  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
-    (void) mutex_unlock (&ar_ptr->mutex);
-    return 0;
-  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
   _md_newp = _int_realloc (ar_ptr, _md_oldp, oldsize, nb);
   newp = chunkinfo2chunk(_md_newp);
@@ -4867,7 +4837,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
         goto errout;
       }
     /* Or whether the block is actually not marked used.  */
-    if (__glibc_unlikely (!prev_inuse(nextchunk)))
+    if (__glibc_unlikely (!prev_inuse(_md_nextchunk, nextchunk)))
       {
         errstr = "double free or corruption (!prev)";
         goto errout;
@@ -4885,7 +4855,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     free_perturb (chunk2mem(p), size - 2 * SIZE_SZ);
 
     /* consolidate backward */
-    if (!prev_inuse(p)) {
+    if (!prev_inuse(_md_p, p)) {
       prevsize = p->prev_size;
 
       if (prevsize == 0) {
@@ -5097,7 +5067,7 @@ static void malloc_consolidate(mstate av)
 	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
           nextsize = _md_chunksize(_md_nextchunk);
 
-          if (!prev_inuse(p)) {
+          if (!prev_inuse(_md_p, p)) {
             prevsize = p->prev_size;
             size += prevsize;
             p = chunk_at_offset(p, -((long) prevsize));
@@ -5261,7 +5231,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
       /* Try to expand forward into next chunk;  split off remainder below */
       else if (next != av->top &&
-               !inuse (next) &&
+               !inuse(av, _md_next, next) &&
                (unsigned long) (newsize = oldsize + nextsize) >=
                (unsigned long) (nb))
         {
@@ -5611,7 +5581,7 @@ musable (void *mem)
       if (chunk_is_mmapped(p)){
 	retval = _md_chunksize(_md_p) - 2*SIZE_SZ; 
       }
-      else if (inuse(p)){
+      else if (inuse(ar_ptr, _md_p, p)){
 	retval = _md_chunksize(_md_p) - SIZE_SZ; 
       }
     

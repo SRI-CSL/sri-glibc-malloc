@@ -2,6 +2,7 @@
 
 ifeq ($(shell whoami),vagrant)
 GLIBC_SRC=../../Variants/glibc/
+#building uses hard links (can't be on the shared drive)
 GLIBC_BUILD=/home/vagrant/glibc-build/
 else
 GLIBC_SRC=../../Variants/glibc/
@@ -22,9 +23,6 @@ install:
 
 test:
 	$(MAKE) -C ../glibc_tests  run
-#
-# should port a version of replay into glibc_tests
-#cd ${GLIBC_BUILD}; ./testrun.sh ${REPLAYCMD}
 
 
 

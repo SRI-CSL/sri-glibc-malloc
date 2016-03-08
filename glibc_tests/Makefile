@@ -68,3 +68,11 @@ testreplay:
 
 mtestreplay:
 	./mtreplay 4 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+#shaman
+mstress8:
+	./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+#pascali
+mstress16:
+	./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt

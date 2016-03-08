@@ -664,7 +664,9 @@ heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = GLRO (dl_pagesize);
-  mchunkptr top_chunk = ar_ptr->top, bck, fwd;
+  mchunkptr top_chunk = ar_ptr->top;
+
+  chunkinfoptr bck, fwd;
 
   mchunkptr p;
   chunkinfoptr _md_p;
@@ -739,7 +741,7 @@ heap_trim (heap_info *heap, size_t pad)
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p); //FIXME: once twinned
 	  }
-          bin_unlink(ar_ptr, p, &bck, &fwd);
+          bin_unlink(ar_ptr, _md_p, &bck, &fwd);
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));

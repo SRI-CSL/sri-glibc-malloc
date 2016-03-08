@@ -530,7 +530,7 @@ __malloc_get_state (void)
   ms->version = MALLOC_STATE_VERSION;
   ms->av[0] = 0;
   ms->av[1] = 0; /* used to be binblocks, now no longer used */
-  ms->av[2] = main_arena.top;
+  ms->av[2] = main_arena._md_top;
   ms->av[3] = 0; /* used to be undefined */
   for (i = 1; i < NBINS; i++)
     {
@@ -592,7 +592,7 @@ __malloc_set_state (void *msptr)
     fastbin (&main_arena, i) = 0;
   for (i = 0; i < BINMAPSIZE; ++i)
     main_arena.binmap[i] = 0;
-  main_arena.top = ms->av[2];
+  main_arena._md_top = ms->av[2];
   main_arena.last_remainder = 0;
   for (i = 1; i < NBINS; i++)
     {
@@ -605,8 +605,8 @@ __malloc_set_state (void *msptr)
       else
         {
           if (ms->version >= 3 &&
-              (i < NSMALLBINS || (largebin_index (chunksize (ms->av[2 * i + 2])) == i &&
-                                  largebin_index (chunksize (ms->av[2 * i + 3])) == i)))
+              (i < NSMALLBINS || (largebin_index (_md_chunksize (ms->av[2 * i + 2])) == i &&
+                                  largebin_index (_md_chunksize (ms->av[2 * i + 3])) == i)))
             {
               first (b) = ms->av[2 * i + 2];
               last (b) = ms->av[2 * i + 3];
@@ -635,7 +635,7 @@ __malloc_set_state (void *msptr)
       b = unsorted_chunks (&main_arena)->fd;
       while (b != unsorted_chunks (&main_arena))
         {
-          if (!in_smallbin_range (chunksize (b)))
+          if (!in_smallbin_range (_md_chunksize (b)))
             {
               b->fd_nextsize = NULL;
               b->bk_nextsize = NULL;

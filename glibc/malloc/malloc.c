@@ -76,8 +76,7 @@
   free(void* p);
   realloc(void* p, size_t n);
   memalign(size_t alignment, size_t n);
-  valloc(size_t n);
-  mallinfo()
+  valloc(size_t nfo()
   mallopt(int parameter_number, int parameter_value)
 
   Additional functions:
@@ -1116,12 +1115,14 @@ struct malloc_chunk {
   INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
   INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
 
-  struct malloc_chunk* fd;         /* double links -- used only if free. */
+  /*
+  struct malloc_chunk* fd;         // double links -- used only if free. 
   struct malloc_chunk* bk;
 
-  /* Only used for large blocks: pointer to next larger size.  */
-  struct malloc_chunk* fd_nextsize; /* double links -- used only if free. */
+  // Only used for large blocks: pointer to next larger size.  xs
+  struct malloc_chunk* fd_nextsize; // double links -- used only if free. 
   struct malloc_chunk* bk_nextsize;
+  */
 };
 
 
@@ -1229,7 +1230,8 @@ static inline mchunkptr mem2chunk(void* mem)
 }
 
 /* The smallest possible chunk */
-#define MIN_CHUNK_SIZE        (offsetof(struct malloc_chunk, fd_nextsize))
+#define MIN_CHUNK_SIZE       2 * sizeof(struct malloc_chunk)
+//(offsetof(struct malloc_chunk, fd_nextsize))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
 
@@ -1496,7 +1498,7 @@ static inline void set_foot(mstate av, mchunkptr p, size_t s)
   to treat these as the fields of a malloc_chunk*.
 */
 
-typedef struct malloc_chunk *mbinptr;
+typedef struct chunkinfo *mbinptr;
 
 /* addressing -- note that bin_at(0) does not exist */
 static inline mbinptr bin_at(mstate av, int i);
@@ -1509,7 +1511,7 @@ static inline mbinptr next_bin(mbinptr b);
 #define last(b)      ((b)->bk)
 
 /* Take a chunk off a bin list */
-static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp);
+static inline void bin_unlink(mstate av, chunkinfoptr p, chunkinfoptr *bkp, chunkinfoptr *fdp);
 
 
 /*
@@ -1536,11 +1538,11 @@ static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr 
   a valid chunk size the small bins are bumped up one.
 */
 
-#define NBINS             128
-#define NSMALLBINS         64
-#define SMALLBIN_WIDTH    MALLOC_ALIGNMENT
+#define NBINS               128
+#define NSMALLBINS          64
+#define SMALLBIN_WIDTH      MALLOC_ALIGNMENT
 #define SMALLBIN_CORRECTION (MALLOC_ALIGNMENT > 2 * SIZE_SZ)
-#define MIN_LARGE_SIZE    ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)
+#define MIN_LARGE_SIZE      ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)
 
 static inline bool in_smallbin_range(INTERNAL_SIZE_T sz);
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz);
@@ -1631,7 +1633,7 @@ static inline unsigned int get_binmap(mstate av, int i);
   other free chunks.
 */
 
-typedef struct malloc_chunk *mfastbinptr;
+typedef struct chunkinfo *mfastbinptr;
 
 #define fastbin(ar_ptr, idx)                    \
   ((ar_ptr)->fastbinsY[idx])
@@ -1755,7 +1757,7 @@ struct malloc_state
   chunkinfoptr _md_last_remainder;
 
   /* Normal bins packed as described above */
-  mchunkptr bins[NBINS * 2 - 2];
+  struct chunkinfo bins[NBINS];
 
   /* Bitmap of bins */
   unsigned int binmap[BINMAPSIZE];
@@ -1790,7 +1792,7 @@ struct malloc_state
      that we don't get caught halfway through an allocation routine 
      and not be able to create the necessary metadata. If we can't 
      fill the cache at the start of malloc, realloc, or calloc we
-     can return NULL and know that the current state is still
+     can return 0 and know that the current state is still
      consistent.
   */
   chunkinfoptr  metadata_cache[METADATA_CACHE_SIZE];
@@ -1893,18 +1895,20 @@ static int check_action = DEFAULT_CHECK_ACTION;
 /* addressing -- note that bin_at(0) does not exist */
 static inline mbinptr bin_at(mstate av, int i)
 {
-  return (mbinptr) (((char *) &(av->bins[(i - 1) * 2])) - offsetof (struct malloc_chunk, fd));
+  return &(av->bins[i]);
+  //return (mbinptr) (((char *) &(av->bins[(i - 1) * 2])) - offsetof (struct malloc_chunk, fd));
 }
 
 
 /* analog of ++bin */
 static inline mbinptr next_bin(mbinptr b)
 {
-  return ((mbinptr) ((char *)b + (sizeof (mchunkptr) << 1)));
+  return b + 1; 
+  //return ((mbinptr) ((char *)b + (sizeof (mchunkptr) << 1)));
 }
 
 /* Take a chunk off a bin list */
-static inline void bin_unlink(mstate av, mchunkptr p, mchunkptr *bkp, mchunkptr *fdp) {
+static inline void bin_unlink(mstate av, chunkinfoptr p, chunkinfoptr *bkp, chunkinfoptr *fdp) {
   *fdp = p->fd;
   *bkp = p->bk;
   if (__builtin_expect ((*fdp)->bk != p || (*bkp)->fd != p, 0))
@@ -2147,15 +2151,15 @@ static bool replenish_metadata_cache(mstate av)
   assert(METADATA_CACHE_SIZE >= count && count >= 0);
 
   for(i = count; i < METADATA_CACHE_SIZE; i++) {
-    if (av->metadata_cache[i] == NULL) {
-      _md_p = allocate_chunkinfoptr(&(av->htbl));
-      if (_md_p != NULL) {
-        av->metadata_cache[i] = _md_p;
-      } else {
-        return false;
-      }
+    assert(av->metadata_cache[i] == NULL);
+    _md_p = allocate_chunkinfoptr(&(av->htbl));
+    if (_md_p != NULL) {
+      av->metadata_cache[i] = _md_p;
+    } else {
+      return false;
     }
   }
+
   av->metadata_cache_count = METADATA_CACHE_SIZE;
   return true;
 }
@@ -2175,7 +2179,7 @@ static void  malloc_consolidate (mstate);
   ----------- SRI: Metadata manipulation and initialization -----------
 */
 
-/* Get a free chunkinfo */
+/* Get a free chunkinfo
 static chunkinfoptr
 new_chunkinfoptr(mstate av)
 {
@@ -2184,6 +2188,7 @@ new_chunkinfoptr(mstate av)
   retval = allocate_chunkinfoptr(&(av->htbl));
   return retval;
 }
+*/
 
 static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 {
@@ -2191,23 +2196,21 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
 }
 
 
-/* Get a free chunkinfo from av's metadata cache //FIXME: turn on after twinning
-   static chunkinfoptr new_chunkinfoptr(mstate av)
-   {
-   chunkinfoptr retval;
-   assert(av != NULL);
-   assert(av->metadata_cache_count > 0);
-   if (av->metadata_cache_count <= 0) {
-   abort();
-   }
-   retval = av->metadata_cache[--av->metadata_cache_count];
-   av->metadata_cache[av->metadata_cache_count] = NULL;
+/* Get a free chunkinfo from av's metadata cache */
+static chunkinfoptr new_chunkinfoptr(mstate av)
+{
+  chunkinfoptr retval;
+  assert(av != NULL);
+  assert(av->metadata_cache_count > 0);
+  if (av->metadata_cache_count <= 0) {
+    abort();
+  }
+  retval = av->metadata_cache[--av->metadata_cache_count];
+  av->metadata_cache[av->metadata_cache_count] = NULL;
   
-   assert(av->metadata_cache_count != 0);
+  return retval;
+}
 
-   return retval;
-   }
-*/
 
 /* lookup the chunk in the hashtable */
 static chunkinfoptr
@@ -2246,7 +2249,7 @@ static mchunkptr chunkinfo2chunk(chunkinfoptr _md_victim)
 static void* chunkinfo2mem(chunkinfoptr _md_victim)
 {
   if (_md_victim == NULL) {
-    return NULL;
+    return 0;
   } else {
     return _md_victim->chunk;
   }
@@ -2383,8 +2386,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     
     return true;
   } 
-  //FIXME: true ==> false when bins become chunkinfoptrs
-  return true;
+  return false;
 }
 
 
@@ -2495,18 +2497,26 @@ static bool do_check_top(mstate av, const char* file, int lineno)
 # define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
 /*
-  Properties of all chunks
+  Properties of all chunks  (FIXME: do_check_* should not crash on NULL av!
 */
 
 static void
 do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
-  unsigned long sz = chunksize (p);
-  /* min and max possible addresses assuming contiguous allocation */
-  char *max_address = (char *) (av->top) + chunksize (av->top);
-  char *min_address = max_address - av->system_mem;
+  unsigned long sz;
+  char *max_address;
+  char *min_address;
   bool metadata_ok;
-  
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
+
+  sz = chunksize (p);
+
+  /* min and max possible addresses assuming contiguous allocation */
+  max_address = (char *) (av->top) + chunksize (av->top);
+  min_address = max_address - av->system_mem;
+
   check_top(av);
 
   metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
@@ -2557,11 +2567,20 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
 static void
 do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
-  INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
-  mchunkptr next = chunk_at_offset (p, sz);
+  INTERNAL_SIZE_T sz;
+  mchunkptr next;
+  chunkinfoptr _md_next;
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
 
   do_check_chunk (av, p, _md_p, file, lineno);
-
+  
+  sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
+  next = chunk_at_offset (p, sz);
+  _md_next = hashtable_lookup(av, next);
+  if (_md_next == NULL) { missing_metadata(av, next); }
+  
   /* Chunk must claim to be free ... */
   assert (!inuse (p));
   assert (!chunk_is_mmapped (p));
@@ -2578,8 +2597,8 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
       assert (next == av->top || inuse (next));
 
       /* ... and has minimally sane links */
-      assert (p->fd->bk == p);
-      assert (p->bk->fd == p);
+      assert (_md_p->fd->bk == _md_p);
+      assert (_md_p->bk->fd == _md_p);
     }
   else /* markers are always of size SIZE_SZ */
     assert (sz == SIZE_SZ);
@@ -2593,6 +2612,12 @@ static void
 do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, int lineno)
 {
   mchunkptr next;
+  chunkinfoptr _md_next;
+  mchunkptr prv;
+  chunkinfoptr _md_prv;
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
 
   do_check_chunk (av, p, _md_p, file, lineno);
 
@@ -2603,6 +2628,9 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
   assert (inuse (p));
 
   next = next_chunk (p);
+  _md_next = hashtable_lookup(av, next);
+  if (_md_next == NULL) { missing_metadata(av, next); }
+
 
   /* ... and is surrounded by OK chunks.
      Since more things can be checked with free chunks than inuse ones,
@@ -2611,9 +2639,11 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
   if (!prev_inuse (p))
     {
       /* Note that we cannot even look at prev unless it is not inuse */
-      mchunkptr prv = prev_chunk (p);
+      prv = prev_chunk (p);
+      _md_prv = hashtable_lookup(av, prv);
+      if (_md_prv == NULL) { missing_metadata(av, prv); }
       assert (next_chunk (prv) == p);
-      do_check_free_chunk (av, prv, NULL, file, lineno);
+      do_check_free_chunk (av, prv, _md_prv, file, lineno);
     }
 
   if (next == av->top)
@@ -2622,7 +2652,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
       assert (chunksize (next) >= MINSIZE);
     }
   else if (!inuse (next))
-    do_check_free_chunk (av, next, NULL, file, lineno);
+    do_check_free_chunk (av, next, _md_next, file, lineno);
 }
 
 /*
@@ -2633,7 +2663,12 @@ static void
 do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, 
                            INTERNAL_SIZE_T s, const char* file, int lineno)
 {
-  INTERNAL_SIZE_T sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
+  INTERNAL_SIZE_T sz;
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
+
+  sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
 
   if (!chunk_is_mmapped (p))
     {
@@ -2663,6 +2698,10 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p,
 static void
 do_check_malloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, INTERNAL_SIZE_T s, const char* file, int lineno)
 {
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
+
   /* same as recycled case ... */
   do_check_remalloced_chunk (av, p, _md_p, s, file, lineno);
 
@@ -2695,13 +2734,25 @@ static void
 do_check_malloc_state (mstate av, const char* file, int lineno)
 {
   int i;
+
+  chunkinfoptr _md_p;
+  chunkinfoptr _md_q;
+
   mchunkptr p;
   mchunkptr q;
+
   mbinptr b;
   unsigned int idx;
   INTERNAL_SIZE_T size;
   unsigned long total = 0;
   int max_fast_bin;
+
+  mchunkptr top;
+
+  /* no debugging when we are running out of memory */
+  if(av == NULL){ return; }
+
+  top = chunkinfo2chunk(av->_md_top);
 
   /* internal size_t must be no wider than pointer type */
   assert (sizeof (INTERNAL_SIZE_T) <= sizeof (char *));
@@ -2730,7 +2781,7 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
   for (i = 0; i < NFASTBINS; ++i)
     {
-      p = fastbin (av, i);
+      _md_p = fastbin (av, i);
 
       /* The following test can only be performed for the main arena.
          While mallopt calls malloc_consolidate to get rid of all fast
@@ -2745,16 +2796,17 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
       /* all bins past max_fast are empty */
       if (av == &main_arena && i > max_fast_bin)
-        assert (p == 0);
+        assert (_md_p == 0);
 
-      while (p != 0)
+      while (_md_p != 0)
         {
+	  p = chunkinfo2chunk(_md_p);
           /* each chunk claims to be inuse */
-          do_check_inuse_chunk (av, p, NULL, file, lineno);
-          total += chunksize (p);
+          do_check_inuse_chunk (av, p, _md_p, file, lineno);
+          total += _md_chunksize (_md_p);
           /* chunk belongs in this bin */
-          assert (fastbin_index (chunksize (p)) == i);
-          p = p->fd;
+          assert (fastbin_index (_md_chunksize (_md_p)) == i);
+          _md_p = _md_p->fd;
         }
     }
 
@@ -2779,11 +2831,12 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
             assert (binbit);
         }
 
-      for (p = last (b); p != b; p = p->bk)
+      for (_md_p = last (b); _md_p != b; _md_p = _md_p->bk)
         {
           /* each chunk claims to be free */
-          do_check_free_chunk (av, p, NULL, file, lineno);
-          size = chunksize (p);
+	  p = chunkinfo2chunk(_md_p);
+          do_check_free_chunk (av, p, _md_p, file, lineno);
+          size = _md_chunksize (_md_p);
           total += size;
           if (i >= 2)
             {
@@ -2791,40 +2844,45 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
               idx = bin_index (size);
               assert (idx == i);
               /* lists are sorted */
-              assert (p->bk == b ||
-                      (unsigned long) chunksize (p->bk) >= (unsigned long) chunksize (p));
+              assert (_md_p->bk == b ||
+                      (unsigned long) _md_chunksize (_md_p->bk) >= (unsigned long) _md_chunksize (_md_p));
 
               if (!in_smallbin_range (size))
                 {
-                  if (p->fd_nextsize != NULL)
+                  if (_md_p->fd_nextsize != NULL)
                     {
-                      if (p->fd_nextsize == p)
-                        assert (p->bk_nextsize == p);
+                      if (_md_p->fd_nextsize == _md_p)
+                        assert (_md_p->bk_nextsize == _md_p);
                       else
                         {
-                          if (p->fd_nextsize == first (b))
-                            assert (chunksize (p) < chunksize (p->fd_nextsize));
+                          if (_md_p->fd_nextsize == first (b))
+                            assert (_md_chunksize (_md_p) < _md_chunksize (_md_p->fd_nextsize));
                           else
-                            assert (chunksize (p) > chunksize (p->fd_nextsize));
+                            assert (_md_chunksize (_md_p) > _md_chunksize (_md_p->fd_nextsize));
 
-                          if (p == first (b))
-                            assert (chunksize (p) > chunksize (p->bk_nextsize));
+                          if (_md_p == first (b))
+                            assert (_md_chunksize (_md_p) > _md_chunksize (_md_p->bk_nextsize));
                           else
-                            assert (chunksize (p) < chunksize (p->bk_nextsize));
+                            assert (_md_chunksize (_md_p) < _md_chunksize (_md_p->bk_nextsize));
                         }
                     }
                   else
-                    assert (p->bk_nextsize == NULL);
+                    assert (_md_p->bk_nextsize == NULL);
                 }
             }
           else if (!in_smallbin_range (size))
-            assert (p->fd_nextsize == NULL && p->bk_nextsize == NULL);
+            assert (_md_p->fd_nextsize == NULL && _md_p->bk_nextsize == NULL);
+
           /* chunk is followed by a legal chain of inuse chunks */
-          for (q = next_chunk (p);
-               (q != av->top && inuse (q) &&
-                (unsigned long) (chunksize (q)) >= MINSIZE);
-               q = next_chunk (q))
-            do_check_inuse_chunk (av, q, NULL, file, lineno);
+	  q = next_chunk(p);
+	  _md_q = hashtable_lookup(av, q);
+	  if (_md_q == NULL) { missing_metadata(av, q); }
+	  while(q != top && inuse(q) && (unsigned long)(_md_chunksize(_md_q)) >= MINSIZE){
+	    do_check_inuse_chunk(av, q, _md_q, file, lineno);
+	    q = next_chunk(q);
+	    _md_q = hashtable_lookup(av, q);
+	  }
+
         }
     }
 
@@ -2945,11 +3003,15 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               if (is_main_arena(av)) {
                 _md_p = register_chunk(av, p);
               } else {
-                (void)mutex_unlock(&av->mutex);
+		if(av != NULL){
+		  (void)mutex_unlock(&av->mutex);
+		}
                 (void)mutex_lock(&main_arena.mutex);
                 _md_p = register_chunk(&main_arena, p);
                 (void)mutex_unlock(&main_arena.mutex);
-                (void)mutex_lock(&av->mutex);
+		if(av != NULL){
+		  (void)mutex_lock(&av->mutex);
+		}
               }
 
               /* update statistics */
@@ -3556,7 +3618,7 @@ __libc_malloc (size_t bytes)
      replenish our metadata cache */
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
-    return NULL;
+    return 0;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
   _md_victim = _int_malloc (ar_ptr, bytes);
@@ -3691,7 +3753,7 @@ __libc_realloc (void *oldmem, size_t bytes)
     {
       malloc_printerr (check_action, "realloc(): invalid pointer", oldmem,
                        ar_ptr);
-      return NULL;
+      return 0;
     }
 
   if ( !checked_request2size (bytes, &nb) ) {
@@ -3727,7 +3789,7 @@ __libc_realloc (void *oldmem, size_t bytes)
      replenish our metadata cache */
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
-    return NULL;
+    return 0;
   } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
   _md_oldp = hashtable_lookup(ar_ptr, oldp);
@@ -3817,7 +3879,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
      replenish our metadata cache */
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
-    return NULL;
+    return 0;
   }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
 
@@ -3922,7 +3984,7 @@ __libc_calloc (size_t n, size_t elem_size)
      replenish our metadata cache */
   if (av != NULL && !replenish_metadata_cache(av)) {
     (void) mutex_unlock (&av->mutex);
-    return NULL;
+    return 0;
   }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
 
   if (av)
@@ -4056,8 +4118,8 @@ _int_malloc (mstate av, size_t bytes)
   unsigned int bit;                 /* bit map traverser */
   unsigned int map;                 /* current word of binmap */
 
-  mchunkptr fwd;                    /* misc temp for linking */
-  mchunkptr bck;                    /* misc temp for linking */
+  chunkinfoptr fwd;                    /* misc temp for linking */
+  chunkinfoptr bck;                    /* misc temp for linking */
 
 
   chunkinfoptr _md_p;               /* result of sysmalloc */
@@ -4099,26 +4161,25 @@ _int_malloc (mstate av, size_t bytes)
     {
       idx = fastbin_index (nb);
       mfastbinptr *fb = &fastbin (av, idx);
-      mchunkptr pp = *fb;
+      chunkinfoptr pp = *fb;
       do
         {
-          victim = pp;
-          if (victim == NULL)
+          _md_victim = pp;
+          if (_md_victim == NULL)
             break;
         }
-      while ((pp = catomic_compare_and_exchange_val_acq (fb, victim->fd, victim))
-             != victim);
-      if (victim != 0)
+      while ((pp = catomic_compare_and_exchange_val_acq (fb, _md_victim->fd, _md_victim))
+             != _md_victim);
+      if (_md_victim != 0)
         {
-          if (__builtin_expect (fastbin_index (chunksize (victim)) != idx, 0))
+          if (__builtin_expect (fastbin_index (_md_chunksize (_md_victim)) != idx, 0))
             {
               errstr = "malloc(): memory corruption (fast)";
             errout:
-              malloc_printerr (check_action, errstr, chunk2mem (victim), av);
-              return NULL;
+              malloc_printerr (check_action, errstr, chunkinfo2mem (_md_victim), av);
+              return 0;
             }
-          _md_victim = hashtable_lookup(av, victim);
-          if (_md_victim == NULL) { missing_metadata(av, victim); }
+	  victim = chunkinfo2chunk(_md_victim);
           check_remalloced_chunk (av, victim, _md_victim, nb);
           void *p = chunk2mem (victim);
           alloc_perturb (p, bytes);
@@ -4139,20 +4200,19 @@ _int_malloc (mstate av, size_t bytes)
       idx = smallbin_index (nb);
       bin = bin_at (av, idx);
       
-      if ((victim = last (bin)) != bin)
+      if ((_md_victim = last (bin)) != bin)
         {
-          if (victim == 0) /* initialization check */
+          if (_md_victim == 0) /* initialization check */
             malloc_consolidate (av);
           else
             {
-              _md_victim = hashtable_lookup(av, victim);
-              if (_md_victim == NULL) { missing_metadata(av, victim); }
-              bck = victim->bk;
-              if (__glibc_unlikely (bck->fd != victim))
+              bck = _md_victim->bk;
+              if (__glibc_unlikely (bck->fd != _md_victim))
                 {
                   errstr = "malloc(): smallbin double linked list corrupted";
                   goto errout;
                 }
+	      victim = chunkinfo2chunk(_md_victim);
               set_inuse_bit_at_offset (av, victim, nb);
               bin->bk = bck;
               bck->fd = bin;
@@ -4201,18 +4261,17 @@ _int_malloc (mstate av, size_t bytes)
   for (;; )
     {
       int iters = 0;
-      while ((victim = unsorted_chunks (av)->bk) != unsorted_chunks (av))
+      while ((_md_victim = unsorted_chunks (av)->bk) != unsorted_chunks (av))
         {
 
-          _md_victim = hashtable_lookup(av, victim);
-          if (_md_victim == NULL) { missing_metadata(av, victim); }
+          bck = _md_victim->bk;
+	  victim = chunkinfo2chunk(_md_victim);
 
-          bck = victim->bk;
-          if (__builtin_expect (victim->size <= 2 * SIZE_SZ, 0)
-              || __builtin_expect (victim->size > av->system_mem, 0))
+          if (__builtin_expect (_md_victim->size <= 2 * SIZE_SZ, 0)
+              || __builtin_expect (_md_victim->size > av->system_mem, 0))
             malloc_printerr (check_action, "malloc(): memory corruption",
                              chunk2mem (victim), av);
-          size = chunksize (victim);
+          size = _md_chunksize (_md_victim);
 
           /*
             If a small request, try to use last remainder if it is the
@@ -4236,14 +4295,14 @@ _int_malloc (mstate av, size_t bytes)
               set_foot (av, remainder, remainder_size);
               _md_remainder = register_chunk(av, remainder);
 
-              unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = remainder;
+              unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = _md_remainder;
               av->last_remainder = remainder;
               av->_md_last_remainder = _md_remainder;
-              remainder->bk = remainder->fd = unsorted_chunks (av);
+              _md_remainder->bk = _md_remainder->fd = unsorted_chunks (av);
               if (!in_smallbin_range (remainder_size))
                 {
-                  remainder->fd_nextsize = NULL;
-                  remainder->bk_nextsize = NULL;
+                  _md_remainder->fd_nextsize = NULL;
+                  _md_remainder->bk_nextsize = NULL;
                 }
 
               check_malloced_chunk (av, victim, _md_victim, nb);
@@ -4295,9 +4354,9 @@ _int_malloc (mstate av, size_t bytes)
                       fwd = bck;
                       bck = bck->bk;
 
-                      victim->fd_nextsize = fwd->fd;
-                      victim->bk_nextsize = fwd->fd->bk_nextsize;
-                      fwd->fd->bk_nextsize = victim->bk_nextsize->fd_nextsize = victim;
+                      _md_victim->fd_nextsize = fwd->fd;
+                      _md_victim->bk_nextsize = fwd->fd->bk_nextsize;
+                      fwd->fd->bk_nextsize = _md_victim->bk_nextsize->fd_nextsize = _md_victim;
                     }
                   else
                     {
@@ -4313,23 +4372,23 @@ _int_malloc (mstate av, size_t bytes)
                         fwd = fwd->fd;
                       else
                         {
-                          victim->fd_nextsize = fwd;
-                          victim->bk_nextsize = fwd->bk_nextsize;
-                          fwd->bk_nextsize = victim;
-                          victim->bk_nextsize->fd_nextsize = victim;
+                          _md_victim->fd_nextsize = fwd;
+                          _md_victim->bk_nextsize = fwd->bk_nextsize;
+                          fwd->bk_nextsize = _md_victim;
+                          _md_victim->bk_nextsize->fd_nextsize = _md_victim;
                         }
                       bck = fwd->bk;
                     }
                 }
               else
-                victim->fd_nextsize = victim->bk_nextsize = victim;
+                _md_victim->fd_nextsize = _md_victim->bk_nextsize = _md_victim;
             }
 
           mark_bin (av, victim_index);
-          victim->bk = bck;
-          victim->fd = fwd;
-          fwd->bk = victim;
-          bck->fd = victim;
+          _md_victim->bk = bck;
+          _md_victim->fd = fwd;
+          fwd->bk = _md_victim;
+          bck->fd = _md_victim;
 
 #define MAX_ITERS       10000
           if (++iters >= MAX_ITERS)
@@ -4346,25 +4405,23 @@ _int_malloc (mstate av, size_t bytes)
           bin = bin_at (av, idx);
 
           /* skip scan if empty or largest chunk is too small */
-          if ((victim = first (bin)) != bin &&
-              (unsigned long) (victim->size) >= (unsigned long) (nb))
+          if ((_md_victim = first (bin)) != bin &&
+              (unsigned long) (_md_victim->size) >= (unsigned long) (nb))
             {
-              victim = victim->bk_nextsize;
-              while (((unsigned long) (size = chunksize (victim)) <
+              _md_victim = _md_victim->bk_nextsize;
+              while (((unsigned long) (size = _md_chunksize (_md_victim)) <
                       (unsigned long) (nb)))
-                victim = victim->bk_nextsize;
+                _md_victim = _md_victim->bk_nextsize;
 
               /* Avoid removing the first entry for a size so that the skip
                  list does not have to be rerouted.  */
-              if (victim != last (bin) && victim->size == victim->fd->size)
-                victim = victim->fd;
+              if (_md_victim != last (bin) && _md_victim->size == _md_victim->fd->size)
+                _md_victim = _md_victim->fd;
 
               remainder_size = size - nb;
-              bin_unlink (av, victim, &bck, &fwd);
+              bin_unlink (av, _md_victim, &bck, &fwd);
 
-              _md_victim = hashtable_lookup(av, victim);
-              if (_md_victim == NULL) { missing_metadata(av, victim); }
-
+              victim = chunkinfo2chunk(_md_victim);
 
               /* Exhaust */
               if (remainder_size < MINSIZE)
@@ -4385,19 +4442,21 @@ _int_malloc (mstate av, size_t bytes)
                       errstr = "malloc(): corrupted unsorted chunks";
                       goto errout;
                     }
-                  remainder->bk = bck;
-                  remainder->fd = fwd;
-                  bck->fd = remainder;
-                  fwd->bk = remainder;
-                  if (!in_smallbin_range (remainder_size))
-                    {
-                      remainder->fd_nextsize = NULL;
-                      remainder->bk_nextsize = NULL;
-                    }
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (av, remainder, remainder_size);
                   _md_remainder = register_chunk(av, remainder);
+
+                  _md_remainder->bk = bck;
+                  _md_remainder->fd = fwd;
+                  bck->fd = _md_remainder;
+                  fwd->bk = _md_remainder;
+                  if (!in_smallbin_range (remainder_size))
+                    {
+                      _md_remainder->fd_nextsize = NULL;
+                      _md_remainder->bk_nextsize = NULL;
+                    }
+
                 }
               
               update(_md_victim, victim);
@@ -4450,10 +4509,10 @@ _int_malloc (mstate av, size_t bytes)
             }
 
           /* Inspect the bin. It is likely to be non-empty */
-          victim = last (bin);
+          _md_victim = last (bin);
 
           /*  If a false alarm (empty bin), clear the bit. */
-          if (victim == bin)
+          if (_md_victim == bin)
             {
               av->binmap[block] = map &= ~bit; /* Write through */
               bin = next_bin (bin);
@@ -4462,10 +4521,9 @@ _int_malloc (mstate av, size_t bytes)
 
           else
             {
-              size = chunksize (victim);
+              size = _md_chunksize (_md_victim);
               
-              _md_victim = hashtable_lookup(av, victim);
-              if (_md_victim == NULL) { missing_metadata(av, victim);  /* FIXME */ }
+	      victim = chunkinfo2chunk(_md_victim);
 
               /*  We know the first chunk in this bin is big enough to use. */
               assert ((unsigned long) (size) >= (unsigned long) (nb));
@@ -4473,7 +4531,7 @@ _int_malloc (mstate av, size_t bytes)
               remainder_size = size - nb;
 
               /* unlink */
-              bin_unlink (av, victim, &bck, &fwd);
+              bin_unlink (av, _md_victim, &bck, &fwd);
 
               /* Exhaust */
               if (remainder_size < MINSIZE)
@@ -4496,23 +4554,29 @@ _int_malloc (mstate av, size_t bytes)
                       errstr = "malloc(): corrupted unsorted chunks 2";
                       goto errout;
                     }
-                  remainder->bk = bck;
-                  remainder->fd = fwd;
-                  bck->fd = remainder;
-                  fwd->bk = remainder;
-                  
-                  /* advertise as last remainder */
-                  if (in_smallbin_range (nb))
-                    av->last_remainder = remainder;
-                  if (!in_smallbin_range (remainder_size))
-                    {
-                      remainder->fd_nextsize = NULL;
-                      remainder->bk_nextsize = NULL;
-                    }
+
                   set_head (victim, nb | PREV_INUSE | arena_bit(av));
                   set_head (remainder, remainder_size | PREV_INUSE);
                   set_foot (av, remainder, remainder_size);
-                  register_chunk(av, remainder);
+                  _md_remainder = register_chunk(av, remainder);
+
+                  _md_remainder->bk = bck;
+                  _md_remainder->fd = fwd;
+                  bck->fd = _md_remainder;
+                  fwd->bk = _md_remainder;
+                  
+                  /* advertise as last remainder */
+                  if (in_smallbin_range (nb)){
+                    av->_md_last_remainder = _md_remainder;
+                    av->last_remainder = remainder;
+		  }
+                  if (!in_smallbin_range (remainder_size))
+                    {
+                      _md_remainder->fd_nextsize = NULL;
+                      _md_remainder->bk_nextsize = NULL;
+                    }
+
+
                 }
               
               update(_md_victim, victim);
@@ -4591,14 +4655,19 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   INTERNAL_SIZE_T size;        /* its size */
   mfastbinptr *fb;             /* associated fastbin */
   mchunkptr nextchunk;         /* next contiguous chunk */
+  chunkinfoptr _md_nextchunk;  /* metadata of next contiguous chunk */
   INTERNAL_SIZE_T nextsize;    /* its size */
   int nextinuse;               /* true if nextchunk is used */
   INTERNAL_SIZE_T prevsize;    /* size of previous contiguous chunk */
-  mchunkptr bck;               /* misc temp for linking */
-  mchunkptr fwd;               /* misc temp for linking */
+  chunkinfoptr bck;            /* misc temp for linking */
+  chunkinfoptr fwd;            /* misc temp for linking */
 
   const char *errstr = NULL;
   int locked = 0;
+
+  if(av == NULL){
+    return;
+  }
 
   /*
     SRI: 
@@ -4624,11 +4693,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       locked = 1;
     }
 
+    /*
     if (av != NULL && !replenish_metadata_cache(av)) {
       (void) mutex_unlock (&av->mutex);
       return;
     } 
-    
+    */
+
     _md_p = hashtable_lookup(av, p);
   
     if (_md_p == NULL) { missing_metadata(av, p);  }
@@ -4643,11 +4714,11 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   check_top(av);
 
-  size = chunksize (p);
+  size = chunksize (p);  //SRI: need the metadata at this point.
 
 
   /* Little security check which won't hurt performance: the
-     allocator never wrapps around at the end of the address space.
+     allocator never wraps around at the end of the address space.
      Therefore we can exclude some size values which might appear
      here by accident or by "design" from some intruder.  */
   if (__builtin_expect ((uintptr_t) p > (uintptr_t) -size, 0)
@@ -4718,13 +4789,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     fb = &fastbin (av, idx);
 
     /* Atomically link P to its fastbin: P->FD = *FB; *FB = P;  */
-    mchunkptr old = *fb, old2;
+    chunkinfoptr _md_old = *fb, _md_old2;
     unsigned int old_idx = ~0u;
     do
       {
         /* Check that the top of the bin is not the record we are going to add
            (i.e., double free).  */
-        if (__builtin_expect (old == p, 0))
+        if (__builtin_expect (_md_old == _md_p, 0))
           {
             errstr = "double free or corruption (fasttop)";
             goto errout;
@@ -4733,13 +4804,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
            size of the chunk that we are adding.  We can dereference OLD
            only if we have the lock, otherwise it might have already been
            deallocated.  See use of OLD_IDX below for the actual check.  */
-        if (have_lock && old != NULL)
-          old_idx = fastbin_index(chunksize(old));
-        p->fd = old2 = old;
+        if (have_lock && _md_old != NULL)
+          old_idx = fastbin_index(_md_chunksize(_md_old));
+        _md_p->fd = _md_old2 = _md_old;
       }
-    while ((old = catomic_compare_and_exchange_val_rel (fb, p, old2)) != old2);
+    while ((_md_old = catomic_compare_and_exchange_val_rel (fb, _md_p, _md_old2)) != _md_old2);
 
-    if (have_lock && old != NULL && __builtin_expect (old_idx != idx, 0))
+    if (have_lock && _md_old != NULL && __builtin_expect (old_idx != idx, 0))
       {
         errstr = "invalid fastbin entry (free)";
         goto errout;
@@ -4757,6 +4828,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     }
 
     nextchunk = chunk_at_offset(p, size);
+    _md_nextchunk = hashtable_lookup(av, nextchunk);
 
     /* Lightweight tests: check whether the block is already the
        top block.  */
@@ -4781,6 +4853,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       }
 
     nextsize = chunksize(nextchunk);
+
     if (__builtin_expect (nextchunk->size <= 2 * SIZE_SZ, 0)
         || __builtin_expect (nextsize >= av->system_mem, 0))
       {
@@ -4801,7 +4874,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
       _md_p = hashtable_lookup(av, p);             
-      bin_unlink(av, p, &bck, &fwd);                     
+      bin_unlink(av, _md_p, &bck, &fwd);                     
     }
 
     if (nextchunk != av->top) {
@@ -4810,7 +4883,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
       /* consolidate forward */
       if (!nextinuse) {
-        bin_unlink(av, nextchunk, &bck, &fwd);
+        bin_unlink(av, _md_nextchunk, &bck, &fwd);
         size += nextsize;
       } else
         clear_inuse_bit_at_offset(av, nextchunk, 0);
@@ -4828,24 +4901,20 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
           errstr = "free(): corrupted unsorted chunks";
           goto errout;
         }
-      p->fd = fwd;
-      p->bk = bck;
+      _md_p->fd = fwd;
+      _md_p->bk = bck;
       if (!in_smallbin_range(size))
         {
-          p->fd_nextsize = NULL;
-          p->bk_nextsize = NULL;
+          _md_p->fd_nextsize = NULL;
+          _md_p->bk_nextsize = NULL;
         }
-      bck->fd = p;
-      fwd->bk = p;
+      bck->fd = _md_p;
+      fwd->bk = _md_p;
 
       set_head(p, size | PREV_INUSE);
       set_foot(av, p, size);
 
-      if (_md_p == NULL) {
-        register_chunk(av, p);
-      } else {
-        update(_md_p, p);
-      }
+      update(_md_p, p);
 
       check_top(av);
       
@@ -4864,11 +4933,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       set_head(p, size | PREV_INUSE);
 
       
-      if (_md_p == NULL) {  //FIXME after twinning
-        _md_p = register_chunk(av, p);
-      } else {
-        update(_md_p, p);
-      }
+      update(_md_p, p);
       
       av->top = p;
       av->_md_top = _md_p;
@@ -4924,6 +4989,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   else {
     munmap_chunk (p);
   }
+
 }
 
 /*
@@ -4946,18 +5012,19 @@ static void malloc_consolidate(mstate av)
   mfastbinptr*    maxfb;              /* last fastbin (for loop control) */
   mchunkptr       p;                  /* current chunk being consolidated */
   chunkinfoptr    _md_p;              /* metatdata of current chunk being consolidated */
-  mchunkptr       nextp;              /* next chunk to consolidate */
-  mchunkptr       unsorted_bin;       /* bin header */
-  mchunkptr       first_unsorted;     /* chunk to link to */
+  chunkinfoptr    _md_nextp;          /* metadata of next chunk to consolidate */
+  chunkinfoptr    unsorted_bin;       /* bin header */
+  chunkinfoptr    first_unsorted;     /* chunk to link to */
 
   /* These have same use as in free() */
   mchunkptr       nextchunk;
+  chunkinfoptr    _md_nextchunk;
   INTERNAL_SIZE_T size;
   INTERNAL_SIZE_T nextsize;
   INTERNAL_SIZE_T prevsize;
   int             nextinuse;
-  mchunkptr       bck;
-  mchunkptr       fwd;
+  chunkinfoptr    bck;
+  chunkinfoptr    fwd;
 
   /*
     If max_fast is 0, we know that av hasn't
@@ -4982,25 +5049,27 @@ static void malloc_consolidate(mstate av)
     maxfb = &fastbin (av, NFASTBINS - 1);
     fb = &fastbin (av, 0);
     do {
-      p = atomic_exchange_acq (fb, 0);
-      if (p != 0) {
+      _md_p = atomic_exchange_acq (fb, 0);
+      if (_md_p != 0) {
         do {
-          _md_p = hashtable_lookup (av, p);
-          if(_md_p == NULL){ missing_metadata(av, p); }
-          check_inuse_chunk(av, p, NULL);
-          nextp = p->fd;
+	  p = chunkinfo2chunk(_md_p);
+          check_inuse_chunk(av, p, _md_p);
+          _md_nextp = _md_p->fd;
 
           /* Slightly streamlined version of consolidation code in free() */
           size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
           nextchunk = chunk_at_offset(p, size);
-          nextsize = chunksize(nextchunk);
+	  _md_nextchunk = hashtable_lookup(av, nextchunk);
+	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
+          nextsize = _md_chunksize(_md_nextchunk);
 
           if (!prev_inuse(p)) {
             prevsize = p->prev_size;
             size += prevsize;
             p = chunk_at_offset(p, -((long) prevsize));
             _md_p = hashtable_lookup (av, p);
-            bin_unlink(av, p, &bck, &fwd);
+	    if (_md_p == NULL) { missing_metadata(av, p); }
+            bin_unlink(av, _md_p, &bck, &fwd);
           }
 
           if (nextchunk != av->top) {
@@ -5008,46 +5077,42 @@ static void malloc_consolidate(mstate av)
 
             if (!nextinuse) {
               size += nextsize;
-              bin_unlink(av, nextchunk, &bck, &fwd);
+              bin_unlink(av, _md_nextchunk, &bck, &fwd);
             } else
               clear_inuse_bit_at_offset(av, nextchunk, 0);
 
             first_unsorted = unsorted_bin->fd;
-            unsorted_bin->fd = p;
-            first_unsorted->bk = p;
+            unsorted_bin->fd = _md_p;
+            first_unsorted->bk = _md_p;
 
             if (!in_smallbin_range (size)) {
-              p->fd_nextsize = NULL;
-              p->bk_nextsize = NULL;
+              _md_p->fd_nextsize = NULL;
+              _md_p->bk_nextsize = NULL;
             }
 
             set_head(p, size | PREV_INUSE);
-            p->bk = unsorted_bin;
-            p->fd = first_unsorted;
+            _md_p->bk = unsorted_bin;
+            _md_p->fd = first_unsorted;
             set_foot(av, p, size);
-            if (_md_p != NULL) { //FIXME: should not happen once we are twinned
-              update(_md_p, p);
-            } else {
-              register_chunk(av, p);
-            }
-          }
+	    update(_md_p, p);
+          
+	  }
 
           else { /* nextchunk == av->top */
-
+	    
             size += nextsize;
             set_head(p, size | PREV_INUSE);
             update(_md_p, p);
-
+	    
             av->top = p;
             av->_md_top = _md_p;
-
+	    
             check_top(av);
-
-            //FIXME: fprintf(stderr, "cache_count = %d\n", av->metadata_cache_count);
+	    
           }
 
-        } while ( (p = nextp) != 0);
-
+        } while ( (_md_p = _md_nextp) != 0);
+	
       }
     } while (fb++ != maxfb);
   }
@@ -5062,7 +5127,7 @@ static void malloc_consolidate(mstate av)
 */
 
 chunkinfoptr
-_int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
+_int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
              INTERNAL_SIZE_T nb)
 {
   mchunkptr        newp;            /* chunk to return */
@@ -5074,13 +5139,14 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
   mchunkptr        malloced_chunk;  /* keep track of the malloced chunk */
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
+  chunkinfoptr     _md_next;        /* metadata of next contiguous chunk after oldp */
 
   mchunkptr        remainder;       /* extra space at end of newp */
   chunkinfoptr     _md_remainder;   /* metadata for the extra space at end of newp */
   unsigned long    remainder_size;  /* its size */
 
-  mchunkptr        bck;             /* misc temp for linking */
-  mchunkptr        fwd;             /* misc temp for linking */
+  chunkinfoptr     bck;             /* misc temp for linking */
+  chunkinfoptr     fwd;             /* misc temp for linking */
 
   unsigned long    copysize;        /* bytes to copy */
   unsigned int     ncopies;         /* INTERNAL_SIZE_T words to copy */
@@ -5101,7 +5167,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
       errstr = "realloc(): invalid old size";
     errout:
       malloc_printerr (check_action, errstr, chunk2mem (oldp), av);
-      return NULL;
+      return 0;
     }
 
 
@@ -5111,10 +5177,12 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
   assert (!chunk_is_mmapped (oldp));
 
   next = chunk_at_offset (oldp, oldsize);
+  _md_next = hashtable_lookup(av, next);
+  if (_md_next == NULL) { missing_metadata(av, next); }
   
   top = av->top;                
 
-  INTERNAL_SIZE_T nextsize = chunksize (next);
+  INTERNAL_SIZE_T nextsize = _md_chunksize (_md_next);
   if (__builtin_expect (next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
     {
@@ -5165,7 +5233,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
         {
 
           newp = oldp;
-          bin_unlink (av, next, &bck, &fwd);
+          bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
           hashtable_remove(av, next);
 
@@ -5177,7 +5245,7 @@ _int_realloc(mstate av, chunkinfoptr     _md_oldp, INTERNAL_SIZE_T oldsize,
           _md_newp = _int_malloc (av, nb - MALLOC_ALIGN_MASK);
 
           if (_md_newp == 0)
-            return 0; /* propagate failure */  //FIXME: why sometimes NULL sometimes 0?
+            return 0; /* propagate failure */
           
           newp = chunkinfo2chunk(_md_newp);
           newmem = chunkinfo2mem(_md_newp);
@@ -5409,9 +5477,10 @@ mtrim (mstate av, size_t pad)
       {
         mbinptr bin = bin_at (av, i);
 
-        for (mchunkptr p = last (bin); p != bin; p = p->bk)
+        for (chunkinfoptr _md_p = last (bin); _md_p != bin; _md_p = _md_p->bk)
           {
-            INTERNAL_SIZE_T size = chunksize (p);
+            INTERNAL_SIZE_T size = _md_chunksize (_md_p);
+	    mchunkptr p = chunkinfo2chunk(_md_p);
 
             if (size > psm1 + sizeof (struct malloc_chunk))
               {
@@ -5516,7 +5585,7 @@ int_mallinfo (mstate av, struct mallinfo *m)
 {
   size_t i;
   mbinptr b;
-  mchunkptr p;
+  chunkinfoptr _md_p;
   INTERNAL_SIZE_T avail;
   INTERNAL_SIZE_T fastavail;
   int nblocks;
@@ -5538,10 +5607,10 @@ int_mallinfo (mstate av, struct mallinfo *m)
 
   for (i = 0; i < NFASTBINS; ++i)
     {
-      for (p = fastbin (av, i); p != 0; p = p->fd)
+      for (_md_p = fastbin (av, i); _md_p != 0; _md_p = _md_p->fd)
         {
           ++nfastblocks;
-          fastavail += chunksize (p);
+          fastavail += _md_chunksize (_md_p);
         }
     }
 
@@ -5551,10 +5620,10 @@ int_mallinfo (mstate av, struct mallinfo *m)
   for (i = 1; i < NBINS; ++i)
     {
       b = bin_at (av, i);
-      for (p = last (b); p != b; p = p->bk)
+      for (_md_p = last (b); _md_p != b; _md_p = _md_p->bk)
         {
           ++nblocks;
-          avail += chunksize (p);
+          avail += _md_chunksize (_md_p);
         }
     }
 
@@ -5987,16 +6056,16 @@ __malloc_info (int options, FILE *fp)
 
       for (size_t i = 0; i < NFASTBINS; ++i)
         {
-          mchunkptr p = fastbin (ar_ptr, i);
-          if (p != NULL)
+          chunkinfoptr _md_p = fastbin (ar_ptr, i);
+          if (_md_p != NULL)
             {
               size_t nthissize = 0;
-              size_t thissize = chunksize (p);
+              size_t thissize = _md_chunksize (_md_p);
 
-              while (p != NULL)
+              while (_md_p != NULL)
                 {
                   ++nthissize;
-                  p = p->fd;
+                  _md_p = _md_p->fd;
                 }
 
               fastavail += nthissize * thissize;
@@ -6013,27 +6082,27 @@ __malloc_info (int options, FILE *fp)
 
 
       mbinptr bin;
-      struct malloc_chunk *r;
+      chunkinfoptr _md_r;
 
       for (size_t i = 1; i < NBINS; ++i)
         {
           bin = bin_at (ar_ptr, i);
-          r = bin->fd;
+          _md_r = bin->fd;
           sizes[NFASTBINS - 1 + i].from = ~((size_t) 0);
           sizes[NFASTBINS - 1 + i].to = sizes[NFASTBINS - 1 + i].total
             = sizes[NFASTBINS - 1 + i].count = 0;
 
-          if (r != NULL)
-            while (r != bin)
+          if (_md_r != NULL)
+            while (_md_r != bin)
               {
                 ++sizes[NFASTBINS - 1 + i].count;
-                sizes[NFASTBINS - 1 + i].total += r->size;
+                sizes[NFASTBINS - 1 + i].total += _md_r->size;
                 sizes[NFASTBINS - 1 + i].from
-                  = MIN (sizes[NFASTBINS - 1 + i].from, r->size);
+                  = MIN (sizes[NFASTBINS - 1 + i].from, _md_r->size);
                 sizes[NFASTBINS - 1 + i].to = MAX (sizes[NFASTBINS - 1 + i].to,
-                                                   r->size);
+                                                   _md_r->size);
 
-                r = r->fd;
+                _md_r = _md_r->fd;
               }
 
           if (sizes[NFASTBINS - 1 + i].count == 0)

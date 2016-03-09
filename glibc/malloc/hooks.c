@@ -288,7 +288,7 @@ top_check (void)
   
   main_arena.top = (mchunkptr) (brk + front_misalign);
   set_head (main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
-  main_arena._md_top = register_chunk(&main_arena, main_arena.top);
+  main_arena._md_top = register_chunk(&main_arena, main_arena.top, false);
   */
   return 0;
 }

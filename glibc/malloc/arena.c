@@ -752,7 +752,6 @@ heap_trim (heap_info *heap, size_t pad)
       ar_ptr->top = top_chunk = p;
       ar_ptr->_md_top = _md_p;
       set_head (ar_ptr, _md_p, p, new_size | PREV_INUSE);
-      update(_md_p, p);
       do_check_top(ar_ptr, __FILE__, __LINE__);
       /*check_chunk(ar_ptr, top_chunk); */
     } /* while */
@@ -783,7 +782,6 @@ heap_trim (heap_info *heap, size_t pad)
 
   /* Success. Adjust top accordingly. */
   set_head (ar_ptr, ar_ptr->_md_top, top_chunk, (top_size - extra) | PREV_INUSE);
-  update(ar_ptr->_md_top, top_chunk);
   do_check_top(ar_ptr, __FILE__, __LINE__);
 
   /*check_chunk(ar_ptr, top_chunk);*/

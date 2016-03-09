@@ -2453,7 +2453,7 @@ free_perturb (char *p, size_t n)
 /* ------------------- Support for multiple arenas -------------------- */
 
 /* used in arena.c as well as here in malloc.c */
-static bool do_check_top(mstate av, const char* file, int lineno);
+static void do_check_top(mstate av, const char* file, int lineno);
 
 #include "arena.c"
 
@@ -2467,15 +2467,14 @@ static bool do_check_top(mstate av, const char* file, int lineno);
   in malloc. In which case, please report it!)
 */
 
-static bool do_check_top(mstate av, const char* file, int lineno)
+static void do_check_top(mstate av, const char* file, int lineno)
 {
   if (av->_md_top) {
     if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top, file, lineno)) {
       fprintf(stderr, "check top failed @ %s line %d\n", file, lineno);
-      return false;
+      assert(false);
     }
   }
-  return true;
 }
 
 #if !MALLOC_DEBUG
@@ -2489,11 +2488,9 @@ static bool do_check_top(mstate av, const char* file, int lineno)
 # define check_malloc_state(A)
 # define check_metadata_chunk(A,P,MD_P)
 
-//# warning "using do_check_* in ! MALLOC_DEBUG mode"
-
 #else
 
-# define check_top(A)                           assert(do_check_top(A,__FILE__,__LINE__))
+# define check_top(A)                           do_check_top(A,__FILE__,__LINE__)
 # define check_chunk(A, P, MD_P)                do_check_chunk (A, P, MD_P,__FILE__,__LINE__)
 # define check_free_chunk(A, P, MD_P)           do_check_free_chunk (A, P, MD_P,__FILE__,__LINE__)
 # define check_inuse_chunk(A, P, MD_P)          do_check_inuse_chunk (A, P, MD_P,__FILE__,__LINE__)

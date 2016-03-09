@@ -2330,7 +2330,6 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
   chunkinfoptr _md_p = new_chunkinfoptr(av);
   
   _md_p->chunk = chunk2mem(p);
-  //this should only need to be overidden in the case of mmapped chunks
   set_arena_index(av, p, is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av));
   hashtable_add(av, _md_p);
   return _md_p;

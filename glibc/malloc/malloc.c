@@ -2155,7 +2155,7 @@ static inline chunkinfoptr initial_md_top(mstate av)
 {
   mchunkptr top = &(av->initial_top);
   chunkinfoptr _md_top = register_chunk(av, top);
-  top->prev_size = 0;
+  set_prev_size(_md_top, top, 0);
   set_head(av, _md_top, top, 0);
   return _md_top;
 }
@@ -2327,9 +2327,7 @@ static void twin(chunkinfoptr ci, mchunkptr c)
 {
   assert(ci != NULL);
   assert(c != NULL);
-  ci->chunk = chunk2mem(c);
-  ci->size = c->size;
-  ci->prev_size =  c->prev_size;
+  fprintf(stderr, "twin: Remove me!\n");
 }
 
 /* 
@@ -2343,8 +2341,8 @@ static void update(chunkinfoptr ci, mchunkptr c)
 
   assert(ci->chunk == chunk2mem(c));
 
-  ci->size = c->size;
-  ci->prev_size =  c->prev_size;
+  fprintf(stderr, "update: Remove me!\n");
+
 }
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p)
@@ -2619,7 +2617,7 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
       assert ((sz & MALLOC_ALIGN_MASK) == 0);
       assert (aligned_OK ((unsigned long)chunk2mem (p)));
       /* ... matching footer field */
-      assert (next->prev_size == sz);
+      assert (_md_next->prev_size == sz);
       /* ... and is fully consolidated */
       assert (prev_inuse(_md_p, p));
       assert (next == av->top || inuse(av, _md_next, next));
@@ -3042,7 +3040,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
               if (front_misalign > 0)
                 {
-                  p->prev_size = correction;
+                  _md_p->prev_size = correction;
                   set_head (&main_arena, _md_p, p, (size - correction) | IS_MMAPPED);
                 }
               else
@@ -3555,8 +3553,8 @@ munmap_chunk (chunkinfoptr _md_p)
 
   assert (chunk_is_mmapped (p));
 
-  uintptr_t block = (uintptr_t) p - p->prev_size;
-  size_t total_size = p->prev_size + size;
+  uintptr_t block = (uintptr_t) p - _md_p->prev_size;
+  size_t total_size = _md_p->prev_size + size;
   /* Unfortunately we have to do the compilers job by hand here.  Normally
      we would test BLOCK and TOTAL-SIZE separately for compliance with the
      page size.  But gcc does not recognize the optimization possibility
@@ -3592,7 +3590,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
   pagesize = GLRO (dl_pagesize);
   size = _md_chunksize (_md_p);
   p = chunkinfo2chunk(_md_p);
-  offset = p->prev_size;
+  offset = _md_p->prev_size;
 
   assert (chunk_is_mmapped (p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
@@ -3618,7 +3616,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   assert (aligned_OK ((unsigned long)chunk2mem (p)));
 
-  assert ((p->prev_size == offset));
+  //FIXME: ?? assert ((p->prev_size == offset));
 
   if (p != op) {
     /* remove the old one */
@@ -4944,11 +4942,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
     /* consolidate backward */
     if (!prev_inuse(_md_p, p)) {
-      prevsize = p->prev_size;
+      prevsize = _md_p->prev_size;
 
+      /* FIXME:
       if (prevsize == 0) {
         abort();
       }
+      */
 
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
@@ -5157,7 +5157,7 @@ static void malloc_consolidate(mstate av)
           nextsize = _md_chunksize(_md_nextchunk);
 
           if (!prev_inuse(_md_p, p)) {
-            prevsize = p->prev_size;
+            prevsize = _md_p->prev_size;
             size += prevsize;
             p = chunk_at_offset(p, -((long) prevsize));
             _md_p = hashtable_lookup (av, p);
@@ -5507,8 +5507,8 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       /* For mmapped chunks, just adjust offset */
       if (chunk_is_mmapped (p))
         {
-          newp->prev_size = p->prev_size + leadsize;
           _md_newp = register_chunk(av, newp);
+          _md_newp->prev_size = _md_p->prev_size + leadsize;
           set_head (av, _md_newp, newp, newsize | IS_MMAPPED);
           return _md_newp;
         }

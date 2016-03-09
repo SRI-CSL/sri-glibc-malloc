@@ -1431,8 +1431,6 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
     fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
   }
-
-  prev_chunk->size |= PREV_INUSE;
 }
 
 static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
@@ -1448,8 +1446,6 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
     fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
   }
-
-  prev_chunk->size &= ~PREV_INUSE;
 }
 
 /* Set size/use field */
@@ -1489,9 +1485,6 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s
     fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
   }
-
-  prev_chunk->prev_size = s;
-
 }
 
 /* Set prev_size field */
@@ -1933,10 +1926,10 @@ static inline int arena_bit(mstate av)
 }
 
 
-static inline void set_arena_bit(mstate av, mchunkptr victim)
+static inline void set_arena_bit(mstate av, chunkinfoptr _md_victim, mchunkptr victim)
 {
   if (av != &main_arena)
-    victim->size |= NON_MAIN_ARENA;
+    _md_victim->size |= NON_MAIN_ARENA;
 }
 
 
@@ -2589,7 +2582,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
           assert (((char *) p) < min_address || ((char *) p) >= max_address);
         }
       /* chunk is page-aligned */
-      assert (((p->prev_size + sz) & (GLRO (dl_pagesize) - 1)) == 0);
+      assert (((_md_p->prev_size + sz) & (GLRO (dl_pagesize) - 1)) == 0);
       /* mem is aligned */
       assert (aligned_OK ((unsigned long)chunk2mem (p)));
     }
@@ -2611,7 +2604,7 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
 
   do_check_chunk (av, p, _md_p, file, lineno);
   
-  sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
+  sz = _md_p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
   next = chunk_at_offset (p, sz);
   _md_next = hashtable_lookup(av, next);
   if (_md_next == NULL) { missing_metadata(av, next); }
@@ -2703,7 +2696,7 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p,
   /* no debugging when we are running out of memory */
   if(av == NULL){ return; }
 
-  sz = p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
+  sz = _md_p->size & ~(PREV_INUSE | NON_MAIN_ARENA);
 
   if (!chunk_is_mmapped (p))
     {
@@ -3725,10 +3718,10 @@ __libc_free (void *mem)
 
       /* see if the dynamic brk/mmap threshold needs adjusting */
       if (!mp_.no_dyn_threshold
-          && p->size > mp_.mmap_threshold
-          && p->size <= DEFAULT_MMAP_THRESHOLD_MAX)
+          && _md_p->size > mp_.mmap_threshold
+          && _md_p->size <= DEFAULT_MMAP_THRESHOLD_MAX)
         {
-          mp_.mmap_threshold =  _md_chunksize ( _md_p);
+          mp_.mmap_threshold =  _md_chunksize (_md_p);
           mp_.trim_threshold = 2 * mp_.mmap_threshold;
           LIBC_PROBE (memory_mallopt_free_dyn_thresholds, 2,
                       mp_.mmap_threshold, mp_.trim_threshold);
@@ -4283,7 +4276,7 @@ _int_malloc (mstate av, size_t bytes)
               bin->bk = bck;
               bck->fd = bin;
               
-              set_arena_bit(av, victim);
+              set_arena_bit(av, _md_victim, victim);
               update(_md_victim, victim);
               check_malloced_chunk (av, victim, _md_victim, nb);
               void *p = chunk2mem (victim);
@@ -4388,7 +4381,7 @@ _int_malloc (mstate av, size_t bytes)
           if (size == nb)
             {
               set_inuse_bit_at_offset (av, _md_victim, victim, size);
-              set_arena_bit(av, victim);
+              set_arena_bit(av, _md_victim, victim);
               update(_md_victim, victim);
               check_malloced_chunk (av, victim, _md_victim, nb);
               void *p = chunk2mem (victim);
@@ -4495,7 +4488,7 @@ _int_malloc (mstate av, size_t bytes)
               if (remainder_size < MINSIZE)
                 {
                   set_inuse_bit_at_offset (av, _md_victim, victim, size);
-                  set_arena_bit(av, victim);
+                  set_arena_bit(av, _md_victim, victim);
                 }
               /* Split */
               else
@@ -4607,7 +4600,7 @@ _int_malloc (mstate av, size_t bytes)
               if (remainder_size < MINSIZE)
                 {
                   set_inuse_bit_at_offset (av, _md_victim, victim, size);
-                  set_arena_bit(av, victim);
+                  set_arena_bit(av, _md_victim, victim);
                 }
               
               /* Split */
@@ -4940,7 +4933,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
     nextsize = _md_chunksize(_md_nextchunk);
 
-    if (__builtin_expect (nextchunk->size <= 2 * SIZE_SZ, 0)
+    if (__builtin_expect (_md_nextchunk->size <= 2 * SIZE_SZ, 0)
         || __builtin_expect (nextsize >= av->system_mem, 0))
       {
         errstr = "free(): invalid next size (normal)";
@@ -5157,7 +5150,7 @@ static void malloc_consolidate(mstate av)
           _md_nextp = _md_p->fd;
 
           /* Slightly streamlined version of consolidation code in free() */
-          size = p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
+          size = _md_p->size & ~(PREV_INUSE|NON_MAIN_ARENA);
           nextchunk = chunk_at_offset(p, size);
 	  _md_nextchunk = hashtable_lookup(av, nextchunk);
 	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
@@ -5261,7 +5254,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   oldp = chunkinfo2chunk(_md_oldp);
 
   /* oldmem size */
-  if (__builtin_expect (oldp->size <= 2 * SIZE_SZ, 0)
+  if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
     {
       errstr = "realloc(): invalid old size";
@@ -5283,7 +5276,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   top = av->top;                
 
   INTERNAL_SIZE_T nextsize = _md_chunksize (_md_next);
-  if (__builtin_expect (next->size <= 2 * SIZE_SZ, 0)
+  if (__builtin_expect (_md_next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
     {
       errstr = "realloc(): invalid next size";

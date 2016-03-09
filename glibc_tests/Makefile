@@ -73,6 +73,10 @@ mtestreplay:
 mstress8:
 	./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt
 
-#pascali
+#shaman & pascali
 mstress16:
 	./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt
+
+#pascali
+mstress32:
+	./mtreplay 32 ../../analysis/data/yices_smt2_2668e3c6.txt

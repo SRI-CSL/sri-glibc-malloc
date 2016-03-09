@@ -250,10 +250,12 @@ internal_function
 top_check (void)
 {
   /*
-  mchunkptr ot = main_arena.top;
+  chunkinfoptr _md_ot = main_arena._md_top;
+  mchunkptr ot = chunkinfo2chunk(_md_ot);
   INTERNAL_SIZE_T ot_sz = chunksize(ot);
   char *brk, *new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
+  mchunkptr topchunk;
   unsigned long pagesz = GLRO (dl_pagesize);
 
   if (ot == &main_arena.initial_top ||
@@ -286,9 +288,10 @@ top_check (void)
     (*hook)();
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
   
-  main_arena.top = (mchunkptr) (brk + front_misalign);
-  set_head (main_arena.top, (sbrk_size - front_misalign) | PREV_INUSE);
-  main_arena._md_top = register_chunk(&main_arena, main_arena.top, false);
+  topchunk = (mchunkptr) (brk + front_misalign);
+  main_arena._md_top = register_chunk(&main_arena, topchunk, false);
+  set_head (main_arena._md_top, (sbrk_size - front_misalign) | PREV_INUSE);
+
   */
   return 0;
 }
@@ -381,7 +384,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 		       &main_arena);
       return malloc_check (bytes, NULL);
     }
-  const INTERNAL_SIZE_T oldsize = _md_chunksize (_md_oldp);
+  const INTERNAL_SIZE_T oldsize = chunksize (_md_oldp);
 
   if ( !checked_request2size (bytes + 1, &nb) ){
     return 0;
@@ -610,7 +613,7 @@ __malloc_set_state (void *msptr)
   for (i = 0; i < BINMAPSIZE; ++i)
     main_arena.binmap[i] = 0;
   main_arena._md_top = ms->av[2];
-  main_arena.last_remainder = 0;
+  main_arena._md_last_remainder = 0;
   for (i = 1; i < NBINS; i++)
     {
       b = bin_at (&main_arena, i);
@@ -622,8 +625,8 @@ __malloc_set_state (void *msptr)
       else
         {
           if (ms->version >= 3 &&
-              (i < NSMALLBINS || (largebin_index (_md_chunksize (ms->av[2 * i + 2])) == i &&
-                                  largebin_index (_md_chunksize (ms->av[2 * i + 3])) == i)))
+              (i < NSMALLBINS || (largebin_index (chunksize (ms->av[2 * i + 2])) == i &&
+                                  largebin_index (chunksize (ms->av[2 * i + 3])) == i)))
             {
               first (b) = ms->av[2 * i + 2];
               last (b) = ms->av[2 * i + 3];
@@ -652,7 +655,7 @@ __malloc_set_state (void *msptr)
       b = unsorted_chunks (&main_arena)->fd;
       while (b != unsorted_chunks (&main_arena))
         {
-          if (!in_smallbin_range (_md_chunksize (b)))
+          if (!in_smallbin_range (chunksize (b)))
             {
               b->fd_nextsize = NULL;
               b->bk_nextsize = NULL;

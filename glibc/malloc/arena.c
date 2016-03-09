@@ -479,6 +479,7 @@ dump_heap (heap_info *heap)
 {
   char *ptr;
   mchunkptr p;
+  mchunkptr topchunk;
 
   fprintf (stderr, "Heap %p, size %10lx:\n", heap, (long) heap->size);
   ptr = (heap->ar_ptr != (mstate) (heap + 1)) ?
@@ -488,7 +489,8 @@ dump_heap (heap_info *heap)
   for (;; )
     {
       fprintf (stderr, "chunk %p size %10lx", p, (long) p->size);
-      if (p == (heap->ar_ptr)->top)
+      topchunk = chunkinfo2chunk((heap->ar_ptr)->_md_top);
+      if (p == topchunk)
         {
           fprintf (stderr, " (top)\n");
           break;
@@ -667,7 +669,7 @@ heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = GLRO (dl_pagesize);
-  mchunkptr top_chunk = ar_ptr->top;
+  mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
 
   chunkinfoptr bck, fwd;
 
@@ -719,7 +721,7 @@ heap_trim (heap_info *heap, size_t pad)
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
       }
 
-      new_size = _md_chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
+      new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
       if (!prev_inuse(_md_p, p)){
         new_size += _md_p->prev_size;
@@ -749,9 +751,9 @@ heap_trim (heap_info *heap, size_t pad)
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));
-      ar_ptr->top = top_chunk = p;
+      top_chunk = p;
       ar_ptr->_md_top = _md_p;
-      set_head (ar_ptr, _md_p, p, new_size | PREV_INUSE);
+      set_head (_md_p, new_size | PREV_INUSE);
       do_check_top(ar_ptr, __FILE__, __LINE__);
       /*check_chunk(ar_ptr, top_chunk); */
     } /* while */
@@ -759,7 +761,7 @@ heap_trim (heap_info *heap, size_t pad)
   /* Uses similar logic for per-thread arenas as the main arena with systrim
      and _int_free by preserving the top pad and rounding down to the nearest
      page.  */
-  top_size = _md_chunksize (ar_ptr->_md_top);
+  top_size = chunksize (ar_ptr->_md_top);
   if ((unsigned long)(top_size) <
       (unsigned long)(mp_.trim_threshold))
     return 0;
@@ -781,7 +783,7 @@ heap_trim (heap_info *heap, size_t pad)
   arena_mem -= extra;
 
   /* Success. Adjust top accordingly. */
-  set_head (ar_ptr, ar_ptr->_md_top, top_chunk, (top_size - extra) | PREV_INUSE);
+  set_head (ar_ptr->_md_top, (top_size - extra) | PREV_INUSE);
   do_check_top(ar_ptr, __FILE__, __LINE__);
 
   /*check_chunk(ar_ptr, top_chunk);*/
@@ -838,9 +840,8 @@ _int_new_arena (size_t size)
   misalign = (unsigned long) chunk2mem (ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
-  a->top = (mchunkptr) ptr;
-  a->_md_top = register_chunk(a, a->top, false);
-  set_head (a, a->_md_top, a->top, (((char *) h + h->size) - ptr) | PREV_INUSE);
+  a->_md_top = register_chunk(a, (mchunkptr) ptr, false);
+  set_head (a->_md_top, (((char *) h + h->size) - ptr) | PREV_INUSE);
 
   do_check_top(a, __FILE__, __LINE__);
 

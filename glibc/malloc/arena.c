@@ -709,7 +709,7 @@ heap_trim (heap_info *heap, size_t pad)
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
 	return 0;
       }
-      assert (p->size == (0 | PREV_INUSE)); /* must be fencepost */
+      assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
 
 
       hashtable_remove(ar_ptr, p); /* SRI: pulling out the fencepost */
@@ -722,7 +722,7 @@ heap_trim (heap_info *heap, size_t pad)
       new_size = _md_chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
       if (!prev_inuse(_md_p, p)){
-        new_size += p->prev_size;
+        new_size += _md_p->prev_size;
       }
       assert (new_size > 0 && new_size < HEAP_MAX_SIZE);
 

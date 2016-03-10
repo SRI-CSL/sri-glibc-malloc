@@ -20,9 +20,9 @@ Based on the approach taken for psmalloc.
 
 8[X]. only store arena numbers in mchunkptr
 
-9. remove the sharing of the header and footer
+9[X]. remove the sharing of the header and footer
 
-10. add in the canary and tagging debugg tool.
+10. add in the canary and tagging debugging tool.
 
 11. hooks.
 

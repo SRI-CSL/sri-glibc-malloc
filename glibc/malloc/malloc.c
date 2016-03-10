@@ -1107,113 +1107,18 @@ static inline void *MMAP(void *addr, size_t length, int prot, int flags)
 
 
 /*
-  This struct declaration is misleading (but accurate and necessary).
-  It declares a "view" into memory allowing access to necessary
-  fields at known offsets from a given base. See explanation below.
+  The metadata left after culling. Because of alignment issues
+  this header should either be 0 (hard) or 16 bytes long.
+  Hence the reason we leave the unused __canary__ slot there.
 */
 
 struct malloc_chunk {
-
   INTERNAL_SIZE_T      __canary__;   /* where prev_size use to live.  */
   INTERNAL_SIZE_T      arena_index;  /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
-
-  /*
-  struct malloc_chunk* fd;         // double links -- used only if free. 
-  struct malloc_chunk* bk;
-
-  // Only used for large blocks: pointer to next larger size.  xs
-  struct malloc_chunk* fd_nextsize; // double links -- used only if free. 
-  struct malloc_chunk* bk_nextsize;
-  */
 };
 
+#define HEADER_SIZE  sizeof(struct malloc_chunk)
 
-/*
-  malloc_chunk details:
-
-  (The following includes lightly edited explanations by Colin Plumb.)
-
-  Chunks of memory are maintained using a `boundary tag' method as
-  described in e.g., Knuth or Standish.  (See the paper by Paul
-  Wilson ftp://ftp.cs.utexas.edu/pub/garbage/allocsrv.ps for a
-  survey of such techniques.)  Sizes of free chunks are stored both
-  in the front of each chunk and at the end.  This makes
-  consolidating fragmented chunks into bigger chunks very fast.  The
-  size fields also hold bits representing whether chunks are free or
-  in use.
-
-  An allocated chunk looks like this:
-
-
-  chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of previous chunk, if allocated            | |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of chunk, in bytes                       |M|P|
-  mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             User data starts here...                          .
-  .                                                               .
-  .             (malloc_usable_size() bytes)                      .
-  .                                                               |
-  nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of chunk                                     |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-
-  Where "chunk" is the front of the chunk for the purpose of most of
-  the malloc code, but "mem" is the pointer that is returned to the
-  user.  "Nextchunk" is the beginning of the next contiguous chunk.
-
-  Chunks always begin on even word boundaries, so the mem portion
-  (which is returned to the user) is also on an even word boundary, and
-  thus at least double-word aligned.
-
-  Free chunks are stored in circular doubly-linked lists, and look like this:
-
-  chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Size of previous chunk                            |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  `head:' |             Size of chunk, in bytes                         |P|
-  mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Forward pointer to next chunk in list             |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Back pointer to previous chunk in list            |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |             Unused space (may be 0 bytes long)                .
-  .                                                               .
-  .                                                               |
-  nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  `foot:' |             Size of chunk, in bytes                           |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-  The P (PREV_INUSE) bit, stored in the unused low-order bit of the
-  chunk size (which is always a multiple of two words), is an in-use
-  bit for the *previous* chunk.  If that bit is *clear*, then the
-  word before the current chunk size contains the previous chunk
-  size, and can be used to find the front of the previous chunk.
-  The very first chunk allocated always has this bit set,
-  preventing access to non-existent (or non-owned) memory. If
-  prev_inuse is set for any given chunk, then you CANNOT determine
-  the size of the previous chunk, and might even get a memory
-  addressing fault when trying to do so.
-
-  Note that the `foot' of the current chunk is actually represented
-  as the prev_size of the NEXT chunk. This makes it easier to
-  deal with alignments etc but can be very confusing when trying
-  to extend or adapt this code.
-
-  The two exceptions to all this are
-
-  1. The special chunk `top' doesn't bother using the
-  trailing size field since there is no next contiguous chunk
-  that would have to index off it. After initialization, `top'
-  is forced to always exist.  If it would become less than
-  MINSIZE bytes long, it is replenished.
-
-  2. Chunks allocated via mmap, which have the second-lowest-order
-  bit M (IS_MMAPPED) set in their size fields.  Because they are
-  allocated one-by-one, each must contain its own trailing size field.
-
-*/
 
 /*
   ---------- Size and alignment checks and conversions ----------
@@ -1223,12 +1128,12 @@ struct malloc_chunk {
 
 static inline void *chunk2mem(void* p)
 {
-  return ((void*)((char*)p + 2*SIZE_SZ));
+  return ((void*)((char*)p + HEADER_SIZE));
 } 
 
 static inline mchunkptr mem2chunk(void* mem)
 {
-  return ((mchunkptr)((char*)mem - 2*SIZE_SZ));
+  return ((mchunkptr)((char*)mem - HEADER_SIZE));
 }
 
 /* The smallest possible chunk */
@@ -1262,12 +1167,15 @@ static inline bool REQUEST_OUT_OF_RANGE(size_t req)
   return (unsigned long)req >=   (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE);
 }
 
-/* pad request bytes into a usable size -- internal version */
+/* 
+   pad request bytes into a usable size -- internal version 
+   (SRI: removed sharing of prev_size)
+*/
 
 #define request2size(req)                                       \
-  (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?           \
+  (((req) + HEADER_SIZE + MALLOC_ALIGN_MASK < MINSIZE)  ?           \
    MINSIZE :                                                    \
-   ((req) + SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
+   ((req) + HEADER_SIZE + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
 /*  Same, except also perform argument check */
 
@@ -1727,6 +1635,7 @@ static inline void set_fastchunks(mstate av);
 
 #define NONCONTIGUOUS_BIT     (2U)
 
+/* SRI: definitions move to after mstate definition */
 static inline bool contiguous(mstate av);
 static inline bool noncontiguous(mstate av);
 static inline void set_noncontiguous(mstate av);
@@ -1738,6 +1647,7 @@ static inline void set_contiguous(mstate av);
 
 #define ARENA_CORRUPTION_BIT (4U)
 
+/* SRI: definitions move to after mstate definition */
 static inline bool arena_is_corrupt(mstate av);
 static inline void set_arena_corrupt(mstate av);
 
@@ -1780,7 +1690,7 @@ struct malloc_state
   struct malloc_chunk  initial_top;        
 
   /* Metadata of the remainder from the most recent split of a small request */
-  chunkinfoptr _md_last_remainder;
+  chunkinfoptr last_remainder;
 
   /* Normal bins packed as described above */
   struct chunkinfo bins[NBINS];
@@ -2451,7 +2361,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 
 /*
-  Properties of all chunks  (FIXME: do_check_* should not crash on NULL av!
+  Properties of all chunks
 */
 
 static void
@@ -2463,7 +2373,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
   bool metadata_ok;
   mchunkptr topchunk;
 
-  /* no debugging when we are running out of memory */
+  /* no crashing in debugging when we are running out of memory */
   if(av == NULL){ return; }
 
   assert(chunk_is_mmapped (p) || (av == arena_from_chunk(p)));
@@ -4286,7 +4196,7 @@ _int_malloc (mstate av, size_t bytes)
 
           if (in_smallbin_range (nb) &&
               bck == unsorted_chunks (av) &&
-              _md_victim == av->_md_last_remainder &&
+              _md_victim == av->last_remainder &&
               (unsigned long) (size) > (unsigned long) (nb + MINSIZE))
             {
               /* split and reattach remainder */
@@ -4299,7 +4209,7 @@ _int_malloc (mstate av, size_t bytes)
               set_foot (av, _md_remainder, remainder, remainder_size);
 
               unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = _md_remainder;
-              av->_md_last_remainder = _md_remainder;
+              av->last_remainder = _md_remainder;
               _md_remainder->bk = _md_remainder->fd = unsorted_chunks (av);
               if (!in_smallbin_range (remainder_size))
                 {
@@ -4564,7 +4474,7 @@ _int_malloc (mstate av, size_t bytes)
                   
                   /* advertise as last remainder */
                   if (in_smallbin_range (nb)){
-                    av->_md_last_remainder = _md_remainder;
+                    av->last_remainder = _md_remainder;
 		  }
                   if (!in_smallbin_range (remainder_size))
                     {

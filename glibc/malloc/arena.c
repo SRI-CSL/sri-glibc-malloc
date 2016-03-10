@@ -184,7 +184,7 @@ free_atfork (void *mem, const void *caller)
 
   if (chunk_is_mmapped (p))    /* release mmapped memory. */
     {
-      _md_p = hashtable_lookup(&main_arena, p);  //SRI: do we have the lock here?
+      _md_p = lookup_chunk(&main_arena, p);  //SRI: do we have the lock here?
       munmap_chunk(_md_p);
       return;
     }
@@ -705,7 +705,7 @@ heap_trim (heap_info *heap, size_t pad)
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
       p = chunk_at_offset (prev_heap, prev_size - misalign);
-      _md_p = hashtable_lookup(ar_ptr, p);
+      _md_p = lookup_chunk(ar_ptr, p);
 
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
@@ -714,9 +714,9 @@ heap_trim (heap_info *heap, size_t pad)
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
 
 
-      hashtable_remove(ar_ptr, p); /* SRI: pulling out the fencepost */
+      unregister_chunk(ar_ptr, p); /* SRI: pulling out the fencepost */
       p = prev_chunk (_md_p, p);
-      _md_p = hashtable_lookup(ar_ptr, p);
+      _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); //FIXME: once twinned
       }
@@ -742,8 +742,8 @@ heap_trim (heap_info *heap, size_t pad)
         {
 	  mchunkptr op = p;
           p = prev_chunk (_md_p, p);
-	  hashtable_remove(ar_ptr, op);
-	  _md_p = hashtable_lookup(ar_ptr, p);
+	  unregister_chunk(ar_ptr, op);
+	  _md_p = lookup_chunk(ar_ptr, p);
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p); //FIXME: once twinned
 	  }

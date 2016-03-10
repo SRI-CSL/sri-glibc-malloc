@@ -1042,10 +1042,9 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 static chunkinfoptr new_chunkinfoptr(mstate av);
 static bool replenish_metadata_cache(mstate av);
 
-static chunkinfoptr hashtable_lookup (mstate av, mchunkptr p);
+static chunkinfoptr lookup_chunk (mstate av, mchunkptr p);
 
-static bool hashtable_add (mstate av, chunkinfoptr ci);
-static bool hashtable_remove (mstate av, mchunkptr p);
+static bool unregister_chunk (mstate av, mchunkptr p);
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped);
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
@@ -1388,7 +1387,7 @@ static inline bool inuse(mstate av, chunkinfoptr _md_p, mchunkptr p)
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
   next =  next_chunk(_md_p, p);
-  _md_next = hashtable_lookup(av, next);
+  _md_next = lookup_chunk(av, next);
   return prev_inuse(_md_next, next) ==  PREV_INUSE;
 }
 
@@ -1402,7 +1401,7 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
   assert(chunkinfo2chunk(_md_p) == p);
 
   next =  chunk_at_offset(p, s);
-  _md_next = hashtable_lookup(av, next);
+  _md_next = lookup_chunk(av, next);
 
   if(_md_next == NULL){
     missing_metadata(av, next);
@@ -1416,7 +1415,7 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
   prev_chunk = (mchunkptr)(((char*)p) + s);
-  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+  _md_prev_chunk = lookup_chunk(av, prev_chunk);
 
   if (_md_prev_chunk != NULL) {
     _md_prev_chunk->size |= PREV_INUSE;
@@ -1431,7 +1430,7 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
   prev_chunk = (mchunkptr)(((char*)p) + s);
-  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+  _md_prev_chunk = lookup_chunk(av, prev_chunk);
 
   if (_md_prev_chunk != NULL) {
     _md_prev_chunk->size &= ~PREV_INUSE;
@@ -1465,7 +1464,7 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s
   mchunkptr prev_chunk;
 
   prev_chunk = (mchunkptr)((char*)p + s);
-  _md_prev_chunk = hashtable_lookup(av, prev_chunk);
+  _md_prev_chunk = lookup_chunk(av, prev_chunk);
 
   if (_md_prev_chunk != NULL) {
     _md_prev_chunk->prev_size =  s;
@@ -2195,8 +2194,8 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
   return ( sz & ~(SIZE_BITS));
 }
 
-
-/* Get a free chunkinfo from av's metadata cache
+#if 0
+/* Get a free chunkinfo from av's metadata cache */
 static chunkinfoptr new_chunkinfoptr(mstate av)
 {
   chunkinfoptr retval;
@@ -2210,8 +2209,8 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   
   return retval;
 }
-*/
 
+#else
 
 /* Get a free chunkinfo */
 static chunkinfoptr
@@ -2223,10 +2222,11 @@ new_chunkinfoptr(mstate av)
   return retval;
 }
 
+#endif
 
 /* lookup the chunk in the hashtable */
 static chunkinfoptr
-hashtable_lookup (mstate av, mchunkptr p)
+lookup_chunk (mstate av, mchunkptr p)
 {
   assert(av != NULL);
   assert(p != NULL);
@@ -2234,18 +2234,9 @@ hashtable_lookup (mstate av, mchunkptr p)
 }
 
 
-/* Add the metadata to the hashtable   */
-static bool
-hashtable_add (mstate av, chunkinfoptr ci)
-{
-  assert(av != NULL);
-  assert(ci != NULL);
-  return metadata_add(&av->htbl, ci);
-}
-
 /* Remove the metadata from the hashtable */
 static bool
-hashtable_remove (mstate av, mchunkptr p) 
+unregister_chunk (mstate av, mchunkptr p) 
 {
   assert(av != NULL);
   assert(p != NULL);
@@ -2270,10 +2261,9 @@ static void* chunkinfo2mem(chunkinfoptr _md_victim)
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
 {
   chunkinfoptr _md_p = new_chunkinfoptr(av);
-  
   _md_p->chunk = chunk2mem(p);
   set_arena_index(av, p, is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av));
-  hashtable_add(av, _md_p);
+  metadata_add(&av->htbl, _md_p);
   return _md_p;
 }
 
@@ -2528,7 +2518,7 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
   
   sz = _md_p->size & ~PREV_INUSE;
   next = chunk_at_offset (p, sz);
-  _md_next = hashtable_lookup(av, next);
+  _md_next = lookup_chunk(av, next);
   if (_md_next == NULL) { missing_metadata(av, next); }
   
   /* Chunk must claim to be free ... */
@@ -2581,7 +2571,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
   assert (inuse(av, _md_p, p));
 
   next = next_chunk (_md_p, p);
-  _md_next = hashtable_lookup(av, next);
+  _md_next = lookup_chunk(av, next);
   if (_md_next == NULL) { missing_metadata(av, next); }
 
 
@@ -2593,7 +2583,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
     {
       /* Note that we cannot even look at prev unless it is not inuse */
       prv = prev_chunk (_md_p, p);
-      _md_prv = hashtable_lookup(av, prv);
+      _md_prv = lookup_chunk(av, prv);
       if (_md_prv == NULL) { missing_metadata(av, prv); }
       assert (next_chunk (_md_prv, prv) == p);
       do_check_free_chunk (av, prv, _md_prv, file, lineno);
@@ -2828,12 +2818,12 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
           /* chunk is followed by a legal chain of inuse chunks */
 	  q = next_chunk(_md_p, p);
-	  _md_q = hashtable_lookup(av, q);
+	  _md_q = lookup_chunk(av, q);
 	  if (_md_q == NULL) { missing_metadata(av, q); }
 	  while(q != topchunk && inuse(av, _md_q, q) && (unsigned long)(chunksize(_md_q)) >= MINSIZE){
 	    do_check_inuse_chunk(av, q, _md_q, file, lineno);
 	    q = next_chunk(_md_q, q);
-	    _md_q = hashtable_lookup(av, q);
+	    _md_q = lookup_chunk(av, q);
 	  }
 
         }
@@ -3539,7 +3529,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   if (p != op) {
     /* remove the old one */
-    hashtable_remove(av, op);
+    unregister_chunk(av, op);
     _md_p = register_chunk(av, p, true);
   }
 
@@ -3625,7 +3615,7 @@ __libc_free (void *mem)
     {
       (void)mutex_lock(&main_arena.mutex);
       
-      _md_p = hashtable_lookup(&main_arena, p);  
+      _md_p = lookup_chunk(&main_arena, p);  
   
       if (_md_p == NULL) { 
         missing_metadata(&main_arena, p);
@@ -3646,7 +3636,7 @@ __libc_free (void *mem)
 
       munmap_chunk (_md_p); 
 
-      hashtable_remove(&main_arena, p);
+      unregister_chunk(&main_arena, p);
 
       (void)mutex_unlock(&main_arena.mutex);
       return;
@@ -3702,7 +3692,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   (void) mutex_lock (&ar_ptr->mutex);
 
-  _md_oldp = hashtable_lookup(ar_ptr, oldp);
+  _md_oldp = lookup_chunk(ar_ptr, oldp);
   if (_md_oldp == NULL) { missing_metadata(ar_ptr, oldp); }
 
 
@@ -3760,7 +3750,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      hashtable_remove(&main_arena, oldp);
+      unregister_chunk(&main_arena, oldp);
       (void) mutex_unlock (&ar_ptr->mutex);
       return newmem;
     }
@@ -4664,7 +4654,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     } 
     */
 
-    _md_p = hashtable_lookup(av, p);
+    _md_p = lookup_chunk(av, p);
   
     if (_md_p == NULL) { missing_metadata(av, p);  }
 
@@ -4714,7 +4704,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   tempnext = chunk_at_offset(p, size);  
   //FIXME: this needs the lock. should get them above, and 
   //eliminate their retrieval below too.
-  _md_tempnext = hashtable_lookup(av, tempnext);
+  _md_tempnext = lookup_chunk(av, tempnext);
   if(_md_tempnext == NULL){ missing_metadata(av, tempnext); }
   tempnext_sz = chunksize (_md_tempnext);
 
@@ -4804,7 +4794,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     }
 
     nextchunk = chunk_at_offset(p, size);
-    _md_nextchunk = hashtable_lookup(av, nextchunk);
+    _md_nextchunk = lookup_chunk(av, nextchunk);
 
     topchunk = chunkinfo2chunk(av->_md_top);
 
@@ -4853,7 +4843,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
-      _md_p = hashtable_lookup(av, p);             
+      _md_p = lookup_chunk(av, p);             
       bin_unlink(av, _md_p, &bck, &fwd);                     
     }
 
@@ -4967,7 +4957,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     (void)mutex_lock(&main_arena.mutex);
 
     munmap_chunk (_md_p);
-    hashtable_remove(&main_arena, p);
+    unregister_chunk(&main_arena, p);
 
     (void)mutex_unlock(&main_arena.mutex);
 
@@ -5045,7 +5035,7 @@ static void malloc_consolidate(mstate av)
           /* Slightly streamlined version of consolidation code in free() */
           size = _md_p->size & ~PREV_INUSE;
           nextchunk = chunk_at_offset(p, size);
-	  _md_nextchunk = hashtable_lookup(av, nextchunk);
+	  _md_nextchunk = lookup_chunk(av, nextchunk);
 	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
           nextsize = chunksize(_md_nextchunk);
 
@@ -5053,7 +5043,7 @@ static void malloc_consolidate(mstate av)
             prevsize = _md_p->prev_size;
             size += prevsize;
             p = chunk_at_offset(p, -((long) prevsize));
-            _md_p = hashtable_lookup (av, p);
+            _md_p = lookup_chunk (av, p);
 	    if (_md_p == NULL) { missing_metadata(av, p); }
             bin_unlink(av, _md_p, &bck, &fwd);
           }
@@ -5160,7 +5150,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   assert (!chunk_is_mmapped (oldp));
 
   next = chunk_at_offset (oldp, oldsize);
-  _md_next = hashtable_lookup(av, next);
+  _md_next = lookup_chunk(av, next);
   if (_md_next == NULL) { missing_metadata(av, next); }
   
   topchunk = chunkinfo2chunk(av->_md_top);                
@@ -5189,7 +5179,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           (unsigned long) (nb + MINSIZE))
         {
           /* SRI: we are going to move top nb bytes along; so we'll need to provide new metadata */ 
-          hashtable_remove(av, topchunk);
+          unregister_chunk(av, topchunk);
 
           /* update oldp's metadata */
           set_head_size (_md_oldp, nb);
@@ -5214,7 +5204,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           newp = oldp;
           bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
-          hashtable_remove(av, next);
+          unregister_chunk(av, next);
 
         }
 
@@ -5239,7 +5229,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
             {
               newsize += oldsize;
               newp = oldp;  /* now we have newp != malloced_chunk */
-              hashtable_remove(av, malloced_chunk);
+              unregister_chunk(av, malloced_chunk);
             }
           else
             {
@@ -5544,7 +5534,7 @@ musable (void *mem)
 
       (void)mutex_lock(&ar_ptr->mutex);
 
-      _md_p = hashtable_lookup(ar_ptr, p);
+      _md_p = lookup_chunk(ar_ptr, p);
 
       if (_md_p == NULL) {
 	missing_metadata(ar_ptr, p);

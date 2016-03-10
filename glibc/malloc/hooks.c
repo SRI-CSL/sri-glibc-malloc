@@ -337,9 +337,9 @@ free_check (void *mem, const void *caller)
     }
   if (chunk_is_mmapped (p))
     {
-      _md_p = hashtable_lookup(&main_arena, p);  
+      _md_p = lookup_chunk(&main_arena, p);  
       munmap_chunk(_md_p);
-      hashtable_remove(&main_arena, p); 
+      unregister_chunk(&main_arena, p); 
       (void) mutex_unlock (&main_arena.mutex);
       return;
     }
@@ -373,7 +373,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
   const mchunkptr oldp = mem2chunk_check (oldmem, &magic_p);
 
   if(oldp){
-    _md_oldp = hashtable_lookup(&main_arena, oldp);
+    _md_oldp = lookup_chunk(&main_arena, oldp);
     if (_md_oldp == NULL) { missing_metadata(&main_arena, oldp); }
   }
 
@@ -415,7 +415,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
               {
                 memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
                 munmap_chunk (_md_oldp);
-		hashtable_remove(&main_arena, oldp); 
+		unregister_chunk(&main_arena, oldp); 
               }
           }
       }

@@ -2,25 +2,38 @@ Plan of Attack
 
 Based on the approach taken for psmalloc.
 
-0. get av->top under control
+0[X]. get av->top under control
 
-1. twin data with metadata
+1[X]. twin data with metadata
 
-2. get metadata to agree with the data
+2[X]. get metadata to agree with the data
 
-3. _int_ allocation routines should return chunkinfoptrs not mems
+3[X]. _int_ allocation routines should return chunkinfoptrs not mems
 
-4. bins need to become chunkinfoptrs not mchunkptrs
+4[X]. bins need to become chunkinfoptrs not mchunkptrs
 
-5. all the _int_ routines need chunkinfoptrs args
+5[X]. all the _int_ routines need chunkinfoptrs args
 
-6. trim the metadata stored in mchunkptrs (the linked lists)
+6[X]. trim the metadata stored in mchunkptrs (the linked lists)
 
-7. last remainder etc
+7[X]. last remainder etc
 
-8. only store arena numbers in mchunkptr
+8[X]. only store arena numbers in mchunkptr
 
 9. remove the sharing of the header and footer
+
+10. add in the canary and tagging debugg tool.
+
+11. hooks.
+
+12. cache.
+
+
+Random Notes.
+
+1. the _int_free locking mess should probably get tossed.
+
+2. the (old and now inaccurate) code comments need to be trimmed.
 
 
 

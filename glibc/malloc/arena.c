@@ -81,6 +81,25 @@ static unsigned long arena_mem;
 /* Already initialized? */
 int __malloc_initialized = -1;
 
+
+/* SRI Additions:
+ *
+ * We have modified the main_arena.next list, so that new arenas are added on the end.
+ * Thus it is a cyclic list of "length" of length arena_count ordered from 
+ * smallest arena_index to largest arena index.
+ * Note Bene: the main_arena has arena_index 1; thus the first non-main arean in this
+ * list has arena_index 2.
+ */
+
+/* the last arena in the main_arena.next list */
+static struct malloc_state *last_arena = &main_arena;
+
+/* number of arenas: arena_count. The narenas counter is not protected
+ * by the list_lock so we can't use that.
+ */
+static size_t arena_count = 1;
+
+
 /**************************************************************************/
 
 
@@ -110,6 +129,61 @@ int __malloc_initialized = -1;
   ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
 #define arena_for_chunk(ptr) \
   (chunk_non_main_arena (ptr) ? heap_for_ptr (ptr)->ar_ptr : &main_arena)
+
+
+/* SRI: check that the arena_index of a chunk make sense */
+static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
+  size_t count;
+  
+  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+
+  if(p->arena_index > count + 1){
+    fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
+  }
+  assert(p->arena_index <= count + 1);
+}
+
+/* SRI:
+ *
+ * Returns the arena with the same index as ptr.  Though we try to
+ * preserve the order in the cyclic linked list of arenas it is not
+ * guaranteed. So we go through the list until we find it.
+ *
+ *
+ */
+static mstate arena_from_chunk(mchunkptr ptr){
+  INTERNAL_SIZE_T index;
+  mstate arena;
+  size_t count;
+  
+  assert(ptr != NULL);
+
+  index = get_arena_index(ptr);
+
+  if(index < NON_MAIN_ARENA_INDEX){
+    return &main_arena;
+  }
+
+  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+  
+
+  assert(index  <= count + 1);
+
+  arena = main_arena.next;
+  
+  while(count > 0 && arena->arena_index != index){
+    arena = arena->next;
+    count--;
+  }
+
+  assert(arena != NULL);
+  assert(arena->arena_index == index);
+  
+  /* unsafe; but just a sanity check */
+  assert((heap_for_ptr(ptr))->ar_ptr == arena);
+
+  return arena;
+}
 
 
 /**************************************************************************/
@@ -829,7 +903,7 @@ _int_new_arena (size_t size)
         return 0;
     }
   a = h->ar_ptr = (mstate) (h + 1);
-  malloc_init_state (a);
+  malloc_init_state (a, false);
   a->attached_threads = 1;
   /*a->next = NULL;*/
   a->system_mem = a->max_system_mem = h->size;
@@ -855,10 +929,21 @@ _int_new_arena (size_t size)
 
   detach_arena (replaced_arena);
 
-  /* Add the new arena to the global list.  */
-  a->next = main_arena.next;
+  /* Add the new arena to the "end" of the global cyclic list.  */
+  a->next = &main_arena;
+
+  last_arena->next = a;
+
   atomic_write_barrier ();
-  main_arena.next = a;
+
+  last_arena = a;
+
+  catomic_increment (&arena_count);
+  /* update the index of the new arena */
+  a->arena_index = arena_count;
+  set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
+
+  
 
   (void) mutex_unlock (&list_lock);
 

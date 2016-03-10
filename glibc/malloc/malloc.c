@@ -1796,6 +1796,8 @@ struct malloc_state
   INTERNAL_SIZE_T system_mem;
   INTERNAL_SIZE_T max_system_mem;
 
+  /* SRI: this arena's index. main arena = 1, non-main arena's 2, 3, .... */
+  size_t arena_index;
 
   /* SRI: flag indicating arena is initialized */
   bool metadata_pool_ready;
@@ -1878,7 +1880,7 @@ static struct malloc_par mp_ =
 /* procedural abstraction */
 static inline int arena_index(mstate av)
 {
-  return (av != &main_arena ? NON_MAIN_ARENA_INDEX : MAIN_ARENA_INDEX);
+  return av->arena_index;
 }
 
 
@@ -2110,7 +2112,7 @@ static inline chunkinfoptr initial_md_top(mstate av)
 }
 
 static void
-malloc_init_state (mstate av)
+malloc_init_state (mstate av, bool is_main_arena)
 {
   int i;
   mbinptr bin;
@@ -2129,6 +2131,14 @@ malloc_init_state (mstate av)
   if (av == &main_arena)
     set_max_fast (DEFAULT_MXFAST);
   av->flags |= FASTCHUNKS_BIT;
+
+  if(is_main_arena){
+    /* the main arena has arena index 1. */
+    av->arena_index = MAIN_ARENA_INDEX;
+  } else {
+    /* non-main arena's get assigned their index in arena.c's _int_new_arena */
+    av->arena_index = 0;
+  }
 
   /* init the metadata pool */
   init_memcxt(&av->memcxt);
@@ -2261,8 +2271,9 @@ static void* chunkinfo2mem(chunkinfoptr _md_victim)
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
 {
   chunkinfoptr _md_p = new_chunkinfoptr(av);
+  size_t a_idx = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
   _md_p->chunk = chunk2mem(p);
-  set_arena_index(av, p, is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av));
+  set_arena_index(av, p, a_idx);
   metadata_add(&av->htbl, _md_p);
   return _md_p;
 }
@@ -2446,6 +2457,8 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
 
   /* no debugging when we are running out of memory */
   if(av == NULL){ return; }
+
+  assert(chunk_is_mmapped (p) || (av == arena_from_chunk(p)));
 
   sz = chunksize (_md_p);
   
@@ -5090,7 +5103,7 @@ static void malloc_consolidate(mstate av)
     } while (fb++ != maxfb);
   }
   else {
-    malloc_init_state(av);
+    malloc_init_state(av, true);
     check_malloc_state(av);
   }
 }
@@ -5678,7 +5691,7 @@ __malloc_stats (void)
       memset (&mi, 0, sizeof (mi));
       (void) mutex_lock (&ar_ptr->mutex);
       int_mallinfo (ar_ptr, &mi);
-      fprintf (stderr, "Arena %d:\n", i);
+      fprintf (stderr, "Arena %zu:\n", ar_ptr->arena_index);
       fprintf (stderr, "system bytes     = %10u\n", (unsigned int) mi.arena);
       fprintf (stderr, "in use bytes     = %10u\n", (unsigned int) mi.uordblks);
 #if MALLOC_DEBUG > 1

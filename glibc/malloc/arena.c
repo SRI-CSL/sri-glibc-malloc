@@ -132,15 +132,9 @@ static size_t arena_count = 1;
 
 
 /* SRI: check that the arena_index of a chunk make sense */
-static inline void _arena_is_sane(mchunkptr p, const char* file, int lineno){
-  size_t count;
-  
-  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-
-  if(p->arena_index > count + 1){
-    fprintf(stderr,  "arena_is_sane: %p->arena_index = %zu @ %s line %d\n", chunk2mem(p), p->arena_index, file, lineno);
-  }
-  assert(p->arena_index <= count + 1);
+static bool _arena_is_sane(mchunkptr p, const char* file, int lineno){
+  size_t count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+  return p->arena_index <= count + 1;
 }
 
 /* SRI:
@@ -934,16 +928,15 @@ _int_new_arena (size_t size)
 
   last_arena->next = a;
 
+  catomic_increment (&arena_count);
+
   atomic_write_barrier ();
 
   last_arena = a;
 
-  catomic_increment (&arena_count);
   /* update the index of the new arena */
   a->arena_index = arena_count;
   set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
-
-  
 
   (void) mutex_unlock (&list_lock);
 

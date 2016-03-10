@@ -10,7 +10,7 @@
 #define MAX_THREADS  1024
 
 /* flag to turn on malloc_stats at the end */
-static const bool verbose = true;
+static const bool verbose = false;
 
 /*
  *  Nothing fancy yet.

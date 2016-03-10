@@ -1321,6 +1321,14 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 #define MAIN_ARENA_INDEX     0x1
 #define NON_MAIN_ARENA_INDEX 0x2
 
+/*
+ *  SRI: returns true if the arena_index in p makes sense, it doesn't
+ * mean that p actually came from that arena, just that is claims to
+ * have.  It returns false otherwise
+*/
+static bool _arena_is_sane(mchunkptr p, const char* file, int lineno);
+
+#define arena_is_sane(P) _arena_is_sane(P, __FILE__, __LINE__)
 
 INTERNAL_SIZE_T get_arena_index(mchunkptr p)
 {
@@ -3610,6 +3618,7 @@ __libc_free (void *mem)
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
   chunkinfoptr _md_p;                   /* metadata of chunk corresponding to mem */
+  bool sane;
 
   void (*hook) (void *, const void *)
     = atomic_forced_read (__free_hook);
@@ -3624,14 +3633,23 @@ __libc_free (void *mem)
 
   p = mem2chunk (mem);
 
+  /* proceed only if sane */
+  sane = arena_is_sane(p);
+  assert(sane);
+  if (!sane) { 
+    return; 
+  }
+
+  ar_ptr = arena_from_chunk (p);
+  
   if (chunk_is_mmapped (p))                       /* release mmapped memory. */
     {
-      (void)mutex_lock(&main_arena.mutex);
+      (void)mutex_lock(&ar_ptr->mutex);
       
-      _md_p = lookup_chunk(&main_arena, p);  
+      _md_p = lookup_chunk(ar_ptr, p);  
   
       if (_md_p == NULL) { 
-        missing_metadata(&main_arena, p);
+        missing_metadata(ar_ptr, p);
       }
 
 
@@ -3649,13 +3667,11 @@ __libc_free (void *mem)
 
       munmap_chunk (_md_p); 
 
-      unregister_chunk(&main_arena, p);
+      unregister_chunk(ar_ptr, p);
 
-      (void)mutex_unlock(&main_arena.mutex);
+      (void)mutex_unlock(&ar_ptr->mutex);
       return;
     }
-
-  ar_ptr = arena_for_chunk (p);
 
 
   _int_free (ar_ptr, NULL, p, 0);
@@ -3676,7 +3692,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   mchunkptr newp;             /* chunk of mem to return  */
   chunkinfoptr _md_newp;      /* metadata of mem */
 
-  
+  bool sane;                  /* arena_index is sane */
 
   void *(*hook) (void *, size_t, const void *) =
     atomic_forced_read (__realloc_hook);
@@ -3697,11 +3713,22 @@ __libc_realloc (void *oldmem, size_t bytes)
   /* chunk corresponding to oldmem */
   const mchunkptr oldp = mem2chunk (oldmem);
 
+
+  /* proceed only if sane */
+  sane = arena_is_sane(oldp);
+  assert(sane);
+  if (!sane) { 
+    return 0; 
+  }
+
+  /*
   if (chunk_is_mmapped (oldp))
     ar_ptr = &main_arena;  
   else
     ar_ptr = arena_for_chunk (oldp);
+  */
 
+  ar_ptr = arena_from_chunk (oldp);
 
   (void) mutex_lock (&ar_ptr->mutex);
 
@@ -4649,6 +4676,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   */
 
+  assert( (av == NULL) || arena_from_chunk(p) );
+
   assert( (_md_p == NULL) || chunkinfo2chunk(_md_p) == p );
 
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
@@ -4659,13 +4688,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       (void) mutex_lock (&av->mutex);
       locked = 1;
     }
-
-    /*
-    if (av != NULL && !replenish_metadata_cache(av)) {
-      (void) mutex_unlock (&av->mutex);
-      return;
-    } 
-    */
 
     _md_p = lookup_chunk(av, p);
   

@@ -4681,7 +4681,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   assert( (_md_p == NULL) || chunkinfo2chunk(_md_p) == p );
 
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
-
+  /* maybe we should just keep the lock and ditch the new glibc code below? */
   if (_md_p == NULL) {
 
     if (!have_lock) {

@@ -343,7 +343,7 @@ free_check (void *mem, const void *caller)
       (void) mutex_unlock (&main_arena.mutex);
       return;
     }
-  _int_free (&main_arena, NULL, p, 1);
+  _int_free (&main_arena, NULL, p, true);
   (void) mutex_unlock (&main_arena.mutex);
 }
 

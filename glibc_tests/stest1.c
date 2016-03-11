@@ -36,6 +36,7 @@ int main(void) {
   printf("Allocated %"PRIu32" blocks of size %lu\n", i, (unsigned long) sz);
  
   for (i=0; i<BNK_SIZE; i++) {
+    fprintf(stderr, "freeing %d\n", i);
     free(bank[i]);
     bank[i] = NULL;
   }

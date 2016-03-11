@@ -1054,7 +1054,7 @@ static void*  chunkinfo2mem(chunkinfoptr _md_victim);
 
 
 static chunkinfoptr  _int_malloc(mstate, size_t);
-static void   _int_free(mstate, chunkinfoptr, mchunkptr, int);
+static void   _int_free(mstate, chunkinfoptr, mchunkptr, bool);
 static chunkinfoptr  _int_realloc(mstate, chunkinfoptr, INTERNAL_SIZE_T,
                                   INTERNAL_SIZE_T);
 static chunkinfoptr _int_memalign(mstate, size_t, size_t);
@@ -2197,7 +2197,6 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
 }
 
 
-/* FIXME: will eventually replace all occurrences of chunksize */
 static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci)
 {
   if (ci == NULL)
@@ -2994,7 +2993,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
               set_head (_md_old_top, old_size | PREV_INUSE);
 
-              _int_free (av, _md_old_top, old_top, 1);
+              _int_free (av, _md_old_top, old_top, true);
             }
           else
             {
@@ -3274,7 +3273,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                       /* If possible, release the rest. */
                       if (old_size >= MINSIZE)
                         {
-                          _int_free (av, _md_old_top, old_top, 1);
+                          _int_free (av, _md_old_top, old_top, true);
                         }
                     }
                 }
@@ -3456,16 +3455,19 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   assert (aligned_OK ((unsigned long)chunk2mem (p)));
 
-  //FIXME: ?? assert ((p->prev_size == offset));
 
   if (p != op) {
     /* remove the old one */
     unregister_chunk(av, op);
     _md_p = register_chunk(av, p, true);
+    _md_p->prev_size = offset;
   }
 
-  set_head (_md_p, (new_size - offset));
+  assert ((_md_p->prev_size == offset));
   
+  set_head (_md_p, (new_size - offset));
+
+
   INTERNAL_SIZE_T new;
   new = atomic_exchange_and_add (&mp_.mmapped_mem, new_size - size - offset)
     + new_size - size - offset;
@@ -3496,7 +3498,7 @@ __libc_malloc (size_t bytes)
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return 0;
-  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+  } 
 
   _md_victim = _int_malloc (ar_ptr, bytes);
   /* Retry with another arena only if we were able to find a usable arena
@@ -3584,7 +3586,7 @@ __libc_free (void *mem)
     }
 
 
-  _int_free (ar_ptr, NULL, p, 0);
+  _int_free (ar_ptr, NULL, p, false);
 
   check_top(ar_ptr);
 
@@ -3651,8 +3653,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return 0;
-  } // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
-  
+  }   
 
   /* its size */
   const INTERNAL_SIZE_T oldsize = chunksize (_md_oldp);
@@ -3723,7 +3724,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       if (mem != NULL)
         {
           memcpy (mem, oldmem, oldsize - SIZE_SZ);
-          _int_free (ar_ptr,_md_oldp, oldp, 0);
+          _int_free (ar_ptr,_md_oldp, oldp, false);
         }
     }
 
@@ -3792,8 +3793,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
     (void) mutex_unlock (&ar_ptr->mutex);
     return 0;
-  }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
-
+  }  
 
   _md_p = _int_memalign (ar_ptr, alignment, bytes);
   if (!_md_p && ar_ptr != NULL)
@@ -3898,7 +3898,7 @@ __libc_calloc (size_t n, size_t elem_size)
   if (av != NULL && !replenish_metadata_cache(av)) {
     (void) mutex_unlock (&av->mutex);
     return 0;
-  }  // FIXME: need to figure out where to do this when ar_ptr is NULL at this point
+  }  
 
   if (av)
     {
@@ -4554,7 +4554,7 @@ _int_malloc (mstate av, size_t bytes)
 */
 
 static void
-_int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
+_int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 {
   INTERNAL_SIZE_T size;        /* its size */
   mfastbinptr *fb;             /* associated fastbin */
@@ -4566,12 +4566,18 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   chunkinfoptr bck;            /* misc temp for linking */
   chunkinfoptr fwd;            /* misc temp for linking */
 
+  chunkinfoptr _md_top;        /* metadata of the top chunk */
+  mchunkptr topchunk;          /* the top chunk */
+
   const char *errstr = NULL;
-  int locked = 0;
+  bool locked = false;
 
   if(av == NULL){
     return;
   }
+
+  _md_top = av->_md_top;
+  topchunk = chunkinfo2chunk(_md_top);
 
   /*
     SRI: 
@@ -4591,24 +4597,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   assert( (_md_p == NULL) || chunkinfo2chunk(_md_p) == p );
 
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
-  /* maybe we should just keep the lock and ditch the new glibc code below? */
   if (_md_p == NULL) {
-
     if (!have_lock) {
       (void) mutex_lock (&av->mutex);
-      locked = 1;
+      locked = true;
     }
-
     _md_p = lookup_chunk(av, p);
-  
     if (_md_p == NULL) { missing_metadata(av, p);  }
-
-    /* FIXME: if we don't do this we hang on building!!!! */
-    if (!have_lock) {
-      (void) mutex_unlock (&av->mutex);
-      locked = 0;
-    }
-
   } 
 
   check_top(av);
@@ -4625,8 +4620,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     {
       errstr = "free(): invalid pointer";
     errout:
-      if (!have_lock && locked)
+      if (have_lock || locked){
         (void) mutex_unlock (&av->mutex);
+      }
       malloc_printerr (check_action, errstr, chunk2mem (p), av);
       return;
     }
@@ -4640,24 +4636,17 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   check_inuse_chunk(av, p, _md_p);
 
-  mchunkptr topchunk;
-
-  mchunkptr tempnext;
-  chunkinfoptr _md_tempnext;
-  INTERNAL_SIZE_T tempnext_sz;
-  
-  tempnext = chunk_at_offset(p, size);  
+  nextchunk = chunk_at_offset(p, size);  
   //FIXME: this needs the lock. should get them above, and 
   //eliminate their retrieval below too.
-  _md_tempnext = lookup_chunk(av, tempnext);
-  if(_md_tempnext == NULL){ missing_metadata(av, tempnext); }
-  tempnext_sz = chunksize (_md_tempnext);
+  _md_nextchunk = lookup_chunk(av, nextchunk);
+  if(_md_nextchunk == NULL){ missing_metadata(av, nextchunk); }
+  nextsize = chunksize (_md_nextchunk);
 
   /*
     If eligible, place chunk on a fastbin so it can be found
     and used quickly in malloc.
   */
-
 
   if ((unsigned long)(size) <= (unsigned long)(get_max_fast ())
 #if TRIM_FASTBINS
@@ -4665,31 +4654,31 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
         If TRIM_FASTBINS set, don't place chunks
         bordering top into fastbins
       */
-      && (_md_tempnext != av->_md_top)
+      && (nextchunk != topchunk)
 #endif
       ) {
 
-    if (__builtin_expect (_md_tempnext->size <= 2 * SIZE_SZ, 0)
-        || __builtin_expect (tempnext_sz >= av->system_mem, 0))
+    if (__builtin_expect (_md_nextchunk->size <= 2 * SIZE_SZ, 0)
+        || __builtin_expect (nextsize >= av->system_mem, 0))
       {
         /* We might not have a lock at this point and concurrent modifications
            of system_mem might have let to a false positive.  Redo the test
            after getting the lock.  */
         if (have_lock
-            || ({ assert (locked == 0);
+            || ({ assert (locked == false);
                 mutex_lock(&av->mutex);
-                locked = 1;
-                _md_tempnext->size <= 2 * SIZE_SZ
-                  || tempnext_sz >= av->system_mem; 
+                locked = true;
+                _md_nextchunk->size <= 2 * SIZE_SZ
+                  || nextsize >= av->system_mem; 
               }))
           {
             errstr = "free(): invalid next size (fast)";
             goto errout;
           }
-        if (! have_lock)
+        if (! have_lock && locked)
           {
             (void)mutex_unlock(&av->mutex);
-            locked = 0;
+            locked = false;
           }
       }
 
@@ -4715,17 +4704,23 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
            size of the chunk that we are adding.  We can dereference OLD
            only if we have the lock, otherwise it might have already been
            deallocated.  See use of OLD_IDX below for the actual check.  */
-        if (have_lock && _md_old != NULL)
+        if ((have_lock || locked) && _md_old != NULL)
           old_idx = fastbin_index(chunksize(_md_old));
         _md_p->fd = _md_old2 = _md_old;
       }
     while ((_md_old = catomic_compare_and_exchange_val_rel (fb, _md_p, _md_old2)) != _md_old2);
 
-    if (have_lock && _md_old != NULL && __builtin_expect (old_idx != idx, 0))
+    if ((have_lock || locked) && _md_old != NULL && __builtin_expect (old_idx != idx, 0))
       {
         errstr = "invalid fastbin entry (free)";
         goto errout;
       }
+
+    if (have_lock || locked) {
+      (void)mutex_unlock(&av->mutex);
+      locked = false;
+    }
+    
   }
 
   /*
@@ -4733,9 +4728,10 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
   */
 
   else if (!chunk_is_mmapped(p)) {
-    if (! have_lock) {
+
+    if (! have_lock && ! locked) {
       (void)mutex_lock(&av->mutex);
-      locked = 1;
+      locked = true;
     }
 
     nextchunk = chunk_at_offset(p, size);
@@ -4779,13 +4775,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
     /* consolidate backward */
     if (!prev_inuse(_md_p, p)) {
       prevsize = _md_p->prev_size;
-
-      /* FIXME:
-      if (prevsize == 0) {
-        abort();
-      }
-      */
-
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
       _md_p = lookup_chunk(av, p);             
@@ -4882,9 +4871,10 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
       }
     }
 
-    if (! have_lock) {
-      assert (locked);
+    if (! have_lock || locked) {
+      //assert (locked);
       (void)mutex_unlock(&av->mutex);
+      locked = false;
     }
     
   }
@@ -4894,20 +4884,24 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, int have_lock)
 
   else {
 
-    if (have_lock || locked) {
-      (void)mutex_unlock(&av->mutex);
-      locked = 0;
+    if(av != &main_arena){
+      if (have_lock || locked) {
+	(void)mutex_unlock(&av->mutex);
+	locked = false;
+      }
     }
 
     (void)mutex_lock(&main_arena.mutex);
-
+    
     munmap_chunk (_md_p);
     unregister_chunk(&main_arena, p);
-
+    
     (void)mutex_unlock(&main_arena.mutex);
-
-
+    
+    
   }
+
+  assert( ! locked );
 
 }
 

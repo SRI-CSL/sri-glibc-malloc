@@ -4581,6 +4581,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 
   /*
     SRI:  We has to simplify the locking optimizations in this routine.
+    More simplifications are now possible 
+    (since have_lock || locked is true after 20 lines from here.)
     
     Most calls we have:
 
@@ -4600,6 +4602,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 
   if (!have_lock) {
     (void) mutex_lock (&av->mutex);
+    locked = true;
+  } else {
     locked = true;
   }
 

@@ -110,7 +110,7 @@ magicbyte (const void *p)
 static size_t
 malloc_check_get_size (mchunkptr p)
 {
-  /*
+  /* FIXME
   size_t size;
   unsigned char c;
   unsigned char magic = magicbyte (p);
@@ -144,7 +144,7 @@ static void *
 internal_function
 mem2mem_check (void *ptr, size_t req_sz)
 {
-  /*
+  /* FIXME
   mchunkptr p;
   unsigned char *m_ptr = ptr;
   size_t max_sz, block_sz, i;
@@ -181,7 +181,7 @@ static mchunkptr
 internal_function
 mem2chunk_check (void *mem, unsigned char **magic_p)
 {
-  /*
+  /* FIXME
   mchunkptr p;
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
@@ -249,7 +249,7 @@ static int
 internal_function
 top_check (void)
 {
-  /*
+  /* FIXME
   chunkinfoptr _md_ot = main_arena._md_top;
   mchunkptr ot = chunkinfo2chunk(_md_ot);
   INTERNAL_SIZE_T ot_sz = chunksize(ot);

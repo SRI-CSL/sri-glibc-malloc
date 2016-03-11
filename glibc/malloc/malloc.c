@@ -4580,7 +4580,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   topchunk = chunkinfo2chunk(_md_top);
 
   /*
-    SRI: 
+    SRI:  We has to simplify the locking optimizations in this routine.
     
     Most calls we have:
 
@@ -4597,15 +4597,17 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   assert( (_md_p == NULL) || chunkinfo2chunk(_md_p) == p );
 
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
+
+  if (!have_lock) {
+    (void) mutex_lock (&av->mutex);
+    locked = true;
+  }
+
   if (_md_p == NULL) {
-    if (!have_lock) {
-      (void) mutex_lock (&av->mutex);
-      locked = true;
-    }
     _md_p = lookup_chunk(av, p);
     if (_md_p == NULL) { missing_metadata(av, p);  }
   } 
-
+  
   check_top(av);
 
   size = chunksize (_md_p);  //SRI: need the metadata at this point.
@@ -4626,6 +4628,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       malloc_printerr (check_action, errstr, chunk2mem (p), av);
       return;
     }
+
   /* We know that each chunk is at least MINSIZE bytes in size or a
      multiple of MALLOC_ALIGNMENT.  */
   if (__glibc_unlikely (size < MINSIZE || !aligned_OK (size)))
@@ -4633,12 +4636,10 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       errstr = "free(): invalid size";
       goto errout;
     }
-
+  
   check_inuse_chunk(av, p, _md_p);
-
+  
   nextchunk = chunk_at_offset(p, size);  
-  //FIXME: this needs the lock. should get them above, and 
-  //eliminate their retrieval below too.
   _md_nextchunk = lookup_chunk(av, nextchunk);
   if(_md_nextchunk == NULL){ missing_metadata(av, nextchunk); }
   nextsize = chunksize (_md_nextchunk);
@@ -4657,37 +4658,21 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       && (nextchunk != topchunk)
 #endif
       ) {
-
+    
     if (__builtin_expect (_md_nextchunk->size <= 2 * SIZE_SZ, 0)
         || __builtin_expect (nextsize >= av->system_mem, 0))
       {
-        /* We might not have a lock at this point and concurrent modifications
-           of system_mem might have let to a false positive.  Redo the test
-           after getting the lock.  */
-        if (have_lock
-            || ({ assert (locked == false);
-                mutex_lock(&av->mutex);
-                locked = true;
-                _md_nextchunk->size <= 2 * SIZE_SZ
-                  || nextsize >= av->system_mem; 
-              }))
-          {
-            errstr = "free(): invalid next size (fast)";
-            goto errout;
-          }
-        if (! have_lock && locked)
-          {
-            (void)mutex_unlock(&av->mutex);
-            locked = false;
-          }
+	errstr = "free(): invalid next size (fast)";
+	goto errout;
       }
-
+    
+    
     free_perturb (chunk2mem(p), size - 2 * SIZE_SZ);
-
+    
     set_fastchunks(av);
     unsigned int idx = fastbin_index(size);
     fb = &fastbin (av, idx);
-
+    
     /* Atomically link P to its fastbin: P->FD = *FB; *FB = P;  */
     chunkinfoptr _md_old = *fb, _md_old2;
     unsigned int old_idx = ~0u;
@@ -4734,11 +4719,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       locked = true;
     }
 
-    nextchunk = chunk_at_offset(p, size);
-    _md_nextchunk = lookup_chunk(av, nextchunk);
-
-    topchunk = chunkinfo2chunk(av->_md_top);
-
     /* Lightweight tests: check whether the block is already the
        top block.  */
     if (__glibc_unlikely (p == topchunk))
@@ -4760,8 +4740,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
         errstr = "double free or corruption (!prev)";
         goto errout;
       }
-
-    nextsize = chunksize(_md_nextchunk);
 
     if (__builtin_expect (_md_nextchunk->size <= 2 * SIZE_SZ, 0)
         || __builtin_expect (nextsize >= av->system_mem, 0))

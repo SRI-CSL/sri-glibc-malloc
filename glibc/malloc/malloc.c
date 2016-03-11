@@ -2122,6 +2122,7 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
   return ( sz & ~(SIZE_BITS));
 }
 
+//FIXME.
 #if 0
 /* Get a free chunkinfo from av's metadata cache */
 static chunkinfoptr new_chunkinfoptr(mstate av)
@@ -2883,6 +2884,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 		  (void)mutex_unlock(&av->mutex);
 		}
                 (void)mutex_lock(&main_arena.mutex);
+		//FIXME: at this point there is no guarantee that main_arena has enough left in the cache.
                 _md_p = register_chunk(&main_arena, p, true);
                 (void)mutex_unlock(&main_arena.mutex);
 		if(av != NULL){
@@ -3549,6 +3551,7 @@ __libc_free (void *mem)
   sane = arena_is_sane(p);
   assert(sane);
   if (!sane) { 
+    fprintf(stderr, "insane\n");
     return; 
   }
 
@@ -3630,15 +3633,9 @@ __libc_realloc (void *oldmem, size_t bytes)
   sane = arena_is_sane(oldp);
   assert(sane);
   if (!sane) { 
+    fprintf(stderr, "insane\n");
     return 0; 
   }
-
-  /*
-  if (chunk_is_mmapped (oldp))
-    ar_ptr = &main_arena;  
-  else
-    ar_ptr = arena_for_chunk (oldp);
-  */
 
   ar_ptr = arena_from_chunk (oldp);
 
@@ -4580,8 +4577,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   topchunk = chunkinfo2chunk(_md_top);
 
   /*
-    SRI:  We has to simplify the locking optimizations in this routine.
-    More simplifications are now possible 
+    SRI:  We had to simplify the locking optimizations in this routine.
+
+    FIXME: More simplifications are now possible 
     (since have_lock || locked is true after 20 lines from here.)
     
     Most calls we have:
@@ -4853,8 +4851,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       }
     }
 
-    if (! have_lock || locked) {
-      //assert (locked);
+    if ( have_lock || locked) {
       (void)mutex_unlock(&av->mutex);
       locked = false;
     }

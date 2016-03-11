@@ -22,7 +22,8 @@ Based on the approach taken for psmalloc.
 
 9[X]. remove the sharing of the header and footer
 
-10. add in the canary and tagging debugging tool.
+10. add in the canary and tagging debugging tool. hence verify that
+the chunks no longer intersect.
 
 11. hooks.
 
@@ -34,6 +35,15 @@ Random Notes.
 1. the _int_free locking mess should probably get tossed.
 
 2. the (old and now inaccurate) code comments need to be trimmed.
+
+3. I use some stdatomics in arena.c which should prolly use glibc atomics.
+
+
+========
+
+To push this upstream we need to eliminate prev_size with pointers
+to the next_md and prev_md.
+
 
 
 

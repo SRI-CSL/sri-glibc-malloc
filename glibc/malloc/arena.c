@@ -87,7 +87,7 @@ int __malloc_initialized = -1;
  * We have modified the main_arena.next list, so that new arenas are added on the end.
  * Thus it is a cyclic list of "length" of length arena_count ordered from 
  * smallest arena_index to largest arena index.
- * Note Bene: the main_arena has arena_index 1; thus the first non-main arean in this
+ * Note Bene: the main_arena has arena_index 1; thus the first non-main arena in this
  * list has arena_index 2.
  */
 
@@ -134,7 +134,7 @@ static size_t arena_count = 1;
 /* SRI: check that the arena_index of a chunk make sense */
 static bool _arena_is_sane(mchunkptr p, const char* file, int lineno){
   size_t count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-  return p->arena_index <= count + 1;
+  return p->arena_index <= count;
 }
 
 /* SRI:

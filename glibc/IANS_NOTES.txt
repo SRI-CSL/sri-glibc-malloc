@@ -29,6 +29,8 @@ the chunks no longer intersect.
 
 12. cache.
 
+13. issue #5. memory pool optimization.
+
 
 Random Notes.
 

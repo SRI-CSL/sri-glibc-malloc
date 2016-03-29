@@ -11,6 +11,9 @@
 #
 #
 
+# Note Bene: if you get a file not found when trying to 
+# run one of the tests; this hard coded loader version may 
+# have changed!!
 MY_LD=ld-2.23.90.so
 ifeq ($(shell whoami),vagrant)
 SYSROOT=${HOME}/glibc-install

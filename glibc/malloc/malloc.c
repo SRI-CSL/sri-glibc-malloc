@@ -3472,7 +3472,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   if (p != op) {
     /* remove the old one */
-    unregister_chunk(av, op, 0); // TAGME
+    unregister_chunk(av, op, false); 
     _md_p = register_chunk(av, p, true);
     _md_p->prev_size = offset;
   }
@@ -3594,7 +3594,7 @@ __libc_free (void *mem)
 
       munmap_chunk (_md_p); 
 
-      unregister_chunk(ar_ptr, p, 0); // TAGME
+      unregister_chunk(ar_ptr, p, false);
 
       (void)mutex_unlock(&ar_ptr->mutex);
       return;
@@ -3710,7 +3710,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      unregister_chunk(&main_arena, oldp, 0); //TAGME
+      unregister_chunk(&main_arena, oldp, false);
       (void) mutex_unlock (&ar_ptr->mutex);
       return newmem;
     }
@@ -4885,7 +4885,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     (void)mutex_lock(&main_arena.mutex);
     
     munmap_chunk (_md_p);
-    unregister_chunk(&main_arena, p, 0); // TAGME : iam please check extra special
+    unregister_chunk(&main_arena, p, false);
     
     (void)mutex_unlock(&main_arena.mutex);
     
@@ -5109,7 +5109,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           (unsigned long) (nb + MINSIZE))
         {
           /* SRI: we are going to move top nb bytes along; so we'll need to provide new metadata */ 
-          unregister_chunk(av, topchunk, 11); // TAGME : due to assert (!chunk_is_mmaped) above
+          unregister_chunk(av, topchunk, 1);
 
           /* update oldp's metadata */
           set_head_size (_md_oldp, nb);
@@ -5134,7 +5134,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           newp = oldp;
           bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
-          unregister_chunk(av, next, 12); // TAGME : due to assert (!chunk_is_mmaped) above
+          unregister_chunk(av, next, 2); 
 
         }
 
@@ -5159,7 +5159,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
             {
               newsize += oldsize;
               newp = oldp;  /* now we have newp != malloced_chunk */
-              unregister_chunk(av, malloced_chunk, 13); // TAGME : due to assert (!chunk_is_mmaped) above
+              unregister_chunk(av, malloced_chunk, 3); 
             }
           else
             {

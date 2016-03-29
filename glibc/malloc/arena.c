@@ -782,7 +782,7 @@ heap_trim (heap_info *heap, size_t pad)
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
 
 
-      unregister_chunk(ar_ptr, p, 8); /* SRI: pulling out the fencepost TAGME */
+      unregister_chunk(ar_ptr, p, 4); /* SRI: pulling out the fencepost */
       p = prev_chunk (_md_p, p);
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
@@ -810,7 +810,7 @@ heap_trim (heap_info *heap, size_t pad)
         {
 	  mchunkptr op = p;
           p = prev_chunk (_md_p, p);
-	  unregister_chunk(ar_ptr, op, 10);  // TAGME
+	  unregister_chunk(ar_ptr, op, 5);  
 	  _md_p = lookup_chunk(ar_ptr, p);
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p); //FIXME: once twinned

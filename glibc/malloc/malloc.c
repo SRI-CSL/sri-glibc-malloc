@@ -1044,7 +1044,7 @@ static bool replenish_metadata_cache(mstate av);
 
 static chunkinfoptr lookup_chunk (mstate av, mchunkptr p);
 
-static bool unregister_chunk (mstate av, mchunkptr p);
+static bool unregister_chunk (mstate av, mchunkptr p, int tag);
 
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped);
 static chunkinfoptr split_chunk(mstate av, chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, INTERNAL_SIZE_T desiderata);
@@ -2165,10 +2165,17 @@ lookup_chunk (mstate av, mchunkptr p)
 
 /* Remove the metadata from the hashtable */
 static bool
-unregister_chunk (mstate av, mchunkptr p) 
+unregister_chunk (mstate av, mchunkptr p, int tag) 
 {
   assert(av != NULL);
   assert(p != NULL);
+
+#ifdef SRI_DEBUG
+  if(tag){
+    p->__canary__ = tag;
+  }
+#endif
+
   return metadata_delete(&av->htbl, chunk2mem(p));
 }
 
@@ -2192,6 +2199,11 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
   chunkinfoptr _md_p = new_chunkinfoptr(av);
   size_t a_idx = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
   _md_p->chunk = chunk2mem(p);
+
+#ifdef SRI_DEBUG
+  p->__canary__ = 1234567890;
+#endif
+
   set_arena_index(av, p, a_idx);
   metadata_add(&av->htbl, _md_p);
   return _md_p;
@@ -3460,7 +3472,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   if (p != op) {
     /* remove the old one */
-    unregister_chunk(av, op);
+    unregister_chunk(av, op, 0); // TAGME
     _md_p = register_chunk(av, p, true);
     _md_p->prev_size = offset;
   }
@@ -3582,7 +3594,7 @@ __libc_free (void *mem)
 
       munmap_chunk (_md_p); 
 
-      unregister_chunk(ar_ptr, p);
+      unregister_chunk(ar_ptr, p, 0); // TAGME
 
       (void)mutex_unlock(&ar_ptr->mutex);
       return;
@@ -3698,7 +3710,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      unregister_chunk(&main_arena, oldp);
+      unregister_chunk(&main_arena, oldp, 0); //TAGME
       (void) mutex_unlock (&ar_ptr->mutex);
       return newmem;
     }
@@ -4873,7 +4885,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     (void)mutex_lock(&main_arena.mutex);
     
     munmap_chunk (_md_p);
-    unregister_chunk(&main_arena, p);
+    unregister_chunk(&main_arena, p, 0); // TAGME : iam please check extra special
     
     (void)mutex_unlock(&main_arena.mutex);
     
@@ -5097,7 +5109,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           (unsigned long) (nb + MINSIZE))
         {
           /* SRI: we are going to move top nb bytes along; so we'll need to provide new metadata */ 
-          unregister_chunk(av, topchunk);
+          unregister_chunk(av, topchunk, 11); // TAGME : due to assert (!chunk_is_mmaped) above
 
           /* update oldp's metadata */
           set_head_size (_md_oldp, nb);
@@ -5122,7 +5134,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           newp = oldp;
           bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
-          unregister_chunk(av, next);
+          unregister_chunk(av, next, 12); // TAGME : due to assert (!chunk_is_mmaped) above
 
         }
 
@@ -5147,7 +5159,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
             {
               newsize += oldsize;
               newp = oldp;  /* now we have newp != malloced_chunk */
-              unregister_chunk(av, malloced_chunk);
+              unregister_chunk(av, malloced_chunk, 13); // TAGME : due to assert (!chunk_is_mmaped) above
             }
           else
             {

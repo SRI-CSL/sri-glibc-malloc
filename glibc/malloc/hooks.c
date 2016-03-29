@@ -339,7 +339,7 @@ free_check (void *mem, const void *caller)
     {
       _md_p = lookup_chunk(&main_arena, p);  
       munmap_chunk(_md_p);
-      unregister_chunk(&main_arena, p); 
+      unregister_chunk(&main_arena, p, 0); // TAGME
       (void) mutex_unlock (&main_arena.mutex);
       return;
     }
@@ -415,7 +415,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
               {
                 memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
                 munmap_chunk (_md_oldp);
-		unregister_chunk(&main_arena, oldp); 
+		unregister_chunk(&main_arena, oldp, 0); // TAGME
               }
           }
       }

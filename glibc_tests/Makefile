@@ -11,13 +11,11 @@
 #
 #
 
-
+MY_LD=ld-2.23.90.so
 ifeq ($(shell whoami),vagrant)
 SYSROOT=${HOME}/glibc-install
-MY_LD=ld-2.23.90.so
 else
 SYSROOT=../../Variants/glibc-install
-MY_LD=ld-2.22.90.so
 endif
 
 

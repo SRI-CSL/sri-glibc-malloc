@@ -12,6 +12,8 @@ To build and run this malloc you do the following steps.
 cd ${HEAPMETADATA}/Variants/glibc
 git submodule update --init
 ```
+I (qua iam) am currently using `317b199b4aff8cfa27f2302ab404d2bb5032b9a4`.
+At some stage we should use a tag.
 
 ## 2. Build the puppy.
 
@@ -26,7 +28,7 @@ Now would be a **very good time** to comment out line 4 in `config.h` in the
 Note that to test we are going to do a `make install` so the prefix is 
 **very important**.
 ```
-make
+make -j
 make install
 ```
 

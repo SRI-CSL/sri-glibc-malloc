@@ -199,8 +199,8 @@ mem2chunk_check(mem) chunkinfoptr _md_p; mchunkptr p; Void_t* mem;
       if ((char*)prev_p < mp_.sbrk_base){ return NULL; }
       if(contig){  
 	_md_prev_p = hashtable_lookup(&main_arena, prev_p);
-	if ( (next_p = NULL) ||
-	     next_chunk(_md_prev_p, prev_p) != p){
+	next_p = next_chunk(_md_prev_p, prev_p);
+	if (next_p != p){
 	  return NULL;
 	}
       }

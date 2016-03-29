@@ -87,7 +87,7 @@ __malloc_check_init (void)
    byte per chunk; still this will catch most cases of double frees or
    overruns.  The goal here is to avoid obscure crashes due to invalid
    usage, unlike in the MALLOC_DEBUG code.
-
+*/
 static unsigned char
 magicbyte (const void *p)
 {
@@ -99,7 +99,7 @@ magicbyte (const void *p)
     ++magic;
   return magic;
 }
- */
+
 
 /* Visualize the chunk as being partitioned into blocks of 255 bytes from the
    highest address of the chunk, downwards.  The end of each block tells
@@ -108,16 +108,15 @@ magicbyte (const void *p)
    must reach it with this iteration, otherwise we have witnessed a memory
    corruption.  */
 static size_t
-malloc_check_get_size (mchunkptr p)
+malloc_check_get_size (mstate av, chunkinfoptr _md_p, mchunkptr p)
 {
-  /* FIXME
   size_t size;
   unsigned char c;
   unsigned char magic = magicbyte (p);
 
   assert (using_malloc_checking == 1);
 
-  for (size = chunksize (p) - 1 + (chunk_is_mmapped (p) ? 0 : SIZE_SZ);
+  for (size = chunksize (_md_p) - 1 + (chunk_is_mmapped (p) ? 0 : SIZE_SZ);
        (c = ((unsigned char *) p)[size]) != magic;
        size -= c)
     {
@@ -125,16 +124,13 @@ malloc_check_get_size (mchunkptr p)
         {
           malloc_printerr (check_action, "malloc_check_get_size: memory corruption",
                            chunk2mem (p),
-			   chunk_is_mmapped (p) ? NULL : arena_for_chunk (p));
+			   chunk_is_mmapped (p) ? &main_arena : av);
           return 0;
         }
     }
-
+  
   // chunk2mem size. 
   return size - 2 * SIZE_SZ;
-  */
-
-  return 0;  //FIXME!!! my guess is this is all assuming a single main_arena.
 }
 
 /* Instrument a chunk with overrun detector byte(s) and convert it
@@ -142,20 +138,19 @@ malloc_check_get_size (mchunkptr p)
 
 static void *
 internal_function
-mem2mem_check (void *ptr, size_t req_sz)
+mem2mem_check (chunkinfoptr _md_p, mchunkptr p, void *mem, size_t req_sz)
 {
-  /* FIXME
-  mchunkptr p;
-  unsigned char *m_ptr = ptr;
+  unsigned char *m_ptr = mem;
   size_t max_sz, block_sz, i;
   unsigned char magic;
 
-  if (!ptr)
-    return ptr;
+  if (!mem)
+    return mem;
 
-  p = mem2chunk (ptr);
+  assert(p == mem2chunk (mem));
+
   magic = magicbyte (p);
-  max_sz = chunksize (p) - 2 * SIZE_SZ;
+  max_sz = chunksize (_md_p) - 2 * SIZE_SZ;
   if (!chunk_is_mmapped (p))
     max_sz += SIZE_SZ;
   for (i = max_sz - 1; i > req_sz; i -= block_sz)
@@ -170,8 +165,6 @@ mem2mem_check (void *ptr, size_t req_sz)
     }
   m_ptr[req_sz] = magic;
   return (void *) m_ptr;
-  */
-  return NULL; //FIXME!!! my guess is this is all assuming a single main_arena.
 }
 
 /* Convert a pointer to be free()d or realloc()ed to a valid chunk
@@ -179,31 +172,51 @@ mem2mem_check (void *ptr, size_t req_sz)
 
 static mchunkptr
 internal_function
-mem2chunk_check (void *mem, unsigned char **magic_p)
+mem2chunk_check (chunkinfoptr _md_p, mchunkptr p, void *mem, unsigned char **magic_p)
 {
-  /* FIXME
-  mchunkptr p;
   INTERNAL_SIZE_T sz, c;
   unsigned char magic;
+  mchunkptr prev_p;
+  mchunkptr next_p;
+  chunkinfoptr _md_prev_p;
 
   if (!aligned_OK ((unsigned long)mem))
     return NULL;
 
-  p = mem2chunk (mem);
-  sz = chunksize (p);
+  assert(p == mem2chunk (mem));
+  sz = chunksize (_md_p);
   magic = magicbyte (p);
   if (!chunk_is_mmapped (p))
     {
       // Must be a chunk in conventional heap memory. 
       int contig = contiguous (&main_arena);
-      if ((contig &&
-           ((char *) p < mp_.sbrk_base ||
-            ((char *) p + sz) >= (mp_.sbrk_base + main_arena.system_mem))) ||
-          sz < MINSIZE || sz & MALLOC_ALIGN_MASK || !inuse (p) ||
-          (!prev_inuse (p) && (p->prev_size & MALLOC_ALIGN_MASK ||
-                               (contig && (char *) prev_chunk (p) < mp_.sbrk_base) ||
-                               next_chunk (prev_chunk (p)) != p)))
-        return NULL;
+
+      if (contig &&
+	  ((char *) p < mp_.sbrk_base ||
+	   ((char *) p + sz) >= (mp_.sbrk_base + main_arena.system_mem))){
+	return NULL;
+      }
+
+      if(sz < MINSIZE || sz & MALLOC_ALIGN_MASK || !inuse (&main_arena, _md_p, p)){
+	return NULL;
+      }
+      
+      if( !prev_inuse (_md_p, p) ){
+	if(_md_p->prev_size & MALLOC_ALIGN_MASK){
+	  return NULL;
+	}
+	prev_p = prev_chunk(_md_p, p);
+	if(contig){
+	  if ((char*)prev_p < mp_.sbrk_base){ return NULL; }
+	}
+
+	_md_prev_p = lookup_chunk(&main_arena, prev_p);
+	if(_md_prev_p == NULL){ return NULL; }
+	next_p = next_chunk(_md_prev_p, prev_p);
+	if (next_p != p){
+	  return NULL;
+	}
+      }
 
       for (sz += SIZE_SZ - 1; (c = ((unsigned char *) p)[sz]) != magic; sz -= c)
         {
@@ -223,9 +236,9 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
            offset != 0x20 && offset != 0x40 && offset != 0x80 && offset != 0x100 &&
            offset != 0x200 && offset != 0x400 && offset != 0x800 && offset != 0x1000 &&
            offset < 0x2000) ||
-          !chunk_is_mmapped (p) || (p->size & PREV_INUSE) ||
-          ((((unsigned long) p - p->prev_size) & page_mask) != 0) ||
-          ((p->prev_size + sz) & page_mask) != 0)
+          !chunk_is_mmapped (p) || (_md_p->size & PREV_INUSE) ||
+          ((((unsigned long) p - _md_p->prev_size) & page_mask) != 0) ||
+          ((_md_p->prev_size + sz) & page_mask) != 0)
         return NULL;
 
       for (sz -= 1; (c = ((unsigned char *) p)[sz]) != magic; sz -= c)
@@ -238,8 +251,6 @@ mem2chunk_check (void *mem, unsigned char **magic_p)
   if (magic_p)
     *magic_p = (unsigned char *) p + sz;
   return p;
-  */
-  return NULL;
 }
 
 /* Check for corruption of the top chunk, and try to recover if
@@ -249,10 +260,9 @@ static int
 internal_function
 top_check (void)
 {
-  /* FIXME
   chunkinfoptr _md_ot = main_arena._md_top;
   mchunkptr ot = chunkinfo2chunk(_md_ot);
-  INTERNAL_SIZE_T ot_sz = chunksize(ot);
+  INTERNAL_SIZE_T ot_sz = chunksize(_md_ot);
   char *brk, *new_brk;
   INTERNAL_SIZE_T front_misalign, sbrk_size;
   mchunkptr topchunk;
@@ -261,7 +271,7 @@ top_check (void)
   if (ot == &main_arena.initial_top ||
       (!chunk_is_mmapped (ot) &&
        ot_sz >= MINSIZE &&
-       prev_inuse (ot) &&
+       prev_inuse (_md_ot, ot) &&
        (!contiguous (&main_arena) ||
         (char *) ot + ot_sz == mp_.sbrk_base + main_arena.system_mem)))
     return 0;
@@ -292,7 +302,6 @@ top_check (void)
   main_arena._md_top = register_chunk(&main_arena, topchunk, false);
   set_head (main_arena._md_top, (sbrk_size - front_misalign) | PREV_INUSE);
 
-  */
   return 0;
 }
 
@@ -312,7 +321,7 @@ malloc_check (size_t sz, const void *caller)
   _md_victim = (top_check () >= 0) ? _int_malloc (&main_arena, sz + 1) : NULL;
   (void) mutex_unlock (&main_arena.mutex);
   mem = chunkinfo2mem(_md_victim);
-  return mem2mem_check (mem, sz);
+  return mem2mem_check (_md_victim, chunkinfo2chunk(_md_victim), mem, sz);
 }
 
 static void
@@ -326,8 +335,10 @@ free_check (void *mem, const void *caller)
     return;
 
   (void) mutex_lock (&main_arena.mutex);
-  p = mem2chunk_check (mem, NULL);
-  if (!p)
+  p = mem2chunk(mem);
+  _md_p = lookup_chunk(&main_arena, p);
+  p = mem2chunk_check (_md_p, p, mem, NULL);
+  if (!p || !_md_p)
     {
       (void) mutex_unlock (&main_arena.mutex);
 
@@ -335,9 +346,9 @@ free_check (void *mem, const void *caller)
 		       &main_arena);
       return;
     }
+
   if (chunk_is_mmapped (p))
     {
-      _md_p = lookup_chunk(&main_arena, p);  
       munmap_chunk(_md_p);
       unregister_chunk(&main_arena, p, false); 
       (void) mutex_unlock (&main_arena.mutex);
@@ -354,7 +365,10 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
   void *newmem = 0;
   chunkinfoptr _md_newmem;
   unsigned char *magic_p;
+  mchunkptr oldp;
   chunkinfoptr _md_oldp;
+
+  _md_newmem = NULL;
 
   if (bytes + 1 == 0)
     {
@@ -370,12 +384,12 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
       return NULL;
     }
   (void) mutex_lock (&main_arena.mutex);
-  const mchunkptr oldp = mem2chunk_check (oldmem, &magic_p);
-
-  if(oldp){
-    _md_oldp = lookup_chunk(&main_arena, oldp);
-    if (_md_oldp == NULL) { missing_metadata(&main_arena, oldp); }
+  oldp = mem2chunk(oldmem);
+  _md_oldp = lookup_chunk(&main_arena, oldp);
+  if( !_md_oldp){
+    return NULL;
   }
+  oldp = mem2chunk_check (_md_oldp,  oldp, oldmem, &magic_p);
 
   (void) mutex_unlock (&main_arena.mutex);
   if (!oldp)
@@ -441,7 +455,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
 
   (void) mutex_unlock (&main_arena.mutex);
 
-  return mem2mem_check (newmem, bytes);
+  return _md_newmem ? mem2mem_check (_md_newmem, chunkinfo2chunk(_md_newmem), newmem, bytes) : NULL;
 }
 
 static void *
@@ -485,7 +499,7 @@ memalign_check (size_t alignment, size_t bytes, const void *caller)
         NULL;
   mem = chunkinfo2mem(_md_mem);
   (void) mutex_unlock (&main_arena.mutex);
-  return mem2mem_check (mem, bytes);
+  return mem2mem_check (_md_mem, chunkinfo2chunk(_md_mem), mem, bytes);
 }
 
 

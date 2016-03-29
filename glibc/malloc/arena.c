@@ -223,7 +223,7 @@ malloc_atfork (size_t sz, const void *caller)
 
           _md_victim = _int_malloc (&main_arena, sz + 1);
 	  mem = chunkinfo2mem(_md_victim);
-          return mem2mem_check (mem, sz);
+          return mem2mem_check (_md_victim, chunkinfo2chunk(_md_victim), mem, sz);
         }
     }
   else
@@ -776,7 +776,7 @@ heap_trim (heap_info *heap, size_t pad)
       _md_p = lookup_chunk(ar_ptr, p);
 
       if(_md_p == NULL){
-	missing_metadata(ar_ptr, p); //FIXME: once twinned
+	missing_metadata(ar_ptr, p);
 	return 0;
       }
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
@@ -786,7 +786,8 @@ heap_trim (heap_info *heap, size_t pad)
       p = prev_chunk (_md_p, p);
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
-	missing_metadata(ar_ptr, p); //FIXME: once twinned
+	missing_metadata(ar_ptr, p); 
+	return 0;
       }
 
       new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
@@ -813,7 +814,8 @@ heap_trim (heap_info *heap, size_t pad)
 	  unregister_chunk(ar_ptr, op, 5);  
 	  _md_p = lookup_chunk(ar_ptr, p);
 	  if(_md_p == NULL){
-	    missing_metadata(ar_ptr, p); //FIXME: once twinned
+	    missing_metadata(ar_ptr, p);
+	    return 0;
 	  }
           bin_unlink(ar_ptr, _md_p, &bck, &fwd);
         }
@@ -823,7 +825,7 @@ heap_trim (heap_info *heap, size_t pad)
       ar_ptr->_md_top = _md_p;
       set_head (_md_p, new_size | PREV_INUSE);
       do_check_top(ar_ptr, __FILE__, __LINE__);
-      /*check_chunk(ar_ptr, top_chunk); */
+      /* check_chunk(ar_ptr, top_chunk); */
     } /* while */
 
   /* Uses similar logic for per-thread arenas as the main arena with systrim

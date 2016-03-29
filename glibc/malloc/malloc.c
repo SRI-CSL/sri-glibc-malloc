@@ -2130,6 +2130,15 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   chunkinfoptr retval;
   assert(av != NULL);
   assert(av->metadata_cache_count > 0);
+
+  /*
+    SRI: if we want to push the "replenish" down to _int_malloc, then we 
+    need to handle the mremap path in libc_realloc. the easiest way to
+    do this is to relegate the cache to a last line of defense mechanism
+    and first just try the get the metadata with  allocate_chunkinfoptr.
+    if that fails, then we use the cache.
+   */
+
   if (av->metadata_cache_count <= 0) {
     abort();
   }
@@ -2837,6 +2846,12 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       char *mm;           /* return value from mmap call*/
 
     try_mmap:
+      /*
+	SRI: we are going to mmap, so we need to make sure that we have 
+	metadata for the new chunk. Thus we will need to lock the main arena,
+	check its cache (perhaps replenish if possible), or fail, and then mmap the region.
+       */
+
       /*
         Round up size to nearest page.  For mmapped chunks, the overhead
         is one SIZE_SZ unit larger than for normal chunks, because there
@@ -5239,7 +5254,8 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
   unsigned long remainder_size;   /* its size */
   INTERNAL_SIZE_T size;
 
-
+  //FIXME: this is almost an entry point so needs a replenish, or rely on the call
+  // to _int_malloc to do that with enought left over (2) for this.
 
   if ( !checked_request2size (bytes, &nb) ) {
     return 0;
@@ -5282,6 +5298,9 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       /* For mmapped chunks, just adjust offset */
       if (chunk_is_mmapped (p))
         {
+	  // FIXME: this is the main arena!!
+	  // unregister _md_p in main_arena (after lock tango)
+	  // then:
           _md_newp = register_chunk(av, newp, true);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
           set_head (_md_newp, newsize);

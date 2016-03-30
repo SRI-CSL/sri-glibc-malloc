@@ -1095,8 +1095,11 @@ static void      free_atfork(void* mem, const void *caller);
 #endif
 
 
-/* SRI: we plan to see if we can inline most of the #defines as part of a code cleanup */
-static inline void *MMAP(void *addr, size_t length, int prot, int flags)
+/* 
+   SRI: we plan to see if we can inline most of the #defines as part of a code cleanup.
+   The sys_ prefix is to make it easy to search for.
+ */
+static inline void *sys_MMAP(void *addr, size_t length, int prot, int flags)
 {
   return __mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 }
@@ -1804,7 +1807,7 @@ static inline int arena_index(mstate av)
 
 static bool is_main_arena(mstate av)
 {
-  return arena_index(av) == MAIN_ARENA_INDEX;
+  return av != NULL && arena_index(av) == MAIN_ARENA_INDEX;
 }
 
 /*  Non public mallopt parameters.  */
@@ -2088,17 +2091,19 @@ static bool replenish_metadata_cache(mstate av)
 
   assert(METADATA_CACHE_SIZE >= count && count >= 0);
 
-  for(i = count; i < METADATA_CACHE_SIZE; i++) {
-    assert(av->metadata_cache[i] == NULL);
-    _md_p = allocate_chunkinfoptr(&(av->htbl));
-    if (_md_p != NULL) {
-      av->metadata_cache[i] = _md_p;
-    } else {
-      return false;
+  if(count < METADATA_CACHE_SIZE){
+    for(i = count; i < METADATA_CACHE_SIZE; i++) {
+      assert(av->metadata_cache[i] == NULL);
+      _md_p = allocate_chunkinfoptr(&(av->htbl));
+      if (_md_p != NULL) {
+	av->metadata_cache[i] = _md_p;
+      } else {
+	return false;
+      }
     }
+    av->metadata_cache_count = METADATA_CACHE_SIZE;
   }
 
-  av->metadata_cache_count = METADATA_CACHE_SIZE;
   return true;
 }
 
@@ -2122,14 +2127,19 @@ static inline INTERNAL_SIZE_T size2chunksize(INTERNAL_SIZE_T sz)
   return ( sz & ~(SIZE_BITS));
 }
 
-//CACHEFIXME.
-#if 0
-/* Get a free chunkinfo from av's metadata cache */
+/* 
+   Get a free chunkinfo from av.  In the current implementation
+   the cache is only used as a last resort. 
+*/
 static chunkinfoptr new_chunkinfoptr(mstate av)
 {
   chunkinfoptr retval;
   assert(av != NULL);
   assert(av->metadata_cache_count > 0);
+
+  retval = allocate_chunkinfoptr(&(av->htbl));
+
+  if(retval != NULL){ return retval; }
 
   /*
     SRI: if we want to push the "replenish" down to _int_malloc, then we 
@@ -2147,20 +2157,6 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   
   return retval;
 }
-
-#else
-
-/* Get a free chunkinfo */
-static chunkinfoptr
-new_chunkinfoptr(mstate av)
-{
-  chunkinfoptr retval;
-  assert(av != NULL);
-  retval = allocate_chunkinfoptr(&(av->htbl));
-  return retval;
-}
-
-#endif
 
 /* lookup the chunk in the hashtable */
 static chunkinfoptr
@@ -2846,11 +2842,27 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       char *mm;           /* return value from mmap call*/
 
     try_mmap:
+
       /*
 	SRI: we are going to mmap, so we need to make sure that we have 
 	metadata for the new chunk. Thus we will need to lock the main arena,
 	check its cache (perhaps replenish if possible), or fail, and then mmap the region.
        */
+      
+      if ( ! is_main_arena(av)) {
+	/* if we are already in the main arena we should, by design, have enough metadata */
+	if(av != NULL){
+	  (void)mutex_unlock(&av->mutex);
+	}
+	(void)mutex_lock(&main_arena.mutex);
+	if(&main_arena.metadata_cache_count == 0){
+	  (void)mutex_unlock(&main_arena.mutex);
+	  if(av != NULL){
+	    (void)mutex_lock(&av->mutex);
+	  }
+	  return NULL;
+	}
+      }
 
       /*
         Round up size to nearest page.  For mmapped chunks, the overhead
@@ -2869,7 +2881,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       /* Don't try if size wraps around 0 */
       if ((unsigned long) (size) > (unsigned long) (nb))
         {
-          mm = (char *) (MMAP (0, size, PROT_READ | PROT_WRITE, 0));
+          mm = (char *) (sys_MMAP (0, size, PROT_READ | PROT_WRITE, 0));
 
           if (mm != MAP_FAILED)
             {
@@ -2903,21 +2915,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                 }
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
-              
-              if (is_main_arena(av)) {
-                _md_p = register_chunk(av, p, true);
-              } else {
-		if(av != NULL){
-		  (void)mutex_unlock(&av->mutex);
-		}
-                (void)mutex_lock(&main_arena.mutex);
-		//CACHEFIXME: at this point there is no guarantee that main_arena has enough left in the cache.
-                _md_p = register_chunk(&main_arena, p, true);
-                (void)mutex_unlock(&main_arena.mutex);
-		if(av != NULL){
-		  (void)mutex_lock(&av->mutex);
-		}
-              }
+	      _md_p = register_chunk(&main_arena, p, true);
 
               if (front_misalign > 0)
                 {
@@ -2939,15 +2937,21 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               atomic_max (&mp_.max_mmapped_mem, sum);
 
               check_chunk (av, p, _md_p);
-
+	      
+	      /* restore the state of the locks */
+	      (void)mutex_unlock(&main_arena.mutex);
+	      if(av != NULL){
+		(void)mutex_lock(&av->mutex);
+	      }
               return _md_p;
             }
         }
     }
 
   /* There are no usable arenas and mmap also failed.  */
-  if (av == NULL)
+  if (av == NULL){
     return 0;
+  }
 
   /* Record incoming configuration of top */
 
@@ -3100,7 +3104,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           /* Don't try if size wraps around 0 */
           if ((unsigned long) (size) > (unsigned long) (nb))
             {
-              char *mbrk = (char *) (MMAP (0, size, PROT_READ | PROT_WRITE, 0));
+              char *mbrk = (char *) (sys_MMAP (0, size, PROT_READ | PROT_WRITE, 0));
 
               if (mbrk != MAP_FAILED)
                 {
@@ -3522,13 +3526,6 @@ __libc_malloc (size_t bytes)
 
   arena_get (ar_ptr, bytes);
 
-  /* gracefully fail is we do not have enough memory to 
-     replenish our metadata cache */
-  if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
-    (void) mutex_unlock (&ar_ptr->mutex);
-    return 0;
-  } 
-
   _md_victim = _int_malloc (ar_ptr, bytes);
   /* Retry with another arena only if we were able to find a usable arena
      before.  */
@@ -3669,7 +3666,11 @@ __libc_realloc (void *oldmem, size_t bytes)
   (void) mutex_lock (&ar_ptr->mutex);
 
   _md_oldp = lookup_chunk(ar_ptr, oldp);
-  if (_md_oldp == NULL) { missing_metadata(ar_ptr, oldp); }
+  if (_md_oldp == NULL) { 
+    missing_metadata(ar_ptr, oldp); 
+    (void) mutex_unlock (&ar_ptr->mutex);
+    return 0;
+  }
 
 
   /* gracefully fail is we do not have enough memory to 
@@ -3706,11 +3707,14 @@ __libc_realloc (void *oldmem, size_t bytes)
       void *newmem;
 
 #if HAVE_MREMAP
-      newp = mremap_chunk (ar_ptr, _md_oldp, nb);
+      (void) mutex_unlock (&ar_ptr->mutex);
+      (void) mutex_lock (&main_arena.mutex);
+      newp = mremap_chunk (&main_arena, _md_oldp, nb);
+      (void) mutex_unlock (&main_arena.mutex);
       if (newp){
-	(void) mutex_unlock (&ar_ptr->mutex);
         return chunk2mem (newp);
       }
+      (void) mutex_lock (&ar_ptr->mutex);
 #endif
 
       
@@ -3720,13 +3724,17 @@ __libc_realloc (void *oldmem, size_t bytes)
 
       /* Must alloc, copy, free. */
       newmem = __libc_malloc (bytes);
-      if (newmem == 0)
+      if (newmem == 0){
+	(void) mutex_unlock (&ar_ptr->mutex);
         return 0;              /* propagate failure */
+      }
 
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      unregister_chunk(&main_arena, oldp, false);
       (void) mutex_unlock (&ar_ptr->mutex);
+      (void) mutex_lock (&main_arena.mutex);
+      unregister_chunk(&main_arena, oldp, false);
+      (void) mutex_unlock (&main_arena.mutex);
       return newmem;
     }
 
@@ -4089,6 +4097,17 @@ _int_malloc (mstate av, size_t bytes)
         alloc_perturb (mem, bytes);
       return _md_p;
     }
+
+  /* gracefully fail is we do not have enough memory to 
+     replenish our metadata cache
+  */
+  if (av != NULL && !replenish_metadata_cache(av)) 
+    {
+      return 0;
+    } 
+  
+
+
 
   /*
     If the size qualifies as a fastbin, first check corresponding bin.
@@ -5254,8 +5273,10 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
   unsigned long remainder_size;   /* its size */
   INTERNAL_SIZE_T size;
 
-  //FIXME: this is almost an entry point so needs a replenish, or rely on the call
-  // to _int_malloc to do that with enought left over (2) for this.
+  /*  
+      This is an entry point so needs a replenish, but we rely on the call
+      to _int_malloc to do that with enough left over (2) for this.
+  */
 
   if ( !checked_request2size (bytes, &nb) ) {
     return 0;
@@ -5298,12 +5319,31 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       /* For mmapped chunks, just adjust offset */
       if (chunk_is_mmapped (p))
         {
-	  // FIXME: this is the main arena!!
-	  // unregister _md_p in main_arena (after lock tango)
-	  // then:
-          _md_newp = register_chunk(av, newp, true);
+	  /* make sure we the main_arena is good to handle this request */
+	  if ( ! is_main_arena(av)) {
+	    /* if we are already in the main arena we should, by design, have enough metadata */
+	    if(av != NULL){
+	      (void)mutex_unlock(&av->mutex);
+	    }
+	    (void)mutex_lock(&main_arena.mutex);
+	    if(&main_arena.metadata_cache_count == 0){
+	      (void)mutex_unlock(&main_arena.mutex);
+	      if(av != NULL){
+		(void)mutex_lock(&av->mutex);
+	      }
+	      return NULL;
+	    }
+	  }
+
+          _md_newp = register_chunk(&main_arena, newp, true);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
           set_head (_md_newp, newsize);
+
+	  (void)mutex_unlock(&main_arena.mutex);
+	  if(av != NULL){
+	    (void)mutex_lock(&av->mutex);
+	  }
+
           return _md_newp;
         }
 

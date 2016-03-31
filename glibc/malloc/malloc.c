@@ -1807,7 +1807,8 @@ static inline int arena_index(mstate av)
 
 static bool is_main_arena(mstate av)
 {
-  return av != NULL && arena_index(av) == MAIN_ARENA_INDEX;
+  assert(av != NULL);
+  return arena_index(av) == MAIN_ARENA_INDEX;
 }
 
 /*  Non public mallopt parameters.  */
@@ -2135,23 +2136,24 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
 {
   chunkinfoptr retval;
   assert(av != NULL);
+
   assert(av->metadata_cache_count > 0);
-
+  if(av->metadata_cache_count <= 0){
+    abort();
+  }
+  
   retval = allocate_chunkinfoptr(&(av->htbl));
-
-  if(retval != NULL){ return retval; }
-
+  
+  if (retval != NULL){ return retval; }
+  
   /*
     SRI: if we want to push the "replenish" down to _int_malloc, then we 
     need to handle the mremap path in libc_realloc. the easiest way to
     do this is to relegate the cache to a last line of defense mechanism
     and first just try the get the metadata with  allocate_chunkinfoptr.
     if that fails, then we use the cache.
-   */
-
-  if (av->metadata_cache_count <= 0) {
-    abort();
-  }
+  */
+  
   retval = av->metadata_cache[--av->metadata_cache_count];
   av->metadata_cache[av->metadata_cache_count] = NULL;
   
@@ -2202,15 +2204,18 @@ static void* chunkinfo2mem(chunkinfoptr _md_victim)
 static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped)
 {
   chunkinfoptr _md_p = new_chunkinfoptr(av);
+  
+  
   size_t a_idx = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
   _md_p->chunk = chunk2mem(p);
-
+  
 #ifdef SRI_DEBUG
   p->__canary__ = 1234567890;
 #endif
-
+  
   set_arena_index(av, p, a_idx);
   metadata_add(&av->htbl, _md_p);
+  
   return _md_p;
 }
 
@@ -2826,6 +2831,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   size_t pagesize = GLRO (dl_pagesize);
   bool tried_mmap = false;
 
+  bool have_switched_lock = false;
 
 
   /*
@@ -2849,21 +2855,28 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	check its cache (perhaps replenish if possible), or fail, and then mmap the region.
        */
       
-      if ( ! is_main_arena(av)) {
+      if (av  != &main_arena) {
 	/* if we are already in the main arena we should, by design, have enough metadata */
 	if(av != NULL){
 	  (void)mutex_unlock(&av->mutex);
 	}
 	(void)mutex_lock(&main_arena.mutex);
-	if(&main_arena.metadata_cache_count == 0){
+	
+	have_switched_lock = true;
+	
+	if(main_arena.metadata_cache_count == 0){
 	  (void)mutex_unlock(&main_arena.mutex);
+
+	  have_switched_lock = false;
+	  
 	  if(av != NULL){
 	    (void)mutex_lock(&av->mutex);
 	  }
+
 	  return NULL;
 	}
       }
-
+      
       /*
         Round up size to nearest page.  For mmapped chunks, the overhead
         is one SIZE_SZ unit larger than for normal chunks, because there
@@ -2940,13 +2953,34 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	      
 	      /* restore the state of the locks */
 	      (void)mutex_unlock(&main_arena.mutex);
+
+	      have_switched_lock = false;
+
+
 	      if(av != NULL){
 		(void)mutex_lock(&av->mutex);
 	      }
               return _md_p;
             }
+
         }
+	
+      
+    } /* end of try_mmap */
+
+  if( have_switched_lock){
+
+    /* restore the state of the locks */
+    (void)mutex_unlock(&main_arena.mutex);
+    
+    have_switched_lock = false;
+    
+    
+    if(av != NULL){
+      (void)mutex_lock(&av->mutex);
     }
+    	
+  }
 
   /* There are no usable arenas and mmap also failed.  */
   if (av == NULL){
@@ -5320,13 +5354,13 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       if (chunk_is_mmapped (p))
         {
 	  /* make sure we the main_arena is good to handle this request */
-	  if ( ! is_main_arena(av)) {
+	  if (av != &main_arena) {
 	    /* if we are already in the main arena we should, by design, have enough metadata */
 	    if(av != NULL){
 	      (void)mutex_unlock(&av->mutex);
 	    }
 	    (void)mutex_lock(&main_arena.mutex);
-	    if(&main_arena.metadata_cache_count == 0){
+	    if(main_arena.metadata_cache_count == 0){
 	      (void)mutex_unlock(&main_arena.mutex);
 	      if(av != NULL){
 		(void)mutex_lock(&av->mutex);

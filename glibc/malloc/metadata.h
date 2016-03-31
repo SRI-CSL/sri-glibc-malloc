@@ -119,14 +119,16 @@ extern void dump_metadata(FILE* fp, metadata_t* lhash, bool showloads);
 
 static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
   chunkinfoptr retval =  memcxt_allocate(htbl->cfg.memcxt, BUCKET, NULL, sizeof(bucket_t));
-  retval->prev_size = 0; 
-  retval->size = 0; 
-  retval->fd = 0; 
-  retval->bk = 0;
-  retval->fd_nextsize = 0; 
-  retval->bk_nextsize = 0;
-  retval->chunk = NULL; 
-  retval->next_bucket = NULL; 
+  if(retval != 0){
+    retval->prev_size = 0; 
+    retval->size = 0; 
+    retval->fd = 0; 
+    retval->bk = 0;
+    retval->fd_nextsize = 0; 
+    retval->bk_nextsize = 0;
+    retval->chunk = NULL; 
+    retval->next_bucket = NULL; 
+  }
   return retval;
 }
 

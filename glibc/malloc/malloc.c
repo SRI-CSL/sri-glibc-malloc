@@ -1805,12 +1805,6 @@ static inline int arena_index(mstate av)
 }
 
 
-static bool is_main_arena(mstate av)
-{
-  assert(av != NULL);
-  return arena_index(av) == MAIN_ARENA_INDEX;
-}
-
 /*  Non public mallopt parameters.  */
 #define M_ARENA_TEST -7
 #define M_ARENA_MAX  -8
@@ -2233,7 +2227,7 @@ static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci)
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
   fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d @ %s line %d\n", 
-          chunk2mem(p), is_main_arena(av), chunk_is_mmapped(p), file, lineno);
+          chunk2mem(p), av == &main_arena, chunk_is_mmapped(p), file, lineno);
   abort();
 }
 

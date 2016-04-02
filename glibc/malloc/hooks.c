@@ -299,7 +299,7 @@ top_check (void)
   main_arena.system_mem = (new_brk - mp_.sbrk_base) + sbrk_size;
   
   topchunk = (mchunkptr) (brk + front_misalign);
-  main_arena._md_top = register_chunk(&main_arena, topchunk, false);
+  main_arena._md_top = register_chunk(&main_arena, topchunk, false, 19);
   set_head (main_arena._md_top, (sbrk_size - front_misalign) | PREV_INUSE);
 
   return 0;

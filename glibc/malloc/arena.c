@@ -909,7 +909,7 @@ _int_new_arena (size_t size)
   misalign = (unsigned long) chunk2mem (ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
-  a->_md_top = register_chunk(a, (mchunkptr) ptr, false);
+  a->_md_top = register_chunk(a, (mchunkptr) ptr, false, 18);
   set_head (a->_md_top, (((char *) h + h->size) - ptr) | PREV_INUSE);
 
   do_check_top(a, __FILE__, __LINE__);

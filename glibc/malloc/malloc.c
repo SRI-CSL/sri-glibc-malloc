@@ -3734,33 +3734,36 @@ __libc_realloc (void *oldmem, size_t bytes)
   if (chunk_is_mmapped (oldp))
     {
       void *newmem;
-
 #if HAVE_MREMAP
-      (void) mutex_unlock (&ar_ptr->mutex);
-      (void) mutex_lock (&main_arena.mutex);
+      if(ar_ptr != &main_arena){
+	(void) mutex_unlock (&ar_ptr->mutex);
+	(void) mutex_lock (&main_arena.mutex);
+      }
       newp = mremap_chunk (&main_arena, _md_oldp, nb);
-      (void) mutex_unlock (&main_arena.mutex);
-      if (newp){
+      if (newp) {
+	if(ar_ptr == &main_arena){
+	  (void) mutex_unlock (&main_arena.mutex);
+	}
         return chunk2mem (newp);
       }
-      (void) mutex_lock (&ar_ptr->mutex);
+      if(ar_ptr != &main_arena){
+	(void) mutex_unlock (&main_arena.mutex);
+	(void) mutex_lock (&ar_ptr->mutex);
+      }
 #endif
-
-      
       /* Note the extra SIZE_SZ overhead. */
-      if (oldsize - SIZE_SZ >= nb)
+      if (oldsize - SIZE_SZ >= nb){
+	(void) mutex_unlock (&ar_ptr->mutex);
         return oldmem;                         /* do nothing */
-
+      }
       /* Must alloc, copy, free. */
+      (void) mutex_unlock (&ar_ptr->mutex);
       newmem = __libc_malloc (bytes);
       if (newmem == 0){
-	(void) mutex_unlock (&ar_ptr->mutex);
         return 0;              /* propagate failure */
       }
-
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      (void) mutex_unlock (&ar_ptr->mutex);
       (void) mutex_lock (&main_arena.mutex);
       unregister_chunk(&main_arena, oldp, false);
       (void) mutex_unlock (&main_arena.mutex);
@@ -3793,6 +3796,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   return mem;
 }
+
 libc_hidden_def (__libc_realloc)
 
 void *

@@ -17,6 +17,7 @@
  */
 
 #include "malloc.h"
+#include "malloc_internals.h"
 #include <inttypes.h>
 
 /* This is large and annoying, but it saves us from needing an 

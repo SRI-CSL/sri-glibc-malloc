@@ -20,83 +20,11 @@
 #define __MAGED_H__
 
 #include <stdlib.h>
-#include <signal.h>
-#include <sys/mman.h>
-#include <stdio.h>
-#include <assert.h>
-#include <errno.h>
-#include <string.h>
-#include <stdint.h>
 
-#include "atomic.h"
-#include "queue.h"
 
-struct Descriptor;
-typedef struct Descriptor descriptor;
-struct Procheap;
-typedef struct Procheap procheap;
 
-#define TYPE_SIZE	8
-#define PTR_SIZE	sizeof(void*)
-#define HEADER_SIZE	(TYPE_SIZE + PTR_SIZE)
-
-#define LARGE		0
-#define SMALL		1
-
-#define	PAGESIZE	4096
-#define SBSIZE		(16 * PAGESIZE)
-#define DESCSBSIZE	(1024 * sizeof(descriptor))
-
-#define ACTIVE		0
-#define FULL		1
-#define PARTIAL		2
-#define EMPTY		3
-
-#define	MAXCREDITS	64  // 2^(bits for credits in active)
-#define GRANULARITY	16  // sri: for x86_64 alignment we require 16 NOT 8
-
-/* We need to squeeze this in 64-bits, but conceptually
- * this is the case:
- *	descriptor* DescAvail;
- */
-typedef struct {
-  uintptr_t 	DescAvail;
-  uint64_t      tag;
-} descriptor_queue;
-
-/* Superblock descriptor structure. We bumped avail and count 
- * to 24 bits to support larger superblock sizes. */
-typedef struct {
-	unsigned long long 	avail:24,count:24, state:2, tag:14;
-} anchor;
-
-struct Descriptor {
-	struct queue_elem_t	lf_fifo_queue_padding;
-	volatile anchor		Anchor;
-	descriptor*		Next;
-	void*			sb;		// pointer to superblock
-	procheap*		heap;		// pointer to owner procheap
-	unsigned int		sz;		// block size
-	unsigned int		maxcount;	// superblock size / sz
-};
-
-typedef struct {
-	lf_fifo_queue_t		Partial;	// initially empty
-	unsigned int		sz;		// block size
-	unsigned int		sbsize;		// superblock size
-} sizeclass;
-
-typedef struct {
-  uintptr_t	ptr;
-  uint64_t      credits;
-} active;
-
-struct Procheap {
-	volatile active		Active;		// initially NULL
-	volatile descriptor*	Partial;	// initially NULL
-	sizeclass*		sc;		// pointer to parent sizeclass
-};
-
+#ifndef CK_CLIENT_LIBRARY
+/* these are a stand alone C api malloc implementation */
 
 extern void* malloc(size_t sz);
 extern void free(void* ptr);
@@ -106,6 +34,16 @@ extern void *memalign(size_t boundary, size_t size);
 extern int posix_memalign(void **memptr, size_t alignment, size_t size);
 extern void malloc_stats(void);
 
+#else 
+
+/* these provide an interface for use by concurrency kit primitives */
+#include <ck_malloc.h>
+
+extern bool lpfa_init(struct ck_malloc* allocator);
+
+extern void lpfa_malloc_stats(void);
+
+#endif
 
 
 #endif	/* __MAGED_H__ */

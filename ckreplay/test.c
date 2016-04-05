@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
   fprintf(stderr, "Creation stage complete. Table size = %zu\n", table_count(&ht));
 
   for(i = 1; i <= max; i++){
-    bool success = table_insert(&ht, i, i+1);
+    bool success = table_insert(&ht, (void*)i, (void*)i+1);
     if( ! success ){
       fprintf(stderr, "Insertion failed for i = %zu\n", i);
       exit(EXIT_FAILURE);
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]){
   fprintf(stderr, "Insertion stage complete. Table size = %zu\n", table_count(&ht));
 
   for(i = 1; i <= max; i++){
-     uintptr_t val = table_get(&ht, i);
+     uintptr_t val = (uintptr_t)table_get(&ht, (void*)i);
     if( val != i + 1){
       fprintf(stderr, "Retrieval failed for i = %zu\n", i);
       exit(EXIT_FAILURE);
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
 
 
   for(i = 1; i <= max; i++){
-    bool success = table_replace(&ht, i, i+2);
+    bool success = table_replace(&ht, (void*)i, (void*)i+2);
     if( ! success ){
       fprintf(stderr, "Insertion failed for i = %zu\n", i);
       exit(EXIT_FAILURE);
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]){
   fprintf(stderr, "Update stage complete. Table size = %zu\n", table_count(&ht));
 
   for(i = 1; i <= max; i++){
-     uintptr_t val = table_get(&ht, i);
+    uintptr_t val = (uintptr_t)table_get(&ht, (void*)i);
     if( val != i + 2){
       fprintf(stderr, "Retrieval of update failed for i = %zu\n", i);
       exit(EXIT_FAILURE);
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]){
   fprintf(stderr, "Update retrieval stage complete. Table size = %zu\n", table_count(&ht));
 
   for(i = 1; i <= max; i++){
-     bool success = table_remove(&ht, i);
+     bool success = table_remove(&ht, (void*)i);
     if( ! success ){
       fprintf(stderr, "Removal failed for i = %zu\n", i);
       exit(EXIT_FAILURE);

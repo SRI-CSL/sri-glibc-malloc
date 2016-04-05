@@ -7,16 +7,16 @@ extern bool
 table_init(struct ck_malloc *allocator, ck_ht_t *htp, size_t size);
 
 extern bool
-table_insert(ck_ht_t *htp, uintptr_t key, uintptr_t value);
+table_insert(ck_ht_t *htp, void * key, void * value);
 
-extern uintptr_t
-table_get(ck_ht_t *htp, uintptr_t key);
-
-extern bool
-table_remove(ck_ht_t *htp, uintptr_t key);
+extern void *
+table_get(ck_ht_t *htp, void * key);
 
 extern bool
-table_replace(ck_ht_t *htp, uintptr_t key, uintptr_t value);
+table_remove(ck_ht_t *htp, void * key);
+
+extern bool
+table_replace(ck_ht_t *htp, void * key, void * value);
 
 extern size_t
 table_count(ck_ht_t *htp);

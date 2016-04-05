@@ -14,51 +14,51 @@ table_init(struct ck_malloc *allocator, ck_ht_t *htp, size_t size){
 }
 
 bool
-table_insert(ck_ht_t *htp, uintptr_t key, uintptr_t value)
+table_insert(ck_ht_t *htp, void * key, void * value)
 {
   ck_ht_entry_t entry;
   ck_ht_hash_t h;
   
-  ck_ht_hash_direct(&h, htp, key);
-  ck_ht_entry_set_direct(&entry, h, key, value);
+  ck_ht_hash_direct(&h, htp, (uintptr_t)key);
+  ck_ht_entry_set_direct(&entry, h, (uintptr_t)key, (uintptr_t)value);
   return ck_ht_put_spmc(htp, h, &entry);
 }
 
 
-uintptr_t
-table_get(ck_ht_t *htp, uintptr_t key)
+void *
+table_get(ck_ht_t *htp, void * key)
 {
   ck_ht_entry_t entry;
   ck_ht_hash_t h;
 
-  ck_ht_hash_direct(&h, htp, key);
-  ck_ht_entry_key_set_direct(&entry, key);
+  ck_ht_hash_direct(&h, htp, (uintptr_t)key);
+  ck_ht_entry_key_set_direct(&entry, (uintptr_t)key);
   if (ck_ht_get_spmc(htp, h, &entry) == true)
-    return ck_ht_entry_value_direct(&entry);
+    return (void *)ck_ht_entry_value_direct(&entry);
   return 0;
 }
 
 
 bool
-table_remove(ck_ht_t *htp, uintptr_t key)
+table_remove(ck_ht_t *htp, void * key)
 {
   ck_ht_entry_t entry;
   ck_ht_hash_t h;
   
-  ck_ht_hash_direct(&h, htp, key);
-  ck_ht_entry_key_set_direct(&entry, key);
+  ck_ht_hash_direct(&h, htp, (uintptr_t)key);
+  ck_ht_entry_key_set_direct(&entry, (uintptr_t)key);
   return ck_ht_remove_spmc(htp, h, &entry);
 }
 
 
 bool
-table_replace(ck_ht_t *htp, uintptr_t key, uintptr_t value)
+table_replace(ck_ht_t *htp, void * key, void * value)
 {
   ck_ht_entry_t entry;
   ck_ht_hash_t h;
   
-  ck_ht_hash_direct(&h, htp, key);
-  ck_ht_entry_set_direct(&entry, h, key, value);
+  ck_ht_hash_direct(&h, htp, (uintptr_t)key);
+  ck_ht_entry_set_direct(&entry, h, (uintptr_t)key, (uintptr_t)value);
   return ck_ht_set_spmc(htp, h, &entry);
 }
 

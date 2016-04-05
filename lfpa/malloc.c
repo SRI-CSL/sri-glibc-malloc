@@ -665,10 +665,66 @@ CK_STATIC void* MALLOC(size_t sz)
   } 
 }
 
+
+#ifndef CK_CLIENT_LIBRARY
+void *calloc(size_t nmemb, size_t size)
+{
+  void *ptr;
+        
+  ptr = malloc(nmemb*size);
+  if (!ptr) {
+    return NULL;
+  }
+
+  return memset(ptr, 0, nmemb*size);
+}
+
+void *memalign(size_t boundary, size_t size)
+{
+  void *p;
+
+  p = malloc((size + boundary - 1) & ~(boundary - 1));
+  if (!p) {
+    return NULL;
+  }
+
+  return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
+}
+
+int posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+  *memptr = memalign(alignment, size);
+  if (*memptr) {
+    return 0;
+  }
+  else {
+    /* We have to "personalize" the return value according to the error */
+    return -1;
+  }
+}
+
+#endif
+
+/*
+
+https://groups.google.com/forum/#!topic/concurrencykit/GezcuxYLPs0
+
+The extra arguments to the free callback are number of bytes of region
+being deallocated and bool indicating whether the memory being
+destroyed is vulnerable to read-reclaim races (and so, extra
+precautions must be taken).
+
+For realloc, the first size_t is current number of bytes of allocation
+and the second is the new number of bytes. The bool indicates the same
+thing as free, whether safe memory reclamation of some form might be
+needed.
+
+*/
+
 #ifndef CK_CLIENT_LIBRARY
 void free(void* ptr) 
 #else
-  CK_STATIC void ck_free(void* ptr, size_t osz, bool bb) 
+  CK_STATIC void ck_free(void* ptr, size_t oldsize, bool be_careful) 
 #endif
 {
   descriptor* desc;
@@ -746,49 +802,9 @@ void free(void* ptr)
 }
 
 #ifndef CK_CLIENT_LIBRARY
-void *calloc(size_t nmemb, size_t size)
-{
-  void *ptr;
-        
-  ptr = malloc(nmemb*size);
-  if (!ptr) {
-    return NULL;
-  }
-
-  return memset(ptr, 0, nmemb*size);
-}
-
-void *memalign(size_t boundary, size_t size)
-{
-  void *p;
-
-  p = malloc((size + boundary - 1) & ~(boundary - 1));
-  if (!p) {
-    return NULL;
-  }
-
-  return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
-}
-
-int posix_memalign(void **memptr, size_t alignment, size_t size)
-{
-  *memptr = memalign(alignment, size);
-  if (*memptr) {
-    return 0;
-  }
-  else {
-    /* We have to "personalize" the return value according to the error */
-    return -1;
-  }
-}
-
-#endif
-
-
-#ifndef CK_CLIENT_LIBRARY
 void *realloc(void *object, size_t size)
 #else
-CK_STATIC void *ck_realloc(void *object, size_t qsize, size_t size, bool bb)
+CK_STATIC void *ck_realloc(void *object, size_t oldsize, size_t size, bool be_careful)
 #endif
 {
   descriptor* desc;
@@ -804,7 +820,7 @@ CK_STATIC void *ck_realloc(void *object, size_t qsize, size_t size, bool bb)
 #ifndef CK_CLIENT_LIBRARY
     free(object);
 #else
-    ck_free(object, qsize, bb);
+    ck_free(object, oldsize, be_careful);
 #endif
     return NULL;
   }

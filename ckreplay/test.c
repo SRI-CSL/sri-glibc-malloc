@@ -4,6 +4,10 @@
 #include <stdlib.h>
 
 
+static size_t max = 1024 * 1024;
+
+size_t allocated = 0;
+
 /*
 
 https://groups.google.com/forum/#!topic/concurrencykit/GezcuxYLPs0
@@ -20,10 +24,10 @@ needed.
 
 */
 
-
 static void *
 ht_malloc(size_t r)
 {
+  allocated += r;
   return lfpa_malloc(r);
 }
 
@@ -32,6 +36,7 @@ ht_free(void *p, size_t b, bool r)
 {
   (void)b;
   (void)r;
+  allocated -= b;
   lfpa_free(p);
   return;
 }
@@ -58,7 +63,7 @@ table_init(ck_ht_t *htp){
   //the mode of our ht
   int mode = CK_HT_MODE_DIRECT | CK_HT_WORKLOAD_DELETE;
   
-  if (ck_ht_init(htp, mode, NULL, &allocator, 1024, 666) == false) {
+  if (ck_ht_init(htp, mode, NULL, &allocator, max, 666) == false) {
     perror("ck_ht_init");
     return false;
   }
@@ -128,7 +133,6 @@ table_reset(ck_ht_t *htp)
 
 
 int main(int argc, char *argv[]){
-  size_t max = 1024;
   size_t i;
   //our ck hash table
   ck_ht_t ht CK_CC_CACHELINE;
@@ -137,6 +141,7 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
 
+  fprintf(stderr, "Creation stage complete. Table size = %zu\n", table_count(&ht));
 
   for(i = 1; i <= max; i++){
     bool success = table_insert(&ht, i, i+1);
@@ -191,7 +196,7 @@ int main(int argc, char *argv[]){
 
   table_reset(&ht);
 
-  fprintf(stderr, "OK\n");
+  fprintf(stderr, "OK %zu\n", allocated);
   
 
   return 0;

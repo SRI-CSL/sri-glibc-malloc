@@ -788,7 +788,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 #ifndef CK_CLIENT_LIBRARY
 void *realloc(void *object, size_t size)
 #else
-CK_STATIC void *ck_realloc(void *object, size_t size, size_t qsize, bool bb)
+CK_STATIC void *ck_realloc(void *object, size_t qsize, size_t size, bool bb)
 #endif
 {
   descriptor* desc;

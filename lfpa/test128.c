@@ -65,10 +65,10 @@ int main(int argc, char* argv[]){
   int nthreads;
   int rc;
   int i;
-  int total;
   pthread_t threads[MAX_THREADS];
   targs_t targs[MAX_THREADS];
   void* status;
+  int total = 0;
   
 
   if (argc != 2) {
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]){
   }
 
   /* should all be equal */
-  fprintf(stdout, "total = %d abba.ptr = %"PRIu64" abba.tag = %"PRIu64"\n", total, abba.ptr,  abba.tag);
+  fprintf(stdout, "total = %d abba.ptr = %"PRIiPTR" abba.tag = %"PRIu64"\n", total, abba.ptr,  abba.tag);
  
 
   return 0;

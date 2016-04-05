@@ -5,7 +5,7 @@ CFLAGS= -Wall -DUSE_LFPA_PREFIX  -I../lfpa
 LDFLAGS = -L../lfpa -llfpa -lck
 
 all:
-	${CC} ${CFLAGS} test.c -o test ${LDFLAGS} 
+	${CC} ${CFLAGS} ckallocator.c cktable.c test.c -o test ${LDFLAGS} 
 
 
 run:

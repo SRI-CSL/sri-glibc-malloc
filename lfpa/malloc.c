@@ -20,6 +20,16 @@
 #include "malloc_internals.h"
 #include <inttypes.h>
 
+/* localize the malloc API routines if we are in CK_CLIENT_LIBRARY mode */
+#ifndef CK_CLIENT_LIBRARY
+#define CK_STATIC 
+#define MALLOC malloc
+#else
+#define CK_STATIC static
+#define MALLOC ckmalloc
+#endif
+
+
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
 sizeclass sizeclasses[2048 / GRANULARITY] =
@@ -601,7 +611,7 @@ static void* alloc_large_block(size_t sz)
   return (void*)(addr + PTR_SIZE); 
 }
 
-void* malloc(size_t sz)
+CK_STATIC void* MALLOC(size_t sz)
 { 
   procheap *heap;
   void* addr;
@@ -655,7 +665,11 @@ void* malloc(size_t sz)
   } 
 }
 
+#ifndef CK_CLIENT_LIBRARY
 void free(void* ptr) 
+#else
+  CK_STATIC void ck_free(void* ptr, size_t osz, bool bb) 
+#endif
 {
   descriptor* desc;
   void* sb;
@@ -731,6 +745,7 @@ void free(void* ptr)
   }
 }
 
+#ifndef CK_CLIENT_LIBRARY
 void *calloc(size_t nmemb, size_t size)
 {
   void *ptr;
@@ -741,13 +756,6 @@ void *calloc(size_t nmemb, size_t size)
   }
 
   return memset(ptr, 0, nmemb*size);
-}
-
-void *valloc(size_t size)
-{
-  fprintf(stderr, "valloc() called in libmaged. Not implemented. Exiting.\n");
-  fflush(stderr);
-  exit(1);
 }
 
 void *memalign(size_t boundary, size_t size)
@@ -774,7 +782,14 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
   }
 }
 
+#endif
+
+
+#ifndef CK_CLIENT_LIBRARY
 void *realloc(void *object, size_t size)
+#else
+CK_STATIC void *ck_realloc(void *object, size_t size, size_t qsize, bool bb)
+#endif
 {
   descriptor* desc;
   void* header;
@@ -786,13 +801,15 @@ void *realloc(void *object, size_t size)
     return malloc(size);
   }
   else if (size == 0) {
+#ifndef CK_CLIENT_LIBRARY
     free(object);
+#else
+    ck_free(object, qsize, bb);
+#endif
     return NULL;
   }
 
   header = (void*)((unsigned long)object - HEADER_SIZE);  
-  
-
 
   if (*((char*)header) == (char)LARGE) {
     osize = *((unsigned long *)(header + TYPE_SIZE));
@@ -822,8 +839,35 @@ void *realloc(void *object, size_t size)
   return ret;
 }
 
+static void _malloc_stats(void);
+
 
 void malloc_stats(void){
-  fprintf(stderr, "malloc_stats coming soon(ish)\n");
-
+  _malloc_stats();
 }
+
+void _malloc_stats(void){
+  fprintf(stderr, "malloc_stats coming soon(ish)\n");
+}
+
+
+#ifdef CK_CLIENT_LIBRARY
+
+
+bool lpfa_init(struct ck_malloc* allocator){
+  if(allocator != NULL){
+    allocator->malloc = MALLOC;
+    allocator->realloc = ck_realloc;
+    allocator->free = ck_free;
+    return true;
+  }
+  return false;
+}
+
+void lpfa_malloc_stats(void){ 
+  _malloc_stats(); 
+}
+
+
+#endif
+

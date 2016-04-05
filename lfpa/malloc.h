@@ -19,12 +19,12 @@
 #ifndef __MAGED_H__
 #define __MAGED_H__
 
-#include <stdlib.h>
-
-
 
 #ifndef CK_CLIENT_LIBRARY
+
 /* these are a stand alone C api malloc implementation */
+
+#include <stdlib.h>
 
 extern void* malloc(size_t sz);
 extern void free(void* ptr);
@@ -37,6 +37,7 @@ extern void malloc_stats(void);
 #else 
 
 /* these provide an interface for use by concurrency kit primitives */
+
 #include <ck_malloc.h>
 
 extern bool lpfa_init(struct ck_malloc* allocator);

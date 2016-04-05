@@ -47,16 +47,22 @@ endif
 
 # Rules
 
-all:	liblfpa.so replay mtreplay test128 
+all:	liblfpa.so libcklfpa.so replay mtreplay test128 
 
 clean:
-	rm -f *.o *.so  replay mtreplay
+	rm -f *.o *.so  replay mtreplay test128 
 
 malloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
 		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c malloc.c
 
+ckmalloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
+		$(CC) $(CFLAGS) -DCK_CLIENT_LIBRARY $(OPT) -Iinclude-$(ASM) -c malloc.c -o ckmalloc.o
+
 liblfpa.so:	malloc.o
 		$(CC) $(CFLAGS) $(OPT) malloc.o -o liblfpa.so $(CLFLAGS) -shared
+
+libcklfpa.so:	ckmalloc.o
+		$(CC) $(CFLAGS) $(OPT) ckmalloc.o -o libcklfpa.so $(CLFLAGS) -shared
 
 test128:	include-$(ASM)/atomic.h  test128.c
 		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) test128.c -o test128 -lpthread

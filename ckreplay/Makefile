@@ -2,8 +2,15 @@
 
 CFLAGS= -Wall -DCK_CLIENT_LIBRARY  -I../lfpa
 
-LDFLAGS = -L../lfpa -lcklfpa
+LDFLAGS = -L../lfpa -lcklfpa -lck
 
 all:
-#	${CC} ${CFLAGS} main.c -o main ../lfpa/libcklfpa.dylib 
-	${CC} ${CFLAGS} main.c -o main ${LDFLAGS} 
+	${CC} ${CFLAGS} test.c -o test ${LDFLAGS} 
+
+
+run:
+	LD_LIBRARY_PATH=../lfpa ./test
+
+
+clean:
+	rm -f test

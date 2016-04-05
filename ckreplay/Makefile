@@ -1,8 +1,8 @@
 
 
-CFLAGS= -Wall -DCK_CLIENT_LIBRARY  -I../lfpa
+CFLAGS= -Wall -DUSE_LFPA_PREFIX  -I../lfpa
 
-LDFLAGS = -L../lfpa -lcklfpa -lck
+LDFLAGS = -L../lfpa -llfpa -lck
 
 all:
 	${CC} ${CFLAGS} test.c -o test ${LDFLAGS} 

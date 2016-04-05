@@ -20,16 +20,6 @@
 #include "malloc_internals.h"
 #include <inttypes.h>
 
-/* localize the malloc API routines if we are in CK_CLIENT_LIBRARY mode */
-#ifndef CK_CLIENT_LIBRARY
-#define CK_STATIC 
-#define MALLOC malloc
-#else
-#define CK_STATIC static
-#define MALLOC ckmalloc
-#endif
-
-
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
 sizeclass sizeclasses[2048 / GRANULARITY] =
@@ -611,7 +601,11 @@ static void* alloc_large_block(size_t sz)
   return (void*)(addr + PTR_SIZE); 
 }
 
-CK_STATIC void* MALLOC(size_t sz)
+#ifndef USE_LFPA_PREFIX
+void* malloc(size_t sz)
+#else
+void* lfpa_malloc(size_t sz)
+#endif
 { 
   procheap *heap;
   void* addr;
@@ -666,8 +660,11 @@ CK_STATIC void* MALLOC(size_t sz)
 }
 
 
-#ifndef CK_CLIENT_LIBRARY
+#ifndef USE_LFPA_PREFIX
 void *calloc(size_t nmemb, size_t size)
+#else
+void *lfpa_calloc(size_t nmemb, size_t size)
+#endif
 {
   void *ptr;
         
@@ -679,7 +676,11 @@ void *calloc(size_t nmemb, size_t size)
   return memset(ptr, 0, nmemb*size);
 }
 
+#ifndef USE_LFPA_PREFIX
 void *memalign(size_t boundary, size_t size)
+#else
+void *lfpa_memalign(size_t boundary, size_t size)
+#endif
 {
   void *p;
 
@@ -691,6 +692,7 @@ void *memalign(size_t boundary, size_t size)
   return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
 }
 
+#ifndef USE_LFPA_PREFIX
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
   *memptr = memalign(alignment, size);
@@ -702,29 +704,26 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
     return -1;
   }
 }
-
+#else
+int lfpa_posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+  *memptr = lfpa_memalign(alignment, size);
+  if (*memptr) {
+    return 0;
+  }
+  else {
+    /* We have to "personalize" the return value according to the error */
+    return -1;
+  }
+}
 #endif
 
-/*
 
-https://groups.google.com/forum/#!topic/concurrencykit/GezcuxYLPs0
 
-The extra arguments to the free callback are number of bytes of region
-being deallocated and bool indicating whether the memory being
-destroyed is vulnerable to read-reclaim races (and so, extra
-precautions must be taken).
-
-For realloc, the first size_t is current number of bytes of allocation
-and the second is the new number of bytes. The bool indicates the same
-thing as free, whether safe memory reclamation of some form might be
-needed.
-
-*/
-
-#ifndef CK_CLIENT_LIBRARY
+#ifndef USE_LFPA_PREFIX
 void free(void* ptr) 
 #else
-  CK_STATIC void ck_free(void* ptr, size_t oldsize, bool be_careful) 
+void lfpa_free(void* ptr) 
 #endif
 {
   descriptor* desc;
@@ -801,10 +800,10 @@ void free(void* ptr)
   }
 }
 
-#ifndef CK_CLIENT_LIBRARY
+#ifndef USE_LFPA_PREFIX
 void *realloc(void *object, size_t size)
 #else
-CK_STATIC void *ck_realloc(void *object, size_t oldsize, size_t size, bool be_careful)
+void *lfpa_realloc(void *object, size_t size)
 #endif
 {
   descriptor* desc;
@@ -817,11 +816,7 @@ CK_STATIC void *ck_realloc(void *object, size_t oldsize, size_t size, bool be_ca
     return malloc(size);
   }
   else if (size == 0) {
-#ifndef CK_CLIENT_LIBRARY
     free(object);
-#else
-    ck_free(object, oldsize, be_careful);
-#endif
     return NULL;
   }
 
@@ -855,35 +850,12 @@ CK_STATIC void *ck_realloc(void *object, size_t oldsize, size_t size, bool be_ca
   return ret;
 }
 
-static void _malloc_stats(void);
 
-
-void malloc_stats(void){
-  _malloc_stats();
-}
-
-void _malloc_stats(void){
-  fprintf(stderr, "malloc_stats coming soon(ish)\n");
-}
-
-
-#ifdef CK_CLIENT_LIBRARY
-
-
-bool lpfa_init(struct ck_malloc* allocator){
-  if(allocator != NULL){
-    allocator->malloc = MALLOC;
-    allocator->realloc = ck_realloc;
-    allocator->free = ck_free;
-    return true;
-  }
-  return false;
-}
-
-void lpfa_malloc_stats(void){ 
-  _malloc_stats(); 
-}
-
-
+#ifndef USE_LFPA_PREFIX
+#else
 #endif
+void malloc_stats(void){
+   fprintf(stderr, "malloc_stats coming soon(ish)\n");
+}
+
 

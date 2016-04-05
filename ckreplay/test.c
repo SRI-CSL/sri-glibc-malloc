@@ -4,8 +4,54 @@
 #include <stdlib.h>
 
 
+/*
+
+https://groups.google.com/forum/#!topic/concurrencykit/GezcuxYLPs0
+
+The extra arguments to the free callback are number of bytes of region
+being deallocated and bool indicating whether the memory being
+destroyed is vulnerable to read-reclaim races (and so, extra
+precautions must be taken).
+
+For realloc, the first size_t is current number of bytes of allocation
+and the second is the new number of bytes. The bool indicates the same
+thing as free, whether safe memory reclamation of some form might be
+needed.
+
+*/
+
+
+static void *
+ht_malloc(size_t r)
+{
+  return lfpa_malloc(r);
+}
+
+static void
+ht_free(void *p, size_t b, bool r)
+{
+  (void)b;
+  (void)r;
+  lfpa_free(p);
+  return;
+}
+
+static void *
+ht_realloc(void *p, size_t os, size_t ns, bool r)
+{
+  (void)os;
+  (void)r;
+  return lfpa_realloc(p, ns);
+}
+
 //our lock free pool allocator
-static struct ck_malloc allocator;
+static struct ck_malloc allocator = {
+  .malloc = ht_malloc,
+  .realloc = ht_realloc,
+  .free = ht_free
+};
+
+
 
 static bool 
 table_init(ck_ht_t *htp){
@@ -87,9 +133,6 @@ int main(int argc, char *argv[]){
   //our ck hash table
   ck_ht_t ht CK_CC_CACHELINE;
 
-  lpfa_init(&allocator);
-
-
   if (table_init(&ht) == false) {
     exit(EXIT_FAILURE);
   }
@@ -105,7 +148,7 @@ int main(int argc, char *argv[]){
 
   fprintf(stderr, "Insertion stage complete. Table size = %zu\n", table_count(&ht));
 
-  for(i = 1; i < max; i++){
+  for(i = 1; i <= max; i++){
      uintptr_t val = table_get(&ht, i);
     if( val != i + 1){
       fprintf(stderr, "Retrieval failed for i = %zu\n", i);
@@ -113,8 +156,43 @@ int main(int argc, char *argv[]){
     }
   }
 
+  fprintf(stderr, "Retrieval stage complete. Table size = %zu\n", table_count(&ht));
+
+
+  for(i = 1; i <= max; i++){
+    bool success = table_replace(&ht, i, i+2);
+    if( ! success ){
+      fprintf(stderr, "Insertion failed for i = %zu\n", i);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  fprintf(stderr, "Update stage complete. Table size = %zu\n", table_count(&ht));
+
+  for(i = 1; i <= max; i++){
+     uintptr_t val = table_get(&ht, i);
+    if( val != i + 2){
+      fprintf(stderr, "Retrieval of update failed for i = %zu\n", i);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  fprintf(stderr, "Update retrieval stage complete. Table size = %zu\n", table_count(&ht));
+
+  for(i = 1; i <= max; i++){
+     bool success = table_remove(&ht, i);
+    if( ! success ){
+      fprintf(stderr, "Removal failed for i = %zu\n", i);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  fprintf(stderr, "Removal stage complete. Table size = %zu\n", table_count(&ht));
+
+  table_reset(&ht);
 
   fprintf(stderr, "OK\n");
+  
 
   return 0;
 }

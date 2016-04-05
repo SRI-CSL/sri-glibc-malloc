@@ -26,13 +26,13 @@ OS   =  $(shell uname)
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
-LIBLFPA = liblfpa.dylib
-LIBCKLFPA = libcklfpa.dylib
+LIBLFPA = libmalloc.dylib
+LIBCKLFPA = liblfpa.dylib
 LIBFLAGS = -dynamiclib
 else
 # LINUX
-LIBLFPA = liblfpa.so
-LIBCKLFPA = libcklfpa.so
+LIBLFPA = libmalloc.so
+LIBCKLFPA = liblfpa.so
 LIBFLAGS = -shared -Wl,-soname,${LIB}
 endif
 
@@ -70,14 +70,14 @@ clean:
 malloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
 		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c malloc.c
 
-ckmalloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
-		$(CC) $(CFLAGS) -DCK_CLIENT_LIBRARY $(OPT) -Iinclude-$(ASM) -c malloc.c -o ckmalloc.o
+lfpamalloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
+		$(CC) $(CFLAGS) -DUSE_LFPA_PREFIX $(OPT) -Iinclude-$(ASM) -c malloc.c -o lfpamalloc.o
 
 ${LIBLFPA}:	malloc.o
 		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) malloc.o -o ${LIBLFPA} $(CLFLAGS) -shared
 
-${LIBCKLFPA}:	ckmalloc.o
-		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) ckmalloc.o -o ${LIBCKLFPA} $(CLFLAGS) -shared
+${LIBCKLFPA}:	lfpamalloc.o
+		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) lfpamalloc.o -o ${LIBCKLFPA} $(CLFLAGS) -shared
 
 test128:	include-$(ASM)/atomic.h  test128.c
 		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) test128.c -o test128 -lpthread

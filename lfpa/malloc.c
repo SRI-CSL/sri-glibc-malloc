@@ -367,7 +367,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
   fflush(stderr);
 #endif
 
-  *((unsigned long long*)&oldactive) = 0;
+  //*((unsigned long long*)&oldactive) = 0;
+  oldactive.ptr =  0;
+  oldactive.credits = 0;
   newactive.ptr = (uintptr_t)desc;
   newactive.credits = morecredits - 1;
   if (compare_and_swap128((volatile aba_128_t *)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive))) {
@@ -519,7 +521,10 @@ static void* MallocFromNewSB(procheap* heap)
   void* addr;
   active newactive, oldactive;
 
-  *((unsigned long long*)&oldactive) = 0;
+  // *((unsigned long long*)&oldactive) = 0;
+  oldactive.ptr = 0;
+  oldactive.credits = 0;
+  
   desc = DescAlloc();
   desc->sb = AllocNewSB(heap->sc->sbsize, SBSIZE);
 

@@ -1,6 +1,5 @@
 
-
-CFLAGS = -Wall -fPIC
+CFLAGS = -Wall -fPIC -DNDEBUG -O3
 LDFLAGS =
 
 

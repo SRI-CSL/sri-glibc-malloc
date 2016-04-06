@@ -21,7 +21,7 @@ void *__simple_malloc(size_t n)
 
 	pthread_mutex_lock(&mutex);
 
-	pad = -(uintptr_t)cur & align-1;
+	pad = -(uintptr_t)cur & (align-1);
 
 	if (n <= SIZE_MAX/2 + MUSL_ALIGN) n += pad;
 

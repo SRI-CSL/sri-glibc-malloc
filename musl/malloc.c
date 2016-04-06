@@ -18,16 +18,40 @@
 
 */
 
-#define PAGE_SIZE 4098
+#define PAGE_SIZE 4096
 
 #if defined(__GNUC__) && defined(__PIC__)
 #define inline inline __attribute__((always_inline))
 #endif
 
-void *__mmap(void *, size_t, int, int, int, off_t);
-int __munmap(void *, size_t);
-void *__mremap(void *, size_t, size_t, int, ...);
-int __madvise(void *, size_t, int);
+#define a_and_64 a_and_64
+static inline void a_and_64(volatile uint64_t *p, uint64_t v)
+{
+	__asm__ __volatile(
+		"lock ; and %1, %0"
+		 : "=m"(*p) : "r"(v) : "memory" );
+}
+
+#define a_or_64 a_or_64
+static inline void a_or_64(volatile uint64_t *p, uint64_t v)
+{
+	__asm__ __volatile__(
+		"lock ; or %1, %0"
+		 : "=m"(*p) : "r"(v) : "memory" );
+}
+
+#define a_crash a_crash
+static inline void a_crash()
+{
+	__asm__ __volatile__( "hlt" : : : "memory" );
+}
+
+#define a_ctz_64 a_ctz_64
+static inline int a_ctz_64(uint64_t x)
+{
+	__asm__( "bsf %1,%0" : "=r"(x) : "r"(x) );
+	return x;
+}
 
 struct chunk {
   size_t psize, csize;
@@ -57,7 +81,7 @@ static void init(void){
     pthread_mutex_init(&mal.mutex, NULL);
     pthread_mutex_lock(&mal.mutex);
     for(i = 0; i < 64; i++){ 
-      pthread_mutex_init(&bins[i].mutex, NULL);
+      pthread_mutex_init(&mal.bins[i].mutex, NULL);
     }
     pthread_mutex_unlock(&mal.mutex);
     __inited = true;
@@ -136,7 +160,7 @@ static int bin_index_up(size_t x)
 {
   x = x / SIZE_ALIGN - 1;
   if (x <= 32) return x;
-  return ((union { float v; uint32_t r; }){(int)x}.r+0x1fffff>>21) - 496;
+  return (((union { float v; uint32_t r; }){(int)x}.r+0x1fffff)>>21) - 496;
 }
 
 #if 0
@@ -164,7 +188,7 @@ void *__expand_heap(size_t *);
 
 static struct chunk *expand_heap(size_t n)
 {
-  static int heap_lock[2];
+  static  pthread_mutex_t heap_lock = PTHREAD_MUTEX_INITIALIZER;
   static void *end;
   void *p;
   struct chunk *w;
@@ -174,11 +198,11 @@ static struct chunk *expand_heap(size_t n)
    * we need room for an extra zero-sized sentinel chunk. */
   n += SIZE_ALIGN;
 
-  lock(heap_lock);
+  pthread_mutex_lock(&heap_lock);
 
   p = __expand_heap(&n);
   if (!p) {
-    unlock(heap_lock);
+    pthread_mutex_unlock(&heap_lock);
     return 0;
   }
 
@@ -203,7 +227,7 @@ static struct chunk *expand_heap(size_t n)
   w = MEM_TO_CHUNK(p);
   w->csize = n | C_INUSE;
 
-  unlock(heap_lock);
+  pthread_mutex_unlock(&heap_lock);
 
   return w;
 }
@@ -313,8 +337,8 @@ static void trim(struct chunk *self, size_t n)
   split = (void *)((char *)self + n);
 
   split->psize = n | C_INUSE;
-  split->csize = n1-n | C_INUSE;
-  next->psize = n1-n | C_INUSE;
+  split->csize = (n1-n) | C_INUSE;
+  next->psize = (n1-n) | C_INUSE;
   self->csize = n | C_INUSE;
 
   free(CHUNK_TO_MEM(split));
@@ -330,8 +354,8 @@ void *malloc(size_t n)
   if (adjust_size(&n) < 0) return 0;
 
   if (n > MMAP_THRESHOLD) {
-    size_t len = n + OVERHEAD + PAGE_SIZE - 1 & -PAGE_SIZE;
-    char *base = __mmap(0, len, PROT_READ|PROT_WRITE,
+    size_t len = (n + OVERHEAD + PAGE_SIZE - 1) & -PAGE_SIZE;
+    char *base = mmap(0, len, PROT_READ|PROT_WRITE,
 			MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     if (base == (void *)-1) return 0;
     c = (void *)(base + SIZE_ALIGN - OVERHEAD);
@@ -411,7 +435,7 @@ void *realloc(void *p, size_t n)
     }
     newlen = (newlen + PAGE_SIZE-1) & -PAGE_SIZE;
     if (oldlen == newlen) return p;
-    base = __mremap(base, oldlen, newlen, MREMAP_MAYMOVE);
+    base = mremap(base, oldlen, newlen, MREMAP_MAYMOVE);
     if (base == (void *)-1)
       return newlen < oldlen ? p : 0;
     self = (void *)(base + extra);
@@ -472,7 +496,7 @@ void free(void *p)
     size_t len = CHUNK_SIZE(self) + extra;
     /* Crash on double free */
     if (extra & 1) a_crash();
-    __munmap(base, len);
+    munmap(base, len);
     return;
   }
 
@@ -488,10 +512,10 @@ void free(void *p)
       next->psize = final_size | C_INUSE;
       i = bin_index(final_size);
       lock_bin(i);
-      lock(mal.free_lock);
+      pthread_mutex_lock(&mal.mutex);
       if (self->psize & next->csize & C_INUSE)
 	break;
-      unlock(mal.free_lock);
+      pthread_mutex_unlock(&mal.mutex);
       unlock_bin(i);
     }
 
@@ -499,14 +523,14 @@ void free(void *p)
       self = PREV_CHUNK(self);
       size = CHUNK_SIZE(self);
       final_size += size;
-      if (new_size+size > RECLAIM && (new_size+size^size) > size)
+      if (new_size+size > RECLAIM && ((new_size+size)^size) > size)
 	reclaim = 1;
     }
 
     if (alloc_fwd(next)) {
       size = CHUNK_SIZE(next);
       final_size += size;
-      if (new_size+size > RECLAIM && (new_size+size^size) > size)
+      if (new_size+size > RECLAIM && ((new_size+size)^size) > size)
 	reclaim = 1;
       next = NEXT_CHUNK(next);
     }
@@ -517,7 +541,7 @@ void free(void *p)
 
   self->csize = final_size;
   next->psize = final_size;
-  unlock(mal.free_lock);
+  pthread_mutex_unlock(&mal.mutex);
 
   self->next = BIN_TO_CHUNK(i);
   self->prev = mal.bins[i].tail;
@@ -526,12 +550,12 @@ void free(void *p)
 
   /* Replace middle of large chunks with fresh zero pages */
   if (reclaim) {
-    uintptr_t a = (uintptr_t)self + SIZE_ALIGN+PAGE_SIZE-1 & -PAGE_SIZE;
-    uintptr_t b = (uintptr_t)next - SIZE_ALIGN & -PAGE_SIZE;
+    uintptr_t a = ((uintptr_t)self + SIZE_ALIGN+PAGE_SIZE-1) & -PAGE_SIZE;
+    uintptr_t b = ((uintptr_t)next - SIZE_ALIGN) & -PAGE_SIZE;
 #if 1
-    __madvise((void *)a, b-a, MADV_DONTNEED);
+    madvise((void *)a, b-a, MADV_DONTNEED);
 #else
-    __mmap((void *)a, b-a, PROT_READ|PROT_WRITE,
+    mmap((void *)a, b-a, PROT_READ|PROT_WRITE,
 	   MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, -1, 0);
 #endif
   }

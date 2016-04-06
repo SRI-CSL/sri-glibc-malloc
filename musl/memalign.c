@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
+/*
 #include "libc.h"
+*/
 
 /* This function should work with most dlmalloc-like chunk bookkeeping
  * systems, but it's only guaranteed to work with the native implementation
@@ -54,4 +56,4 @@ void *__memalign(size_t align, size_t len)
 	return new;
 }
 
-weak_alias(__memalign, memalign);
+//weak_alias(__memalign, memalign);

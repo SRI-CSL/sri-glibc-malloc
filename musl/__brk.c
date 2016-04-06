@@ -3,5 +3,5 @@
 
 uintptr_t __brk(uintptr_t newbrk)
 {
-	return brk(newbrk);
+  return (uintptr_t)brk((void *)newbrk);
 }

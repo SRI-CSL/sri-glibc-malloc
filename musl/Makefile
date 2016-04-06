@@ -1,6 +1,6 @@
 
 
-CFLAGS =
+CFLAGS = -Wall -fPIC
 LDFLAGS =
 
 

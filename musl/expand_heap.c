@@ -52,12 +52,12 @@ void *__expand_heap(size_t *pn)
 	n += -n & PAGE_SIZE-1;
 
 	if (!brk) {
-	  brk = sbrk(0);
+	  brk = (uintptr_t)sbrk(0);
 		brk += -brk & PAGE_SIZE-1;
 	}
 
 	if (n < SIZE_MAX-brk //&& !traverses_stack_p(brk, brk+n)
-	    && sbrk(brk+n)==brk+n) {
+	    && (uintptr_t)sbrk(brk+n)==brk+n) {
 		*pn = n;
 		brk += n;
 		return (void *)(brk-n);

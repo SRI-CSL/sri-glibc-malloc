@@ -742,6 +742,7 @@ heap_trim (heap_info *heap, size_t pad)
 
   mchunkptr p;
   chunkinfoptr _md_p;
+  chunkinfoptr _md_fencepost;
 
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
@@ -779,9 +780,9 @@ heap_trim (heap_info *heap, size_t pad)
 	return 0;
       }
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
+      
+      _md_fencepost = _md_p;
 
-
-      unregister_chunk(ar_ptr, p, 4); /* SRI: pulling out the fencepost */
       p = prev_chunk (_md_p, p);
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
@@ -799,6 +800,10 @@ heap_trim (heap_info *heap, size_t pad)
       if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz){
         break;  /* SRI: are we in a sane state here? */
       }
+
+      /* SRI: pulling out the fencepost */
+      unregister_chunk(ar_ptr, chunkinfo2chunk(_md_fencepost), 4); 
+
 
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;

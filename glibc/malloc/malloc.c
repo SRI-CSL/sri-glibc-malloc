@@ -1340,6 +1340,7 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
   } else {
     fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
+    abort();
   }
 }
 
@@ -1355,6 +1356,7 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
   } else {
     fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
+    abort();
   }
 }
 
@@ -1389,6 +1391,7 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s
   } else {
     fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
             prev_chunk,  s);
+    abort();
   }
 }
 
@@ -3604,7 +3607,8 @@ __libc_free (void *mem)
   sane = arena_is_sane(p);
   assert(sane);
   if (!sane) { 
-    fprintf(stderr, "insane\n");
+    fprintf(stderr, "insane free: arena_index = %zu\n", p->arena_index);
+    abort();
     return; 
   }
 
@@ -3686,7 +3690,8 @@ __libc_realloc (void *oldmem, size_t bytes)
   sane = arena_is_sane(oldp);
   assert(sane);
   if (!sane) { 
-    fprintf(stderr, "insane\n");
+    fprintf(stderr, "insane realloc: arena_index = %zu\n", oldp->arena_index);
+    abort();
     return 0; 
   }
 

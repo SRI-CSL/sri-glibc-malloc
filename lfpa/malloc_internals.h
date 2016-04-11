@@ -33,8 +33,16 @@ typedef struct Procheap procheap;
 #define PARTIAL		2
 #define EMPTY		3
 
-#define	MAXCREDITS	64  // 2^(bits for credits in active)
-#define GRANULARITY	16  // sri: for x86_64 alignment we require 16 NOT 8
+#define	MAXCREDITS	64    // 2^(bits for credits in active)
+#define GRANULARITY	16    // sri: for x86_64 alignment we require 16 NOT 8
+
+// sri: bigger than this we mmap. code is not yet 
+// parametric in this. change it and the code needs
+// changing too.
+#define MAX_BLOCK_SIZE  2048  
+                              
+                              
+
 
 /* We need to squeeze this in 64-bits, but conceptually
  * this is the case:

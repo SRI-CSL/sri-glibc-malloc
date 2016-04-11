@@ -20,9 +20,10 @@
 #include "malloc_internals.h"
 #include <inttypes.h>
 
+
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
-sizeclass sizeclasses[2048 / GRANULARITY] =
+sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
   {
     {LF_FIFO_QUEUE_STATIC_INIT, 16, SBSIZE},
     {LF_FIFO_QUEUE_STATIC_INIT, 32, SBSIZE},
@@ -151,10 +152,10 @@ sizeclass sizeclasses[2048 / GRANULARITY] =
     {LF_FIFO_QUEUE_STATIC_INIT, 2000, SBSIZE},
     {LF_FIFO_QUEUE_STATIC_INIT, 2016, SBSIZE},
     {LF_FIFO_QUEUE_STATIC_INIT, 2032, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 2048, SBSIZE},
+    {LF_FIFO_QUEUE_STATIC_INIT, MAX_BLOCK_SIZE, SBSIZE},
   };
 
-__thread procheap* heaps[2048 / GRANULARITY] =  { };
+static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
@@ -180,7 +181,7 @@ static void* AllocNewSB(size_t size, unsigned long alignement)
   if (addr == MAP_FAILED) {
     fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
     switch (errno) {
-    case EBADF: fprintf(stderr, "EBADF"); break;
+    case EBADF:         fprintf(stderr, "EBADF"); break;
     case EACCES:        fprintf(stderr, "EACCES"); break;
     case EINVAL:        fprintf(stderr, "EINVAL"); break;
     case ETXTBSY:       fprintf(stderr, "ETXBSY"); break;
@@ -578,7 +579,7 @@ static procheap* find_heap(size_t sz)
   
   // We need to fit both the object and the descriptor in a single block
   sz += HEADER_SIZE;
-  if (sz >= 2048) {
+  if (sz >= MAX_BLOCK_SIZE) {
     return NULL;
   }
   
@@ -614,7 +615,8 @@ void* lfpa_malloc(size_t sz)
 { 
   procheap *heap;
   void* addr;
-
+  
+  //minimum block size
   if (sz < 16){
     sz = 16;
   }

@@ -173,7 +173,7 @@ static inline long max(long a, long b)
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-static void* AllocNewSB(size_t size, unsigned long alignement)
+static void* AllocNewSB(size_t size, unsigned long alignment)
 {
   void* addr;
   
@@ -405,11 +405,11 @@ static void* MallocFromActive(procheap *heap)
   // First step: reserve block
   do { 
     newactive = oldactive = heap->Active;
-    if (!(*((unsigned long long*)(&oldactive)))) {
+    if (!(*((unsigned long long*)(&oldactive)))) {   //sri: we split active and credits, so we do not need to do this
       return NULL;
     }
     if (oldactive.credits == 0) {
-      *((unsigned long long*)(&newactive)) = 0;
+      *((unsigned long long*)(&newactive)) = 0;  //sri: we split active and credits, so we do not need to do this
 #ifdef DEBUG
       fprintf(stderr, "MallocFromActive() setting active to NULL, %lu, %d\n", newactive.ptr, newactive.credits);
       fflush(stderr);
@@ -432,7 +432,7 @@ static void* MallocFromActive(procheap *heap)
     newanchor = oldanchor = desc->Anchor;
     addr = (void *)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
     next = *(unsigned long *)addr;
-    newanchor.avail = next;
+    newanchor.avail = next; //sri: shenanigans?
     ++newanchor.tag;
 
     if (oldactive.credits == 0) {
@@ -462,7 +462,7 @@ static void* MallocFromActive(procheap *heap)
     UpdateActive(heap, desc, morecredits);
   }
 
-  *((char*)addr) = (char)SMALL; 
+  *((char*)addr) = (char)SMALL;  //sri: not seeing a use of this
   addr += TYPE_SIZE;
   *((descriptor**)addr) = desc; 
   return ((void*)((unsigned long)addr + PTR_SIZE));
@@ -510,7 +510,7 @@ static void* MallocFromPartial(procheap* heap)
     UpdateActive(heap, desc, morecredits);
   }
 
-  *((char*)addr) = (char)SMALL; 
+  *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
   addr += TYPE_SIZE;
   *((descriptor**)addr) = desc; 
   return ((void *)((unsigned long)addr + PTR_SIZE));
@@ -560,7 +560,7 @@ static void* MallocFromNewSB(procheap* heap)
   // memory fence.
   if (compare_and_swap128((volatile aba_128_t*)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive))) { 
     addr = desc->sb;
-    *((char*)addr) = (char)SMALL; 
+    *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
     addr += TYPE_SIZE;
     *((descriptor **)addr) = desc; 
     return (void *)((unsigned long)addr + PTR_SIZE);
@@ -629,7 +629,7 @@ void* lfpa_malloc(size_t sz)
   heap = find_heap(sz);
 
   if (!heap) {
-    // Large block
+    // Large block (sri: unless the mmap fails)
     addr = alloc_large_block(sz);
 #ifdef DEBUG
     fprintf(stderr, "Large block allocation: %p\n", addr);
@@ -763,7 +763,7 @@ void lfpa_free(void* ptr)
   do { 
     newanchor = oldanchor = desc->Anchor;
 
-    *((unsigned long*)ptr) = oldanchor.avail;
+    *((unsigned long*)ptr) = oldanchor.avail;    //sri: low order pointer shenanigans? i.e. storing the previous free index.
     newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
 
     if (oldanchor.state == FULL) {

@@ -23,7 +23,7 @@
 
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
-sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
+static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
   {
     {LF_FIFO_QUEUE_STATIC_INIT, 16, SBSIZE},
     {LF_FIFO_QUEUE_STATIC_INIT, 32, SBSIZE},

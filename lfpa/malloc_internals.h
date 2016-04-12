@@ -41,8 +41,6 @@ typedef struct Procheap procheap;
 // changing too.
 #define MAX_BLOCK_SIZE  2048  
                               
-                              
-
 
 /* We need to squeeze this in 64-bits, but conceptually
  * this is the case:

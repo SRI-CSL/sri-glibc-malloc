@@ -23,7 +23,11 @@ implementations.
 
 -  `glibc` our glibc (head of repo) version.
 
+-  `glibc_tests` are our tests statically linked against our glibc version.
+
 -  `lfpa`  Maged Michael's lock free pool allocator.
 
+-  `musl` the malloc from musl libc (extracted from musl's libc)
 
+-  `ckreplay` a version of our replay that uses ck (concurrency kit).
 

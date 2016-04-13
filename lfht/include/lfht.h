@@ -43,6 +43,10 @@ extern bool delete_lfht(lfht_t *ht);
 
 extern bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val);
 
+extern bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val);
+
+extern bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val);
+
 extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
   
 

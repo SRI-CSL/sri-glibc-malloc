@@ -1,3 +1,17 @@
+OS   =  $(shell uname)
+
+LIBRARYNAME=liblfht
+
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+#  DARWIN
+LIB = ${LIBRARYNAME}.dylib
+LIBFLAGS = -dynamiclib
+else
+# LINUX
+LIB = ${LIBRARYNAME}.so
+LIBFLAGS = -shared -Wl,-soname,${LIB}
+endif
+
 
 CFLAGS= -Wall  -I./include
 
@@ -5,7 +19,17 @@ SRC = src/lfht.c
 
 OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
 
-all: ${OBJ}
+TARGET = lib/${LIB}
+
+.PHONY: clean
+
+all: ${TARGET}
+	@echo Done.	
+
+
+$(TARGET): $(OBJ) | lib
+	$(CC) $(LIBFLAGS) -o $@ $(OBJ) 
+
 
 obj:
 	mkdir -p obj
@@ -15,6 +39,7 @@ obj/%.o: src/%.c | obj
 
 lib:
 	mkdir -p lib
+
 
 
 clean:

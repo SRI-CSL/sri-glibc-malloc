@@ -1,5 +1,13 @@
 OS   =  $(shell uname)
 
+ARCH ?= $(shell uname -m)
+
+
+ifneq ($(ARCH), x86_64)
+  error  "Got me just one ARCH today."
+endif
+
+
 LIBRARYNAME=liblfht
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
@@ -13,7 +21,7 @@ LIBFLAGS = -shared -Wl,-soname,${LIB}
 endif
 
 
-CFLAGS= -Wall  -I./include
+CFLAGS= -Wall  -I./include -I./arch/${ARCH}
 
 SRC = src/lfht.c
 

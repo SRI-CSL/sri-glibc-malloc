@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef struct {
+typedef struct u128_s {
   uint64_t uno;
   uint64_t dos;
 } u128_t;
@@ -32,8 +32,8 @@ static inline unsigned int cas_128(volatile u128_t *address, u128_t old_value, u
      "setz %0\n"
      : "=q" ( result )
        , "+m" ( *address )
-     : "a" ( old_value.ptr ), "d" ( old_value.tag )
-       ,"b" ( new_value.ptr ), "c" ( new_value.tag )
+     : "a" ( old_value.uno ), "d" ( old_value.dos )
+       ,"b" ( new_value.uno ), "c" ( new_value.dos )
      : "cc"
      );
   return result;

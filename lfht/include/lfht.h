@@ -15,7 +15,10 @@ typedef struct lfht_entry_s {
 
 
 typedef struct lfht_s {
-  uint64_t max;
+  //length of the table in units of lfht_entry_t's
+  uint32_t max;
+  //the sizeof the table 
+  uint64_t sz;
   lfht_entry_t *table;
 } lfht_t;
 
@@ -34,9 +37,9 @@ typedef struct lfht_s {
      It is a hard limit.
 
 */
-extern bool init_lfht(lfht_t *ht, uint64_t max);
+extern bool init_lfht(lfht_t *ht, uint32_t max);
 
-extern bool delete_lfht(lfht_t *ht, uint64_t max);
+extern bool delete_lfht(lfht_t *ht);
 
 extern bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val);
 

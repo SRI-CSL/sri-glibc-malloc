@@ -23,7 +23,10 @@ endif
 
 CFLAGS= -Wall  -I./include -I./arch/${ARCH}
 
-SRC = src/lfht.c
+SRC_GLOBS = $(addsuffix /*.c,src)
+SRC = $(sort $(wildcard $(SRC_GLOBS)))
+
+
 
 OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
 

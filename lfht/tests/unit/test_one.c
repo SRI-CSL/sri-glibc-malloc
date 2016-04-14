@@ -6,7 +6,6 @@ uint32_t max = 16 * 4096;
 
 static lfht_t ht;
 
-extern bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val);
 
 extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
   
@@ -15,7 +14,7 @@ extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
 int main(int argc, char* argv[]){
   uint32_t i;
   bool success;
-
+  uintptr_t val;
 
   success = init_lfht(&ht, max);
 
@@ -23,11 +22,24 @@ int main(int argc, char* argv[]){
 
   for(i = 1; i <= max; i++){
     if( ! lfht_insert(&ht, i, i) ){
-      fprintf(stderr, "%s failed for i = %d\n", argv[0], i);
+      fprintf(stderr, "%s insert failed for i = %d\n", argv[0], i);
       exit(EXIT_FAILURE);
     }
   }
 
+  for(i = 1; i <= max; i++){
+    if( ! lfht_find(&ht, i, &val) ){
+      fprintf(stderr, "%s find failed for i = %d\n", argv[0], i);
+      exit(EXIT_FAILURE);
+    }
+    if(val != i){
+      fprintf(stderr, "%s find integrity failed for i = %d\n", argv[0], i);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+
+  
 
   success = delete_lfht(&ht);
 

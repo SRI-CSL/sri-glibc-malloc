@@ -52,6 +52,11 @@ lib:
 	mkdir -p lib
 
 
+UNIT_TESTS=./tests/unit
+
+check:
+	make -C ${UNIT_TESTS} check
+
 
 clean:
 	rm -f *~ *.o

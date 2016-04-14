@@ -1,10 +1,12 @@
 #include <stdlib.h>
+#include <stdio.h>
+
 #include "lfht.h"
 
 
 uint32_t max = 16 * 4096;
 
-uint32_t count = 4096;
+uint32_t count = 8 * 4096;
 
 
 static lfht_t ht;
@@ -25,18 +27,18 @@ int main(int argc, char* argv[]){
 
   for(i = 1; i <= count; i++){
     if( ! lfht_insert(&ht, i, i) ){
-      fprintf(stderr, "%s insert failed for i = %d\n", argv[0], i);
+      fprintf(stderr, "%s insert failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }
   }
 
   for(i = 1; i <= count; i++){
     if( ! lfht_find(&ht, i, &val) ){
-      fprintf(stderr, "%s find failed for i = %d\n", argv[0], i);
+      fprintf(stderr, "%s find failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }
     if(val != i){
-      fprintf(stderr, "%s find integrity failed for i = %d\n", argv[0], i);
+      fprintf(stderr, "%s find integrity failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }
   }
@@ -48,6 +50,7 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
+  fprintf(stdout, "[SUCCESS]\n");
 
   exit(EXIT_SUCCESS);
 

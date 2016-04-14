@@ -14,14 +14,16 @@ ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
 LIB = ${LIBRARYNAME}.dylib
 LIBFLAGS = -dynamiclib
+LDFLAGS =
 else
 # LINUX
 LIB = ${LIBRARYNAME}.so
 LIBFLAGS = -shared -Wl,-soname,${LIB}
+LDFLAGS = -lpthread
 endif
 
 
-CFLAGS= -Wall  -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -fPIC -I./include -I./arch/${ARCH}
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

@@ -4,6 +4,9 @@
 
 uint32_t max = 16 * 4096;
 
+uint32_t count = 4096;
+
+
 static lfht_t ht;
 
 
@@ -20,14 +23,14 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  for(i = 1; i <= max; i++){
+  for(i = 1; i <= count; i++){
     if( ! lfht_insert(&ht, i, i) ){
       fprintf(stderr, "%s insert failed for i = %d\n", argv[0], i);
       exit(EXIT_FAILURE);
     }
   }
 
-  for(i = 1; i <= max; i++){
+  for(i = 1; i <= count; i++){
     if( ! lfht_find(&ht, i, &val) ){
       fprintf(stderr, "%s find failed for i = %d\n", argv[0], i);
       exit(EXIT_FAILURE);

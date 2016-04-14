@@ -1,7 +1,5 @@
 #include <stdio.h>
 
-#include <malloc.h>
-
 #include "replaylib.h"
 
 static const bool verbose = false;
@@ -34,9 +32,5 @@ int main(int argc, char* argv[]){
 
   code = process_file(argv[1], verbose);
   
-  if (verbose) {
-    malloc_stats();
-  }
-
   return code;
 }

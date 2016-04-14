@@ -522,6 +522,8 @@ void* lfpa_malloc(size_t sz)
       return addr;
     }
     addr = MallocFromNewSB(heap);
+
+    
     if (addr) {
 #ifdef DEBUG
       fprintf(stderr, "malloc() return MallocFromNewSB %p\n", addr);

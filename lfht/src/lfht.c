@@ -12,6 +12,7 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   if(ht != NULL && max != 0){
     sz = max * sizeof(lfht_entry_t);
     addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+
     if (addr != MAP_FAILED) {
       ht->table = (lfht_entry_t *)addr;
       ht->max = max;
@@ -24,8 +25,10 @@ bool init_lfht(lfht_t *ht, uint32_t max){
 
 bool delete_lfht(lfht_t *ht){
   int retcode;
+
   if(ht != NULL && ht->table != NULL){
     retcode = munmap(ht->table, ht->sz);
+
     if(retcode == 0){
       return true;
     }
@@ -36,41 +39,33 @@ bool delete_lfht(lfht_t *ht){
 bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
-  
-  if(ht != NULL  && key != 0){
 
+  if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
-    
     mask = ht->max - 1;
-
-    j = jenkins_hash_ptr((void *)key);
-
+    j = jenkins_hash_ptr((void *)key) & mask; 
+    
     i = j;
 
-    while(1){
+    do {
 
       entry = ht->table[i];
 
       if(entry.key == 0){
+
 	if(cas_128((volatile u128_t *)&ht->table[i], *((u128_t *)&entry), *((u128_t *)&desired))){
 	  return true;
 	} else {
 	  continue;
 	}
       }
-      
-      
+
       i++;
       i &= mask;
-      
-      //ian says: shouldn't we bail if i + 1 = j?
 
-      
-    }
-
+    } while ( i != j);
   }
-  
   return false;
 }
 
@@ -79,21 +74,18 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   lfht_entry_t entry, desired;
   
   if(ht != NULL  && key != 0){
-
     desired.key = key;
     desired.val = val;
-    
     mask = ht->max - 1;
-
-    j = jenkins_hash_ptr((void *)key);
-
+    j = jenkins_hash_ptr((void *)key) & mask;
     i = j;
 
-    while(true){
+    do {
 
       entry = ht->table[i];
 
       if(entry.key == key){
+
 	if(cas_128((volatile u128_t *)&ht->table[i], *((u128_t *)&entry), *((u128_t *)&desired))){
 	  return true;
 	} else {
@@ -106,9 +98,7 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       i++;
       i &= mask;
       
-      //ian says: shouldn't we bail if i + 1 = j?
-
-    }
+    } while ( i != j);
 
   }
 	
@@ -121,17 +111,13 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   lfht_entry_t entry, desired;
   
   if(ht != NULL  && key != 0){
-
     desired.key = key;
     desired.val = val;
-    
     mask = ht->max - 1;
-
-    j = jenkins_hash_ptr((void *)key);
-
+    j = jenkins_hash_ptr((void *)key) & mask;
     i = j;
 
-    while(true){
+    do {
 
       entry = ht->table[i];
 
@@ -145,52 +131,39 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
 
       i++;
       i &= mask;
-      
-      //ian says: shouldn't we bail if i + 1 = j?
 
-    }
-
+    } while (i != j);
   }
-	
   return false;
 }
 
 bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   uint32_t mask, j, i;
-  lfht_entry_t entry;
   uint64_t kval;
     
   mask = ht->max - 1;
-  
-  j = jenkins_hash_ptr((void *)key);
-  
+  j = jenkins_hash_ptr((void *)key) & mask;
   i = j;
-
   
   if(ht != NULL && key != 0 && valp != NULL){
 
+    do {
 
-    while(true){
-
-      entry = ht->table[i];
-
-      kval = read_64((volatile uint64_t *)&entry.key);
+      kval = read_64((volatile uint64_t *)&ht->table[i].key);
 
       if(kval == 0){
 	return false;
       }
 
       if(kval == key){
-	*valp = entry.val;
+	*valp = ht->table[i].val;
 	return true;
       }
 
       i++;
       i &= mask;
       
-      //ian says: shouldn't we bail if i + 1 = j?
-
-    }
+    } while (i != j); 
   }
 
   return false;

@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-
-#include "malloc.h"
-
 #include "replaylib.h"
 
 #define MAX_THREADS  1024
@@ -92,11 +89,6 @@ int main(int argc, char* argv[]){
    }
    
   }
-  
-  if (verbose) {
-    malloc_stats();
-  }
-  
   
   pthread_exit(NULL);
 

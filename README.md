@@ -31,3 +31,8 @@ implementations.
 
 -  `ckreplay` a version of our replay that uses ck (concurrency kit).
 
+-  `lfht` a lock free hash table built from scratch (as described by Tobias Maier).
+
+-  `frolloc` our first attempt at a lock free metadata free malloc
+
+

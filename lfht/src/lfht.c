@@ -39,22 +39,22 @@ bool delete_lfht(lfht_t *ht){
 bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
-
+    
   if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
     mask = ht->max - 1;
+
     j = jenkins_hash_ptr((void *)key) & mask; 
     
     i = j;
 
-    do {
+    while (true) {
 
       entry = ht->table[i];
 
       if(entry.key == 0){
-
-	if(cas_128((volatile u128_t *)&ht->table[i], *((u128_t *)&entry), *((u128_t *)&desired))){
+	if(cas_128((volatile u128_t *)&(ht->table[i]), *((u128_t *)&entry), *((u128_t *)&desired))){
 	  return true;
 	} else {
 	  continue;
@@ -64,7 +64,10 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
       i++;
       i &= mask;
 
-    } while ( i != j);
+      if( i == j ){ break; }
+
+    }
+    
   }
   return false;
 }
@@ -80,7 +83,7 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
     j = jenkins_hash_ptr((void *)key) & mask;
     i = j;
 
-    do {
+    while (true) {
 
       entry = ht->table[i];
 
@@ -98,7 +101,9 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       i++;
       i &= mask;
       
-    } while ( i != j);
+      if( i == j ){ break; }
+
+    }
 
   }
 	
@@ -109,7 +114,7 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
 bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
-  
+
   if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
@@ -117,7 +122,7 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
     j = jenkins_hash_ptr((void *)key) & mask;
     i = j;
 
-    do {
+    while (true) {
 
       entry = ht->table[i];
 
@@ -131,8 +136,10 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
 
       i++;
       i &= mask;
+      
+      if( i == j ){ break; }
 
-    } while (i != j);
+    }
   }
   return false;
 }
@@ -147,7 +154,7 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   
   if(ht != NULL && key != 0 && valp != NULL){
 
-    do {
+    while (true) {
 
       kval = read_64((volatile uint64_t *)&ht->table[i].key);
 
@@ -163,7 +170,9 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
       i++;
       i &= mask;
       
-    } while (i != j); 
+      if( i == j ){ break; }
+      
+    }
   }
 
   return false;

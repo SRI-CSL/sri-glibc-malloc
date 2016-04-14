@@ -14,7 +14,10 @@ endif
 CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH}
 LDFLAGS=
 
-all: test_one
+
+TESTS = test_one test_two
+
+all: ${TESTS}
 
 
 %: %.c
@@ -23,12 +26,17 @@ all: test_one
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 
-check: test_one
+check: ${TESTS}
+
 	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
+	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two  32
 
 else
 
-check:
+check: ${TESTS}
+
 	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
+	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two   32
+
 endif
 

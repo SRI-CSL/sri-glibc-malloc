@@ -1,43 +1,20 @@
-#include "atomic.h"
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <inttypes.h>
 
-/*
-  Make sure our  compare_and_swap128 appears to work ok.
-  
-*/
+#include "lfht.h"
 
-#define MAX_THREADS  1024
+uint32_t max = 16 * 4096;
 
-static aba_128_t abba;
-
-bool update(aba_128_t* abbap, int val){
-  aba_128_t old;
-  aba_128_t new;
-  
-  /* attempt to read the "current" values */
-  
-  uintptr_t ptr = __atomic_load_n(&abbap->ptr, __ATOMIC_SEQ_CST);
-  old.ptr = ptr;
-  ptr  += val;
-  new.ptr = ptr;
+uint32_t count = 1000;
 
 
-  
 
-  uint64_t  tag = __atomic_load_n(&abbap->tag, __ATOMIC_SEQ_CST);
-  old.tag = tag;
-  tag  += val;
-  new.tag = tag;
+#define MAX_THREADS 64
 
- 
-  /* should fail every now and then... */
-  return compare_and_swap128(abbap, old, new);
-}
+static lfht_t tbl;
 
 typedef struct targs {
   int id;
@@ -51,14 +28,14 @@ void* thread_main(void* targ){
   targs_t* targsp = (targs_t*)targ;
   int i;
 
-  for(i = 0; i < targsp->count; i++){
-    targsp->successes += update(&abba, targsp->val);
+  for(i = 1; i <= targsp->count; i++){
+    if( lfht_insert(&tbl, i, i) ){
+      targsp->successes ++;
+    }
   }
 
   pthread_exit(NULL);
 }
-
-
 
 
 int main(int argc, char* argv[]){
@@ -69,11 +46,11 @@ int main(int argc, char* argv[]){
   targs_t targs[MAX_THREADS];
   void* status;
   int total = 0;
-  
+  bool success;
 
   if (argc != 2) {
     fprintf(stdout, "Usage: %s <nthreads>\n", argv[0]);
-    return 1;
+    exit(EXIT_FAILURE);
   }
 
   nthreads = atoi(argv[1]);
@@ -81,18 +58,18 @@ int main(int argc, char* argv[]){
   if((nthreads == 0) ||  (nthreads >= MAX_THREADS)){
     fprintf(stdout, "Usage: %s <nthreads>\n", argv[0]);
     fprintf(stdout, "\t(nthreads > 0) and (nthreads < %d)\n", MAX_THREADS);
-    return 1;
+    exit(EXIT_FAILURE);
   }
 
-  
-  abba.ptr = 0;
-  abba.tag = 0;
+  success = init_lfht(&tbl, max);
+
+  if( !success ) exit(EXIT_FAILURE);
 
   for(i = 0; i < nthreads; i++){
     targs_t *targsp = &targs[i];
     targsp->id = i;
     targsp->val = 1;
-    targsp->count = 1000;
+    targsp->count = count;
     targsp->successes = 0;
   }
 
@@ -102,7 +79,7 @@ int main(int argc, char* argv[]){
 
      if (rc){
        fprintf(stderr, "return code from pthread_create() is %d\n", rc);
-       exit(-1);
+       exit(EXIT_FAILURE);
      }
      
    }
@@ -112,21 +89,27 @@ int main(int argc, char* argv[]){
     rc = pthread_join(threads[i], &status);
     if (rc){
       fprintf(stderr, "return code from pthread_join() is %d\n", rc);
-      exit(-1);
+      exit(EXIT_FAILURE);
     }
   }
 
-
-
+  
   
   for(i = 0; i < nthreads; i++){
     total += targs[i].successes;
-    fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
+    //fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
   }
 
-  /* should all be equal */
-  fprintf(stdout, "total = %d abba.ptr = %"PRIiPTR" abba.tag = %"PRIu64"\n", total, abba.ptr,  abba.tag);
- 
+  success = delete_lfht(&tbl);
 
-  return 0;
+  if( !success ) exit(EXIT_FAILURE);
+
+  if( total != count * nthreads){
+    fprintf(stderr, "%d successes out of %d attempts\n", total, count * nthreads);
+    exit(EXIT_FAILURE);
+  }
+  
+  fprintf(stdout, "[SUCCESS]\n");
+
+  exit(EXIT_SUCCESS);
 }

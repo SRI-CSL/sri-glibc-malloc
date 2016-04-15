@@ -5,7 +5,7 @@
 
 
 
-extern void frolloc_init(void)   __attribute__((constructor)) ;
+extern void frolloc_noop(void)   __attribute__((constructor)) ;
 extern void frolloc_delete(void) __attribute__((destructor)) ;
 
 

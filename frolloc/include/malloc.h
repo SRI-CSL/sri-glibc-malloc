@@ -3,12 +3,6 @@
 
 #include <stdlib.h>
 
-
-
-extern void frolloc_noop(void)   __attribute__((constructor)) ;
-extern void frolloc_delete(void) __attribute__((destructor)) ;
-
-
 extern void* malloc(size_t sz);
 extern void free(void* ptr);
 extern void *realloc(void *object, size_t size);

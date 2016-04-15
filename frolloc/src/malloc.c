@@ -24,10 +24,9 @@
 #include "lfht.h"
 #include "util.h"
 
+#define TOMBSTONE 0
 
 static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
-
-
 
 static lfht_t desc_tbl;  // maps superblock ptr --> desc
 static lfht_t mmap_tbl;  // maps mmapped region --> size
@@ -44,14 +43,10 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 #define HTABLE_CAPACITY 16*4096
 
-__attribute__ ((__constructor__)) 
-void frolloc_noop(void) {
-
-}
-
-__attribute__ ((__destructor__))
+/* not sure how we will ever call this */
 void frolloc_delete(void)
 {
+  __initialized__ = false;
   delete_lfht(&desc_tbl);
   delete_lfht(&mmap_tbl);
 }
@@ -93,36 +88,16 @@ static void* AllocNewSB(size_t size, unsigned long alignment)
 {
   void* addr;
   
-  if(false){
-    addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  } else {
-    addr = aligned_mmap(size, alignment);
+  addr = aligned_mmap(size, alignment);
 
-    assert( alignment == 0 || ((uintptr_t)addr & ((uintptr_t)alignment - 1 )) == 0);
+  assert( alignment == 0 || ((uintptr_t)addr & ((uintptr_t)alignment - 1 )) == 0);
 
-  }
-
-  if (addr == MAP_FAILED) {
-    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
-    switch (errno) {
-    case EBADF:         fprintf(stderr, "EBADF"); break;
-    case EACCES:        fprintf(stderr, "EACCES"); break;
-    case EINVAL:        fprintf(stderr, "EINVAL"); break;
-    case ETXTBSY:       fprintf(stderr, "ETXBSY"); break;
-    case EAGAIN:        fprintf(stderr, "EAGAIN"); break;
-    case ENOMEM:        fprintf(stderr, "ENOMEM"); break;
-    case ENODEV:        fprintf(stderr, "ENODEV"); break;
-    }
-    fprintf(stderr, "\n");
+  if (addr == NULL) {
+    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL\n", size);
     fflush(stderr);
-    exit(1);
+    abort();
   }
-  else if (addr == NULL) {
-    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %"PRIu64"\n", size, queue_head.tag);
-    fflush(stderr);
-    exit(1);
-  }
-
+  
   return addr;
 }
 
@@ -159,11 +134,6 @@ static descriptor* DescAlloc() {
   descriptor_queue old_queue, new_queue;
   descriptor* desc;
   
-#ifdef DEBUG
-  fprintf(stderr, "In DescAlloc\n");
-  fflush(stderr);
-#endif
-
   while(1) {
     old_queue = queue_head;
     if (old_queue.DescAvail) {
@@ -171,25 +141,17 @@ static descriptor* DescAlloc() {
       new_queue.tag = old_queue.tag + 1;
       if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
         desc = (descriptor*)old_queue.DescAvail;
-#ifdef DEBUG
-        fprintf(stderr, "Returning recycled descriptor %p (tag %"PRIu64")\n", desc, queue_head.tag);
-        fflush(stderr);
-#endif
         break;
       }
     }
     else {
-      desc = AllocNewSB(DESCSBSIZE, 0); //sizeof(descriptor)
+      desc = AllocNewSB(DESCSBSIZE, 0); //no alignment needed
 
       organize_desc_list((void *)desc, DESCSBSIZE / sizeof(descriptor), sizeof(descriptor));
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
       if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
-#ifdef DEBUG
-        fprintf(stderr, "Returning descriptor %p from new descriptor block\n", desc);
-        fflush(stderr);
-#endif
         break;
       }
       munmap((void*)desc, DESCSBSIZE);   
@@ -203,10 +165,6 @@ void DescRetire(descriptor* desc)
 {
   descriptor_queue old_queue, new_queue;
 
-#ifdef DEBUG
-  fprintf(stderr, "Recycling descriptor %p (sb %p, tag %hu)\n", desc, desc->sb, queue_head.tag);
-  fflush(stderr);
-#endif  
   do {
     old_queue = queue_head;
     desc->Next = (descriptor*)old_queue.DescAvail;
@@ -289,16 +247,12 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
   active oldactive, newactive;
   anchor oldanchor, newanchor;
 
-#ifdef DEBUG
-  fprintf(stderr, "UpdateActive() heap->Active %p, credits %lu\n", *((void**)&heap->Active), morecredits);
-  fflush(stderr);
-#endif
-
-  //*((unsigned long long*)&oldactive) = 0;
   oldactive.ptr =  0;
   oldactive.credits = 0;
+
   newactive.ptr = (uintptr_t)desc;
   newactive.credits = morecredits - 1;
+
   if (cas_128((volatile u128_t *)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive))) {
     return;
   }
@@ -338,20 +292,12 @@ static void* MallocFromActive(procheap *heap)
     if (oldactive.credits == 0) {
       *((unsigned long long*)(&newactive)) = 0;  
       //sri: we split active and credits, so we do not need to do this
-#ifdef DEBUG
-      fprintf(stderr, "MallocFromActive() setting active to NULL, %lu, %d\n", newactive.ptr, newactive.credits);
-      fflush(stderr);
-#endif
     }
     else {
       --newactive.credits;
     }
   } while (!cas_128((volatile u128_t*)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive)));
-
-#ifdef DEBUG
-  fprintf(stderr, "MallocFromActive() heap->Active %p, credits %hu\n", *((void**)&heap->Active), oldactive.credits);
-  fflush(stderr);
-#endif
+  
 
   // Second step: pop block
   desc = mask_credits(oldactive);
@@ -360,17 +306,13 @@ static void* MallocFromActive(procheap *heap)
     newanchor = oldanchor = desc->Anchor;
     addr = (void *)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
     next = *(unsigned long *)addr;
-    newanchor.avail = next; //sri: shenanigans?
+    newanchor.avail = next; 
     ++newanchor.tag;
 
     if (oldactive.credits == 0) {
 
       // state must be ACTIVE
       if (oldanchor.count == 0) {
-#ifdef DEBUG
-        fprintf(stderr, "MallocFromActive() setting superblock %p to FULL\n", desc->sb);
-        fflush(stderr);
-#endif
         newanchor.state = FULL;
       }
       else { 
@@ -379,12 +321,6 @@ static void* MallocFromActive(procheap *heap)
       }
     } 
   } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
-
-#ifdef DEBUG
-  fprintf(stderr, "MallocFromActive() sb %p, Active %p, avail %d, oldanchor.count %hu, newanchor.count %hu, morecredits %lu, MAX %d\n", 
-          desc->sb, *((void**)&heap->Active), desc->Anchor.avail, oldanchor.count, newanchor.count, morecredits, MAXCREDITS);
-  fflush(stderr);
-#endif
 
   if (oldactive.credits == 0 && oldanchor.count > 0) {
     UpdateActive(heap, desc, morecredits);
@@ -444,19 +380,21 @@ static void* MallocFromPartial(procheap* heap)
   return ((void *)((unsigned long)addr + PTR_SIZE));
 }
 
-static void* MallocFromNewSB(procheap* heap)
+static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 {
   descriptor* desc;
   void* addr;
   active newactive, oldactive;
+
+  assert(descp != NULL);
 
   // *((unsigned long long*)&oldactive) = 0;
   oldactive.ptr = 0;
   oldactive.credits = 0;
   
   desc = DescAlloc();
-  //  desc->sb = AllocNewSB(heap->sc->sbsize, SBSIZE);
-  desc->sb = AllocNewSB(SBSIZE, SBSIZE);
+  desc->sb = AllocNewSB(heap->sc->sbsize, SBSIZE);
+  //desc->sb = AllocNewSB(SBSIZE, SBSIZE);
 
   desc->heap = heap;
   desc->Anchor.avail = 1;
@@ -466,12 +404,6 @@ static void* MallocFromNewSB(procheap* heap)
   // Organize blocks in a linked list starting with index 0.
   organize_list(desc->sb, desc->maxcount, desc->sz);
 
-#ifdef DEBUG
-  fprintf(stderr, "New SB %p associated with desc %p (sz %u, sbsize %d, heap %p, Anchor.avail %hu, Anchor.count %hu)\n", 
-          desc->sb, desc, desc->sz, heap->sc->sbsize, heap, desc->Anchor.avail, desc->Anchor.count);
-  fflush(stderr);
-#endif
-
   *((unsigned long long*)&newactive) = 0;
   newactive.ptr = (unsigned long)desc;
   newactive.credits = min(desc->maxcount - 1, MAXCREDITS) - 1;
@@ -479,19 +411,16 @@ static void* MallocFromNewSB(procheap* heap)
   desc->Anchor.count = max(((signed long)desc->maxcount - 1 ) - ((signed long)newactive.credits + 1), 0); // max added by Scott
   desc->Anchor.state = ACTIVE;
 
-#ifdef DEBUG
-  fprintf(stderr, "MallocFromNewSB() sz %u, maxcount %u, Anchor.count %hu, newactive.credits %hu, max %ld\n", 
-          desc->sz, desc->maxcount, desc->Anchor.count, newactive.credits, 
-          ((signed long)desc->maxcount - 1 ) - ((signed long)newactive.credits + 1));
-  fflush(stderr);
-#endif
-
   // memory fence.
   if (cas_128((volatile u128_t*)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive))) { 
     addr = desc->sb;
     *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
     addr += TYPE_SIZE;
     *((descriptor **)addr) = desc; 
+
+    // pass out the new descriptor
+    *descp = desc;
+
     return (void *)((unsigned long)addr + PTR_SIZE);
   } 
   else {
@@ -534,12 +463,25 @@ static void* alloc_large_block(size_t sz)
 
   addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
-  // If the highest byte of the header is 0, 
-  // then the object is large (allocated / freed directly from / to the OS)
-  *((char*)addr) = (char)LARGE;
-  addr += TYPE_SIZE;
-  *((unsigned long *)addr) = sz;
-  return (void*)(addr + PTR_SIZE); 
+  //sri: remember that we can fail ...
+  if(addr == NULL){
+    return addr;
+  } else {
+    void *ptr =  addr + HEADER_SIZE;
+    bool success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+    if( ! success ){
+      fprintf(stderr, "malloc() mmap table full\n");
+      fflush(stderr);
+      abort();
+    }
+
+    // If the highest byte of the header is 0, 
+    // then the object is large (allocated / freed directly from / to the OS)
+    *((char*)addr) = (char)LARGE;
+    addr += TYPE_SIZE;
+    *((unsigned long *)addr) = sz;
+    return (void*)(addr + PTR_SIZE); 
+  }
 }
 
 
@@ -547,6 +489,7 @@ void* malloc(size_t sz)
 { 
   procheap *heap;
   void* addr;
+  descriptor* desc = NULL;
   
   if (! __initialized__){ frolloc_init();  }
 
@@ -556,48 +499,36 @@ void* malloc(size_t sz)
     sz = 16;
   }
 
-#ifdef DEBUG
-  fprintf(stderr, "malloc() sz %lu\n", sz);
-  fflush(stderr);
-#endif
   // Use sz and thread id to find heap.
   heap = find_heap(sz);
 
   if (!heap) {
     // Large block (sri: unless the mmap fails)
     addr = alloc_large_block(sz);
-#ifdef DEBUG
-    fprintf(stderr, "Large block allocation: %p\n", addr);
-    fflush(stderr);
-#endif
     return addr;
   }
 
   while(1) { 
     addr = MallocFromActive(heap);
     if (addr) {
-#ifdef DEBUG
-      fprintf(stderr, "malloc() return MallocFromActive %p\n", addr);
-      fflush(stderr);
-#endif
       return addr;
     }
     addr = MallocFromPartial(heap);
     if (addr) {
-#ifdef DEBUG
-      fprintf(stderr, "malloc() return MallocFromPartial %p\n", addr);
-      fflush(stderr);
-#endif
       return addr;
     }
-    addr = MallocFromNewSB(heap);
+    addr = MallocFromNewSB(heap, &desc);
 
-    
+    if(desc){
+      bool success = lfht_insert(&desc_tbl, (uintptr_t)desc->sb, (uintptr_t)desc);
+      if( ! success ){
+	fprintf(stderr, "malloc() descriptor table full\n");
+	fflush(stderr);
+	abort();
+      }
+    }
+
     if (addr) {
-#ifdef DEBUG
-      fprintf(stderr, "malloc() return MallocFromNewSB %p\n", addr);
-      fflush(stderr);
-#endif
       return addr;
     }
   } 
@@ -645,26 +576,29 @@ void free(void* ptr)
 {
   descriptor* desc;
   void* sb;
+  void *optr;
   anchor oldanchor, newanchor;
   procheap* heap = NULL;
-
-#ifdef DEBUG
-  fprintf(stderr, "Calling my free %p\n", ptr);
-  fflush(stderr);
-#endif
 
   if (!ptr) {
     return;
   }
         
+  optr = ptr;
   // get prefix
   ptr = (void*)((unsigned long)ptr - HEADER_SIZE);  
   if (*((char*)ptr) == (char)LARGE) {
+    bool success;
 #ifdef DEBUG
     fprintf(stderr, "Freeing large block\n");
     fflush(stderr);
 #endif
     munmap(ptr, *((unsigned long *)(ptr + TYPE_SIZE)));
+    success = lfht_update(&mmap_tbl, (uintptr_t)optr, TOMBSTONE);
+    if( ! success ){
+      fprintf(stderr, "malloc() mmap table update failed\n");
+      fflush(stderr);
+    }    
     return;
   }
   desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
@@ -673,24 +607,16 @@ void free(void* ptr)
   do { 
     newanchor = oldanchor = desc->Anchor;
 
-    *((unsigned long*)ptr) = oldanchor.avail;    //sri: low order pointer shenanigans? i.e. storing the previous free index.
+    *((unsigned long*)ptr) = oldanchor.avail;
     newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
 
     if (oldanchor.state == FULL) {
-#ifdef DEBUG
-      fprintf(stderr, "Marking superblock %p as PARTIAL\n", sb);
-      fflush(stderr);
-#endif
       newanchor.state = PARTIAL;
     }
 
     if (oldanchor.count == desc->maxcount - 1) {
       heap = desc->heap;
       // instruction fence.
-#ifdef DEBUG
-      fprintf(stderr, "Marking superblock %p as EMPTY; count %d\n", sb, oldanchor.count);
-      fflush(stderr);
-#endif
       newanchor.state = EMPTY;
     } 
     else {
@@ -700,19 +626,15 @@ void free(void* ptr)
   } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
 
   if (newanchor.state == EMPTY) {
-#ifdef DEBUG
-    fprintf(stderr, "Freeing superblock %p with desc %p (count %hu)\n", sb, desc, desc->Anchor.count);
-    fflush(stderr);
-#endif
-
+    bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
+    if( ! success ){
+      fprintf(stderr, "malloc() desc table update failed\n");
+      fflush(stderr);
+    }    
     munmap(sb, heap->sc->sbsize);
     RemoveEmptyDesc(heap, desc);
   } 
   else if (oldanchor.state == FULL) {
-#ifdef DEBUG
-    fprintf(stderr, "Puting superblock %p to PARTIAL heap\n", sb);
-    fflush(stderr);
-#endif
     HeapPutPartial(desc);
   }
 }

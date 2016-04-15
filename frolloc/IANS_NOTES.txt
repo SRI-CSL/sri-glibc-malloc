@@ -9,9 +9,9 @@ Question 4 All: The algorithm used in arena.c looks to be somewhat contentious.
 (Paying attention to the static global aligned_heap_area). Discuss.
 But do we want to pay the fragmentation price?
 
-2. Add new SuperBlocks to the desc_tbl.
+2.[X]  Add new SuperBlocks to the desc_tbl. Still need to remove them...
 
-3. Manage mmapped memory via mmap_tbl.
+3.[X]  Manage mmapped memory via mmap_tbl.
 
 4. Write pointer2SuperBlock
 

@@ -10,8 +10,6 @@ uint32_t max = 16 * 4096;
 
 uint32_t count = 1000;
 
-
-
 #define MAX_THREADS 64
 
 static lfht_t tbl;

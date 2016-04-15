@@ -25,21 +25,21 @@
 #include "util.h"
 
 
-static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
+static sizeclass _sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 
 static void init_sizeclasses(void){
   int i;
   const int length = MAX_BLOCK_SIZE / GRANULARITY;
   for(i = 0; i < length; i++){ 
     //    memset(&sizeclasses[i].Partial, 0, sizeof(lf_fifo_queue_t));
-    sizeclasses[i].sz = GRANULARITY * (i + 1);
-    sizeclasses[i].sbsize = SBSIZE;
+    _sizeclasses[i].sz = GRANULARITY * (i + 1);
+    _sizeclasses[i].sbsize = SBSIZE;
   }
 }
 
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
-static sizeclass _sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
+static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
   {
     {LF_FIFO_QUEUE_STATIC_INIT, 16, SBSIZE},
     {LF_FIFO_QUEUE_STATIC_INIT, 32, SBSIZE},
@@ -207,7 +207,36 @@ static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 static volatile descriptor_queue queue_head;
 
 
-static void* AllocNewSB(size_t size, size_t alignment)
+static void* AllocNewSB(size_t size, unsigned long alignment)
+{
+  void* addr;
+  
+  addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (addr == MAP_FAILED) {
+    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
+    switch (errno) {
+    case EBADF:         fprintf(stderr, "EBADF"); break;
+    case EACCES:        fprintf(stderr, "EACCES"); break;
+    case EINVAL:        fprintf(stderr, "EINVAL"); break;
+    case ETXTBSY:       fprintf(stderr, "ETXBSY"); break;
+    case EAGAIN:        fprintf(stderr, "EAGAIN"); break;
+    case ENOMEM:        fprintf(stderr, "ENOMEM"); break;
+    case ENODEV:        fprintf(stderr, "ENODEV"); break;
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    exit(1);
+  }
+  else if (addr == NULL) {
+    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %"PRIu64"\n", size, queue_head.tag);
+    fflush(stderr);
+    exit(1);
+  }
+
+  return addr;
+}
+
+static void* _AllocNewSB(size_t size, size_t alignment)
 {
   void* addr = aligned_mmap(size, alignment);
   
@@ -643,9 +672,7 @@ void* malloc(size_t sz)
   procheap *heap;
   void* addr;
   
-  if (! __initialized__){
-    libinit();
-  }
+  //if (! __initialized__){ libinit();  }
 
 
   //minimum block size

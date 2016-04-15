@@ -24,6 +24,22 @@ extern uint32_t jenkins_hash_uint64(uint64_t x);
 extern uint32_t jenkins_hash_ptr(const void *p);
 
 
+
+/*
+  mmaps a region of size sz. if alignment is
+  not zero, then it must be:
+  - the same as sz
+  - a power of two
+  
+  if alignment is 0, then sz is rounded up to 
+  a multiple of PAGESIZE.
+
+*/
+
+void* aligned_mmap(size_t sz, size_t alignment);
+
+
+
 #endif
 
 

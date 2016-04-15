@@ -27,6 +27,7 @@ typedef struct Procheap procheap;
 #define	PAGESIZE	4096
 #define SBSIZE		(16 * PAGESIZE)
 #define DESCSBSIZE	(1024 * sizeof(descriptor))
+#define SB_ALIGNMENT    SBSIZE
 
 #define ACTIVE		0
 #define FULL		1
@@ -83,6 +84,18 @@ struct Procheap {
 	volatile descriptor*	Partial;	// initially NULL
 	sizeclass*		sc;		// pointer to parent sizeclass
 };
+
+static sizeclass _sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
+
+static inline void init_sizeclasses(void){
+  int i;
+  const int length = MAX_BLOCK_SIZE / GRANULARITY;
+  for(i = 0; i < length; i++){ 
+    //_sizeclasses[i].Partial = ??
+    _sizeclasses[i].sz = GRANULARITY * (i + 1);
+    _sizeclasses[i].sbsize = SBSIZE;
+  }
+}
 
 /* This is large and annoying, but it saves us from needing an 
  * initialization routine. */
@@ -218,6 +231,18 @@ static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
     {LF_FIFO_QUEUE_STATIC_INIT, MAX_BLOCK_SIZE, SBSIZE},
   };
 
+static inline long min(long a, long b)
+{
+  return a < b ? a : b;
+}
 
+static inline long max(long a, long b)
+{
+  return a > b ? a : b;
+}
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 #endif	/* __MAGED_INTERNALS_H__ */

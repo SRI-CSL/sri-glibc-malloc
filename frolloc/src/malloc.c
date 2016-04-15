@@ -16,55 +16,48 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <inttypes.h>
+
 #include "malloc.h"
 #include "malloc_internals.h"
-#include <inttypes.h>
+#include "lfht.h"
+#include "util.h"
+
+static lfht_t htbl;
+
+#define HTABLE_CAPACITY 16*4096
+
+void frolloc_init(void) 
+{
+  init_sizeclasses();
+  if( ! init_lfht(&htbl, HTABLE_CAPACITY) ){
+    fprintf(stderr, "Off to frollocing a bad start\n");
+    abort();
+  }
+}
+
+void frolloc_delete(void)
+{
+  delete_lfht(&htbl);
+}
+
+
 
 
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
-static inline long min(long a, long b)
-{
-  return a < b ? a : b;
-}
 
-static inline long max(long a, long b)
+static void* AllocNewSB(size_t size, size_t alignment)
 {
-  return a > b ? a : b;
-}
-
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
-
-static void* AllocNewSB(size_t size, unsigned long alignment)
-{
-  void* addr;
+  void* addr = aligned_mmap(size, alignment);
   
-  addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  if (addr == MAP_FAILED) {
-    fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
-    switch (errno) {
-    case EBADF:         fprintf(stderr, "EBADF"); break;
-    case EACCES:        fprintf(stderr, "EACCES"); break;
-    case EINVAL:        fprintf(stderr, "EINVAL"); break;
-    case ETXTBSY:       fprintf(stderr, "ETXBSY"); break;
-    case EAGAIN:        fprintf(stderr, "EAGAIN"); break;
-    case ENOMEM:        fprintf(stderr, "ENOMEM"); break;
-    case ENODEV:        fprintf(stderr, "ENODEV"); break;
-    }
-    fprintf(stderr, "\n");
-    fflush(stderr);
-    exit(1);
-  }
-  else if (addr == NULL) {
+  if (addr == NULL) {
     fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %"PRIu64"\n", size, queue_head.tag);
     fflush(stderr);
     exit(1);
   }
-
   return addr;
 }
 
@@ -120,7 +113,8 @@ static descriptor* DescAlloc() {
       }
     }
     else {
-      desc = AllocNewSB(DESCSBSIZE, sizeof(descriptor));
+      desc = AllocNewSB(DESCSBSIZE, 0); //sizeof(descriptor)
+
       organize_desc_list((void *)desc, DESCSBSIZE / sizeof(descriptor), sizeof(descriptor));
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
@@ -473,11 +467,7 @@ static void* alloc_large_block(size_t sz)
   return (void*)(addr + PTR_SIZE); 
 }
 
-#ifndef USE_LFPA_PREFIX
 void* malloc(size_t sz)
-#else
-void* lfpa_malloc(size_t sz)
-#endif
 { 
   procheap *heap;
   void* addr;
@@ -535,11 +525,7 @@ void* lfpa_malloc(size_t sz)
 }
 
 
-#ifndef USE_LFPA_PREFIX
 void *calloc(size_t nmemb, size_t size)
-#else
-void *lfpa_calloc(size_t nmemb, size_t size)
-#endif
 {
   void *ptr;
         
@@ -551,11 +537,7 @@ void *lfpa_calloc(size_t nmemb, size_t size)
   return memset(ptr, 0, nmemb*size);
 }
 
-#ifndef USE_LFPA_PREFIX
 void *memalign(size_t boundary, size_t size)
-#else
-void *lfpa_memalign(size_t boundary, size_t size)
-#endif
 {
   void *p;
 
@@ -567,7 +549,6 @@ void *lfpa_memalign(size_t boundary, size_t size)
   return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
 }
 
-#ifndef USE_LFPA_PREFIX
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
   *memptr = memalign(alignment, size);
@@ -579,27 +560,9 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
     return -1;
   }
 }
-#else
-int lfpa_posix_memalign(void **memptr, size_t alignment, size_t size)
-{
-  *memptr = lfpa_memalign(alignment, size);
-  if (*memptr) {
-    return 0;
-  }
-  else {
-    /* We have to "personalize" the return value according to the error */
-    return -1;
-  }
-}
-#endif
 
 
-
-#ifndef USE_LFPA_PREFIX
 void free(void* ptr) 
-#else
-void lfpa_free(void* ptr) 
-#endif
 {
   descriptor* desc;
   void* sb;
@@ -675,11 +638,7 @@ void lfpa_free(void* ptr)
   }
 }
 
-#ifndef USE_LFPA_PREFIX
 void *realloc(void *object, size_t size)
-#else
-void *lfpa_realloc(void *object, size_t size)
-#endif
 {
   descriptor* desc;
   void* header;
@@ -726,9 +685,6 @@ void *lfpa_realloc(void *object, size_t size)
 }
 
 
-#ifndef USE_LFPA_PREFIX
-#else
-#endif
 void malloc_stats(void){
    fprintf(stderr, "malloc_stats coming soon(ish)\n");
 }

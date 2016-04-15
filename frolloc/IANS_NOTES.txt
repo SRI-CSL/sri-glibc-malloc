@@ -2,23 +2,16 @@
 0[X]. Figure out a good way to make sure the lfht_t is initialized.
 (I guess we wil need an initialization routine after all).
 
-Question 4 All: I need help with:
-
-static inline void init_sizeclasses(void)
-
-in malloc_internals.h.
-
-
 1[X]. Fix AllocNewSB to actually handle the alignment argument.
-Need to check it, also need to see what sizeof(descriptor) is.
+Need to debug it, getting alignment crashes.
 
 Question 4 All: The algorithm used in arena.c looks to be somewhat contentious. 
 (Paying attention to the static global aligned_heap_area). Discuss.
 But do we want to pay the fragmentation price?
 
-2. Add new SuperBlocks to the lfht.
+2. Add new SuperBlocks to the desc_tbl.
 
-3. Decide what to do with mmapped memory.
+3. Manage mmapped memory via mmap_tbl.
 
 4. Write pointer2SuperBlock
 

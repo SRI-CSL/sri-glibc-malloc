@@ -25,155 +25,20 @@
 #include "util.h"
 
 
-static sizeclass _sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
-
-static void init_sizeclasses(void){
-  int i;
-  const int length = MAX_BLOCK_SIZE / GRANULARITY;
-  for(i = 0; i < length; i++){ 
-    //    memset(&sizeclasses[i].Partial, 0, sizeof(lf_fifo_queue_t));
-    _sizeclasses[i].sz = GRANULARITY * (i + 1);
-    _sizeclasses[i].sbsize = SBSIZE;
-  }
-}
-
-/* This is large and annoying, but it saves us from needing an 
- * initialization routine. */
-static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
-  {
-    {LF_FIFO_QUEUE_STATIC_INIT, 16, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 32, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 48, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 64, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 80, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 96, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 112, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 128, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 144, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 160, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 176, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 192, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 208, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 224, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 240, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 256, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 272, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 288, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 304, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 320, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 336, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 352, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 368, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 384, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 400, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 416, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 432, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 448, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 464, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 480, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 496, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 512, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 528, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 544, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 560, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 576, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 592, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 608, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 624, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 640, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 656, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 672, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 688, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 704, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 720, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 736, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 752, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 768, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 784, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 800, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 816, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 832, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 848, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 864, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 880, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 896, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 912, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 928, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 944, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 960, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 976, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 992, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1008, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1024, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1040, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1056, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1072, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1088, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1104, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1120, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1136, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1152, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1168, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1184, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1200, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1216, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1232, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1248, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1264, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1280, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1296, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1312, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1328, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1344, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1360, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1376, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1392, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1408, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1424, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1440, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1456, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1472, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1488, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1504, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1520, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1536, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1552, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1568, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1584, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1600, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1616, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1632, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1648, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1664, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1680, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1696, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1712, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1728, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1744, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1760, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1776, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1792, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1808, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1824, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1840, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1856, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1872, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1888, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1904, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1920, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1936, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1952, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1968, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 1984, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 2000, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 2016, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, 2032, SBSIZE},
-    {LF_FIFO_QUEUE_STATIC_INIT, MAX_BLOCK_SIZE, SBSIZE},
-  };
+static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 
 
-static lfht_t htbl;
 
+static lfht_t desc_tbl;  // maps superblock ptr --> desc
+static lfht_t mmap_tbl;  // maps mmapped region --> size
+
+/*
+  The attribute __constructor__ mechanism cannot be safely relied upon
+  to guarantee initialization prior to use. So we rely on a single
+  lock. Once the library has been successfully initialized we never
+  touch the lock again. But here it is, in all it's non-lock-free
+  glory.
+*/
 static volatile bool __initialized__ = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -184,34 +49,59 @@ void frolloc_noop(void) {
 
 }
 
-void frolloc_init(void) 
-{
-  init_sizeclasses();
-  if( ! init_lfht(&htbl, HTABLE_CAPACITY) ){
-    fprintf(stderr, "Off to frollocing a bad start\n");
-    abort();
-  }
-}
-
 __attribute__ ((__destructor__))
 void frolloc_delete(void)
 {
-  delete_lfht(&htbl);
+  delete_lfht(&desc_tbl);
+  delete_lfht(&mmap_tbl);
 }
-
-
 
 
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
+static void init_sizeclasses(void){
+  int i;
+  const int length = MAX_BLOCK_SIZE / GRANULARITY;
+  for(i = 0; i < length; i++){ 
+    sizeclasses[i].sz = GRANULARITY * (i + 1);
+    sizeclasses[i].sbsize = SBSIZE;
+  }
+}
+
+void frolloc_init(void) 
+{
+  pthread_mutex_lock(&lock);
+  if( __initialized__ ){
+    pthread_mutex_unlock(&lock);
+    return;
+  }
+  init_sizeclasses();
+  if( ! init_lfht(&desc_tbl, HTABLE_CAPACITY) ||  
+      ! init_lfht(&mmap_tbl, HTABLE_CAPACITY)  ){
+    fprintf(stderr, "Off to frollocing a bad start\n");
+    abort();
+  }
+  __initialized__ = true;
+  pthread_mutex_unlock(&lock);
+  return;
+}
+
 
 static void* AllocNewSB(size_t size, unsigned long alignment)
 {
   void* addr;
   
-  addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if(false){
+    addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  } else {
+    addr = aligned_mmap(size, alignment);
+
+    assert( alignment == 0 || ((uintptr_t)addr & ((uintptr_t)alignment - 1 )) == 0);
+
+  }
+
   if (addr == MAP_FAILED) {
     fprintf(stderr, "AllocNewSB() mmap failed, %lu, tag %"PRIu64": ", size, queue_head.tag);
     switch (errno) {
@@ -236,17 +126,6 @@ static void* AllocNewSB(size_t size, unsigned long alignment)
   return addr;
 }
 
-static void* _AllocNewSB(size_t size, size_t alignment)
-{
-  void* addr = aligned_mmap(size, alignment);
-  
-  if (addr == NULL) {
-    fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL, tag %"PRIu64"\n", size, queue_head.tag);
-    fflush(stderr);
-    exit(1);
-  }
-  return addr;
-}
 
 static void organize_desc_list(descriptor* start, unsigned long count, unsigned long stride)
 {
@@ -452,11 +331,13 @@ static void* MallocFromActive(procheap *heap)
   // First step: reserve block
   do { 
     newactive = oldactive = heap->Active;
-    if (!(*((unsigned long long*)(&oldactive)))) {   //sri: we split active and credits, so we do not need to do this
+    if (!(*((unsigned long long*)(&oldactive)))) {   
+      //sri: we split active and credits, so we do not need to do this
       return NULL;
     }
     if (oldactive.credits == 0) {
-      *((unsigned long long*)(&newactive)) = 0;  //sri: we split active and credits, so we do not need to do this
+      *((unsigned long long*)(&newactive)) = 0;  
+      //sri: we split active and credits, so we do not need to do this
 #ifdef DEBUG
       fprintf(stderr, "MallocFromActive() setting active to NULL, %lu, %d\n", newactive.ptr, newactive.credits);
       fflush(stderr);
@@ -646,33 +527,28 @@ static procheap* find_heap(size_t sz)
 static void* alloc_large_block(size_t sz)
 {
   void* addr;
-  addr = mmap(NULL, sz + HEADER_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  
+  sz = align_up(sz, GRANULARITY);
 
-  // If the highest bit of the descriptor is 1, then the object is large (allocated / freed directly from / to the OS)
+  sz += HEADER_SIZE;
+
+  addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+
+  // If the highest byte of the header is 0, 
+  // then the object is large (allocated / freed directly from / to the OS)
   *((char*)addr) = (char)LARGE;
   addr += TYPE_SIZE;
-  *((unsigned long *)addr) = sz + HEADER_SIZE;
+  *((unsigned long *)addr) = sz;
   return (void*)(addr + PTR_SIZE); 
 }
 
-void libinit(void){
-  pthread_mutex_lock(&lock);
-  if( __initialized__ ){
-    pthread_mutex_unlock(&lock);
-    return;
-  }
-  frolloc_init();
-  __initialized__ = true;
-  pthread_mutex_unlock(&lock);
-  return;
-}
 
 void* malloc(size_t sz)
 { 
   procheap *heap;
   void* addr;
   
-  //if (! __initialized__){ libinit();  }
+  if (! __initialized__){ frolloc_init();  }
 
 
   //minimum block size
@@ -860,8 +736,12 @@ void *realloc(void *object, size_t size)
   header = (void*)((unsigned long)object - HEADER_SIZE);  
 
   if (*((char*)header) == (char)LARGE) {
-    osize = *((unsigned long *)(header + TYPE_SIZE));
+    // the size in the header is the size of the entire mmap region
+    // (i.e. client sz + HEADER_SIZE), when we copy below we will
+    // only be copying the client memory, not the header.
+    osize = *((unsigned long *)(header + TYPE_SIZE)) - HEADER_SIZE;
     ret = malloc(size);
+
     minsize = osize;
     /* note that we could be getting smaller NOT larger */
     if(osize > size){

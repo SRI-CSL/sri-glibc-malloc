@@ -44,15 +44,6 @@ uint32_t jenkins_hash_ptr(const void *p) {
 }
 
 
-static inline size_t align_up(size_t value, size_t align)
-{
-  if ( value & (align - 1) ){
-    return (value + (align - 1)) & ~(align - 1);
-  } else {
-    return value;
-  }
-}
-
 static inline void *__mmap(void *addr, size_t length, int prot, int flags)
 {
   return mmap(addr, length, prot, flags|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
@@ -69,14 +60,18 @@ void* aligned_mmap(size_t size, size_t alignment)
 
   assert( alignment == 0 || alignment == size );
 
+  assert( alignment == 0 || size % 16 == 0);
+
+
   size = align_up(size, PAGESIZE);
 
-
   /* just a plain mmap if we have no alignment constraints */
-  if( !alignment ) {
+  if( ! alignment ) {
+    
+    assert(size % 16 == 0);
 
     addr = __mmap(0, size, PROT_READ | PROT_WRITE, 0);
-    
+
     return addr == MAP_FAILED ? NULL : addr;
 
   } else {
@@ -84,7 +79,7 @@ void* aligned_mmap(size_t size, size_t alignment)
     p1 = (char *) __mmap (0, alignment << 1, PROT_NONE, MAP_NORESERVE);
     if (p1 != MAP_FAILED)
       {
-	p2 = (char *) (((uintptr_t) p1 + (alignment - 1)) & ~(alignment - 1));
+	p2 = (char *) (((uintptr_t) p1 + ((uintptr_t)alignment - 1)) & ~((uintptr_t)alignment - 1));
 	ul = p2 - p1;
 	if (ul){
 	  munmap (p1, ul);
@@ -94,7 +89,7 @@ void* aligned_mmap(size_t size, size_t alignment)
       }
     else
       {
-	/* Pray that an allocation of only 'alignment' bytes is already aligned. */
+	/* Maybe an allocation of only 'alignment' bytes is already aligned. */
 	p2 = (char *) __mmap (0, alignment, PROT_NONE, MAP_NORESERVE);
 	if (p2 == MAP_FAILED){
 	  return 0;
@@ -108,12 +103,14 @@ void* aligned_mmap(size_t size, size_t alignment)
 	}
       }
   }
-  if (mprotect (p2, size, PROT_READ | PROT_WRITE) != 0)
+  if (mprotect (p2, alignment, PROT_READ | PROT_WRITE) != 0)
     {
       munmap (p2, alignment);
       return 0;
     }
   
+  
+
   return p2;
 
 } 

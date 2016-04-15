@@ -18,6 +18,12 @@ static inline size_t mod_power_of_two(uint64_t x, uint64_t y){
   return x & (y - 1);
 }
 
+static inline size_t align_up(size_t value, size_t align)
+{
+  assert(is_power_of_two(align));
+  return (value + (align - 1)) & ~(align - 1);
+}
+
 
 extern uint32_t jenkins_hash_uint64(uint64_t x);
 

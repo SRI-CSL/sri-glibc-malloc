@@ -661,7 +661,20 @@ void free(void* ptr)
     return;
   }
   desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
-        
+
+  //<temporary metadata check>
+  const descriptor* tdesc = pointer2Descriptor(optr);
+  if( ! tdesc ){
+    fprintf(stderr, "free(): desc table find failed.\n");
+    fflush(stderr);
+  } else if( tdesc != desc ){
+    fprintf(stderr, "free(): mmap table find sizes conflict tdesc = %p, desc = %p.\n", tdesc, desc);
+    fflush(stderr);
+  }
+  //</temporary metadata check>
+  
+
+  
   sb = desc->sb;
   do { 
     newanchor = oldanchor = desc->Anchor;
@@ -727,10 +740,10 @@ void *realloc(void *object, size_t size)
     uintptr_t val = NULL;
     success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
     if( ! success ){
-      fprintf(stderr, "realloc(): mmap table find failed in free\n");
+      fprintf(stderr, "realloc(): mmap table find failed.\n");
       fflush(stderr);
     } else if( sz != val ){
-      fprintf(stderr, "realloc(): mmap table find sizes conflict sz = %zu, val = %zu\n", sz, val);
+      fprintf(stderr, "realloc(): mmap table find sizes conflict sz = %zu, val = %zu.\n", sz, val);
       fflush(stderr);
     }
 
@@ -762,7 +775,22 @@ void *realloc(void *object, size_t size)
     
   }
   else {
+
     desc = *((descriptor**)((unsigned long)header + TYPE_SIZE));
+
+    //<temporary metadata check>
+    const descriptor* tdesc = pointer2Descriptor(object);
+    if( ! tdesc ){
+      fprintf(stderr, "realloc(): desc table find failed.\n");
+      fflush(stderr);
+    } else if( tdesc != desc ){
+      fprintf(stderr, "realloc(): mmap table find sizes conflict tdesc = %p, desc = %p\n", tdesc, desc);
+      fflush(stderr);
+    }
+    //</temporary metadata check>
+
+
+    
     if (size <= desc->sz - HEADER_SIZE) {
       ret = object;
     }

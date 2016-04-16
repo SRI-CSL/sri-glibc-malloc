@@ -676,7 +676,11 @@ void free(void* ptr)
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(optr);
     if( ! tdesc ){
-      fprintf(stderr, "free(%p): desc table find failed. Should have been %p\n", optr, desc);
+      void *sb = NULL;
+      if(desc != NULL){
+	sb = desc->sb;
+      }
+      fprintf(stderr, "free(%p): desc table find failed. Should have been %p\n", optr, sb);
       fflush(stderr);
     } else if( tdesc != desc ){
       fprintf(stderr, "free(%p): desc table find sizes conflict tdesc = %p, desc = %p.\n", optr, tdesc, desc);
@@ -789,7 +793,7 @@ void *realloc(void *object, size_t size)
     
   }
   else {
-
+    
     assert( ! is_mmapped(object, NULL));
 
     
@@ -797,8 +801,12 @@ void *realloc(void *object, size_t size)
 
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(object);
+    void *sb = NULL;
     if( ! tdesc ){
-      fprintf(stderr, "realloc(%p): desc table find failed. Should have been %p\n", object, desc);
+      if(desc != NULL){
+	sb = desc->sb;
+      }
+      fprintf(stderr, "realloc(%p): desc table find failed. Should have been %p\n", object, sb);
       fflush(stderr);
     } else if( tdesc != desc ){
       fprintf(stderr, "realloc(%p): mmap table find sizes conflict tdesc = %p, desc = %p\n", object, tdesc, desc);

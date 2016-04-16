@@ -648,10 +648,10 @@ void free(void* ptr)
     uintptr_t val = NULL;
     success = lfht_find(&mmap_tbl, (uintptr_t)optr, &val);
     if( ! success ){
-      fprintf(stderr, "free(): mmap table find failed in free\n");
+      fprintf(stderr, "free(%p): mmap table find failed in free\n", optr);
       fflush(stderr);
     } else if( sz != val ){
-      fprintf(stderr, "free(): mmap table find sizes conflict sz = %zu, val = %zu\n", sz, val);
+      fprintf(stderr, "free(%p): mmap table find sizes conflict sz = %zu, val = %zu\n", optr, sz, val);
       fflush(stderr);
     }
 
@@ -676,10 +676,10 @@ void free(void* ptr)
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(optr);
     if( ! tdesc ){
-      fprintf(stderr, "free(): desc table find failed.\n");
+      fprintf(stderr, "free(%p): desc table find failed.\n", optr);
       fflush(stderr);
     } else if( tdesc != desc ){
-      fprintf(stderr, "free(): mmap table find sizes conflict tdesc = %p, desc = %p.\n", tdesc, desc);
+      fprintf(stderr, "free(%p): desc table find sizes conflict tdesc = %p, desc = %p.\n", optr, tdesc, desc);
       fflush(stderr);
     }
     //</temporary metadata check>
@@ -754,10 +754,10 @@ void *realloc(void *object, size_t size)
     uintptr_t val = NULL;
     success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
     if( ! success ){
-      fprintf(stderr, "realloc(): mmap table find failed.\n");
+      fprintf(stderr, "realloc(%p): mmap table find failed.\n", object);
       fflush(stderr);
     } else if( sz != val ){
-      fprintf(stderr, "realloc(): mmap table find sizes conflict sz = %zu, val = %zu.\n", sz, val);
+      fprintf(stderr, "realloc(%p): mmap table find sizes conflict sz = %zu, val = %zu.\n", object, sz, val);
       fflush(stderr);
     }
 
@@ -798,10 +798,10 @@ void *realloc(void *object, size_t size)
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(object);
     if( ! tdesc ){
-      fprintf(stderr, "realloc(): desc table find failed.\n");
+      fprintf(stderr, "realloc(%p): desc table find failed.\n", object);
       fflush(stderr);
     } else if( tdesc != desc ){
-      fprintf(stderr, "realloc(): mmap table find sizes conflict tdesc = %p, desc = %p\n", tdesc, desc);
+      fprintf(stderr, "realloc(%p): mmap table find sizes conflict tdesc = %p, desc = %p\n", object, tdesc, desc);
       fflush(stderr);
     }
     //</temporary metadata check>

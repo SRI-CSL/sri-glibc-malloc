@@ -26,7 +26,9 @@
 
 /* 
    Just a placeholder to mark where we *really* should be using
-   lfht_delete if we had it.
+   lfht_delete if we had it. Note that in our world 0 is an 
+   invalid value for either a descriptor ptr or the size of
+   a mmapped region.
 */
 #define TOMBSTONE 0
 
@@ -645,7 +647,6 @@ void free(void* ptr)
     sz = *((unsigned long *)(ptr + TYPE_SIZE));
     
     //<temporary metadata check>
-
     uintptr_t val = NULL;
     success = lfht_find(&mmap_tbl, (uintptr_t)optr, &val);
     if( ! success ){
@@ -655,8 +656,6 @@ void free(void* ptr)
       fprintf(stderr, "free(%p): mmap table find sizes conflict sz = %zu, val = %zu\n", optr, sz, val);
       fflush(stderr);
     }
-
-
     //</temporary metadata check>
 
 
@@ -755,7 +754,6 @@ void *realloc(void *object, size_t size)
     assert(is_mmapped(object, NULL));
     
     //<temporary metadata check>
-
     uintptr_t val = NULL;
     success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
     if( ! success ){
@@ -765,8 +763,6 @@ void *realloc(void *object, size_t size)
       fprintf(stderr, "realloc(%p): mmap table find sizes conflict sz = %zu, val = %zu.\n", object, sz, val);
       fflush(stderr);
     }
-
-
     //</temporary metadata check>
 
     

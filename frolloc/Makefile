@@ -21,7 +21,7 @@ endif
 
 OPT= -O3 -ggdb
 
-CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -DNDEBUG -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

@@ -13,7 +13,7 @@ But do we want to pay the fragmentation price?
 
 3.[X]  Manage mmapped memory via mmap_tbl.
 
-4. Write pointer2SuperBlock
+4.[X] Write pointer2SuperBlock
 
 5. Get to a twinned state.
 

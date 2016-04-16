@@ -87,6 +87,25 @@ void frolloc_init(void)
   return;
 }
 
+static descriptor* pointer2Descriptor(void *ptr){
+  uintptr_t val = 0, key = ((uintptr_t)ptr & ~(SBSIZE - 1));
+  bool success = lfht_find(&desc_tbl, key, &val);
+
+  return success ? (descriptor*)val : NULL;
+}
+
+static bool is_mmapped(void *ptr, size_t* szp){
+  uintptr_t addr;
+
+  assert(szp != NULL);
+
+  addr = (uintptr_t)((char*)ptr - HEADER_SIZE);
+  return lfht_find(&mmap_tbl, addr, szp);
+}
+
+#define heap_for_ptr(ptr) \
+ ((heap_info *)((unsigned long)(ptr) & ~(HEAP_MAX_SIZE-1)))
+
 
 static void* AllocNewSB(size_t size, unsigned long alignment)
 {

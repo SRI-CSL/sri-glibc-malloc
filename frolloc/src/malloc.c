@@ -568,7 +568,8 @@ void* malloc(size_t sz)
     addr = MallocFromNewSB(heap, &desc);
 
     if(desc){
-      bool success = lfht_insert(&desc_tbl, (uintptr_t)desc->sb, (uintptr_t)desc);
+      //note bene: we could be recycling a super block!
+      bool success = lfht_insert_or_update(&desc_tbl, (uintptr_t)desc->sb, (uintptr_t)desc);
       if( ! success ){
 	fprintf(stderr, "malloc() descriptor table full\n");
 	fflush(stderr);
@@ -683,7 +684,7 @@ void free(void* ptr)
       fprintf(stderr, "free(%p): desc table find failed. Should have been %p\n", optr, sb);
       fflush(stderr);
     } else if( tdesc != desc ){
-      fprintf(stderr, "free(%p): desc table find sizes conflict tdesc = %p, desc = %p.\n", optr, tdesc, desc);
+      fprintf(stderr, "free(%p): desc table find descriptor conflicts tdesc = %p, desc = %p.\n", optr, tdesc, desc);
       fflush(stderr);
     }
     //</temporary metadata check>
@@ -809,7 +810,7 @@ void *realloc(void *object, size_t size)
       fprintf(stderr, "realloc(%p): desc table find failed. Should have been %p\n", object, sb);
       fflush(stderr);
     } else if( tdesc != desc ){
-      fprintf(stderr, "realloc(%p): mmap table find sizes conflict tdesc = %p, desc = %p\n", object, tdesc, desc);
+      fprintf(stderr, "realloc(%p): desc table find descriptor conflict tdesc = %p, desc = %p\n", object, tdesc, desc);
       fflush(stderr);
     }
     //</temporary metadata check>

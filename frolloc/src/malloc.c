@@ -24,6 +24,10 @@
 #include "lfht.h"
 #include "util.h"
 
+/* 
+   Just a placeholder to mark where we *really* should be using
+   lfht_delete if we had it.
+*/
 #define TOMBSTONE 0
 
 static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
@@ -139,7 +143,9 @@ static descriptor* DescAlloc() {
     if (old_queue.DescAvail) {
       new_queue.DescAvail = (uintptr_t)((descriptor*)old_queue.DescAvail)->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
+      if (cas_128((volatile u128_t*)&queue_head, 
+		  *((u128_t*)&old_queue), 
+		  *((u128_t*)&new_queue))) {
         desc = (descriptor*)old_queue.DescAvail;
         break;
       }
@@ -151,7 +157,9 @@ static descriptor* DescAlloc() {
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
+      if (cas_128((volatile u128_t*)&queue_head, 
+		  *((u128_t*)&old_queue), 
+		  *((u128_t*)&new_queue))) {
         break;
       }
       munmap((void*)desc, DESCSBSIZE);   
@@ -170,7 +178,9 @@ void DescRetire(descriptor* desc)
     desc->Next = (descriptor*)old_queue.DescAvail;
     new_queue.DescAvail = (uintptr_t)desc;
     new_queue.tag = old_queue.tag + 1;
-  } while (!cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue)));
+  } while (!cas_128((volatile u128_t*)&queue_head, 
+		    *((u128_t*)&old_queue), 
+		    *((u128_t*)&new_queue)));
 }
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
@@ -253,7 +263,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
   newactive.ptr = (uintptr_t)desc;
   newactive.credits = morecredits - 1;
 
-  if (cas_128((volatile u128_t *)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive))) {
+  if (cas_128((volatile u128_t *)&heap->Active,
+	      *((u128_t*)&oldactive), 
+	      *((u128_t*)&newactive))) {
     return;
   }
 
@@ -263,7 +275,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
     newanchor = oldanchor = desc->Anchor;
     newanchor.count += morecredits;
     newanchor.state = PARTIAL;
-  } while (!cas_64((volatile uintptr_t *)&desc->Anchor, *((uintptr_t*)&oldanchor), *((uintptr_t*)&newanchor)));
+  } while (!cas_64((volatile uintptr_t *)&desc->Anchor, 
+		   *((uintptr_t*)&oldanchor), 
+		   *((uintptr_t*)&newanchor)));
 
   HeapPutPartial(desc);
 }
@@ -296,7 +310,9 @@ static void* MallocFromActive(procheap *heap)
     else {
       --newactive.credits;
     }
-  } while (!cas_128((volatile u128_t*)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive)));
+  } while (!cas_128((volatile u128_t*)&heap->Active, 
+		    *((u128_t*)&oldactive), 
+		    *((u128_t*)&newactive)));
   
 
   // Second step: pop block
@@ -320,7 +336,9 @@ static void* MallocFromActive(procheap *heap)
         newanchor.count -= morecredits;
       }
     } 
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
+		   *((unsigned long*)&oldanchor), 
+		   *((unsigned long*)&newanchor)));
 
   if (oldactive.credits == 0 && oldanchor.count > 0) {
     UpdateActive(heap, desc, morecredits);
@@ -359,7 +377,9 @@ static void* MallocFromPartial(procheap* heap)
     morecredits = min(oldanchor.count - 1, MAXCREDITS);
     newanchor.count -= morecredits + 1;
     newanchor.state = (morecredits > 0) ? ACTIVE : FULL;
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
+		   *((unsigned long*)&oldanchor), 
+		   *((unsigned long*)&newanchor)));
 
   do { 
     // pop reserved block
@@ -368,7 +388,9 @@ static void* MallocFromPartial(procheap* heap)
 
     newanchor.avail = *(unsigned long*)addr;
     ++newanchor.tag;
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
+		   *((unsigned long*)&oldanchor), 
+		   *((unsigned long*)&newanchor)));
 
   if (morecredits > 0) {
     UpdateActive(heap, desc, morecredits);
@@ -412,7 +434,9 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   desc->Anchor.state = ACTIVE;
 
   // memory fence.
-  if (cas_128((volatile u128_t*)&heap->Active, *((u128_t*)&oldactive), *((u128_t*)&newactive))) { 
+  if (cas_128((volatile u128_t*)&heap->Active, 
+	      *((u128_t*)&oldactive), 
+	      *((u128_t*)&newactive))) { 
     addr = desc->sb;
     *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
     addr += TYPE_SIZE;
@@ -623,7 +647,9 @@ void free(void* ptr)
       ++newanchor.count;
     }
     // memory fence.
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, *((unsigned long*)&oldanchor), *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
+		   *((unsigned long*)&oldanchor), 
+		   *((unsigned long*)&newanchor)));
 
   if (newanchor.state == EMPTY) {
     bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);

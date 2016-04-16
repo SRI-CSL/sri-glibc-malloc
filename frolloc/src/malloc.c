@@ -632,14 +632,30 @@ void free(void* ptr)
   ptr = (void*)((unsigned long)ptr - HEADER_SIZE);  
   if (*((char*)ptr) == (char)LARGE) {
     bool success;
-#ifdef DEBUG
-    fprintf(stderr, "Freeing large block\n");
-    fflush(stderr);
-#endif
-    munmap(ptr, *((unsigned long *)(ptr + TYPE_SIZE)));
+    size_t sz;
+
+    sz = *((unsigned long *)(ptr + TYPE_SIZE));
+    
+    //<temporary metadata check>
+
+    uintptr_t val = NULL;
+    success = lfht_find(&mmap_tbl, (uintptr_t)optr, &val);
+    if( ! success ){
+      fprintf(stderr, "free(): mmap table find failed in free\n");
+      fflush(stderr);
+    } else if( sz != val ){
+      fprintf(stderr, "free(): mmap table find sizes conflict sz = %zu, val = %zu\n", sz, val);
+      fflush(stderr);
+    }
+
+
+    //</temporary metadata check>
+
+
+    munmap(ptr, sz);
     success = lfht_update(&mmap_tbl, (uintptr_t)optr, TOMBSTONE);
     if( ! success ){
-      fprintf(stderr, "malloc() mmap table update failed\n");
+      fprintf(stderr, "free(): mmap table update failed\n");
       fflush(stderr);
     }    
     return;
@@ -691,7 +707,8 @@ void *realloc(void *object, size_t size)
   void* ret;
   size_t osize;
   size_t minsize;
-
+  bool success;
+  
   if (object == NULL) {
     return malloc(size);
   }
@@ -703,10 +720,28 @@ void *realloc(void *object, size_t size)
   header = (void*)((unsigned long)object - HEADER_SIZE);  
 
   if (*((char*)header) == (char)LARGE) {
+    size_t sz = *((unsigned long *)(header + TYPE_SIZE));
+    
+    //<temporary metadata check>
+
+    uintptr_t val = NULL;
+    success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
+    if( ! success ){
+      fprintf(stderr, "realloc(): mmap table find failed in free\n");
+      fflush(stderr);
+    } else if( sz != val ){
+      fprintf(stderr, "realloc(): mmap table find sizes conflict sz = %zu, val = %zu\n", sz, val);
+      fflush(stderr);
+    }
+
+
+    //</temporary metadata check>
+
+    
     // the size in the header is the size of the entire mmap region
     // (i.e. client sz + HEADER_SIZE), when we copy below we will
     // only be copying the client memory, not the header.
-    osize = *((unsigned long *)(header + TYPE_SIZE)) - HEADER_SIZE;
+    osize = sz - HEADER_SIZE;
     ret = malloc(size);
 
     minsize = osize;
@@ -717,6 +752,13 @@ void *realloc(void *object, size_t size)
 
     memcpy(ret, object, minsize);
     munmap(object, osize);
+    
+    success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
+    if( ! success ){
+      fprintf(stderr, "malloc() mmap table update failed\n");
+      fflush(stderr);
+    }    
+
     
   }
   else {

@@ -95,12 +95,17 @@ static descriptor* pointer2Descriptor(void *ptr){
 }
 
 static bool is_mmapped(void *ptr, size_t* szp){
-  uintptr_t addr;
+  uintptr_t val;
+  bool success = false;
+  
+  success = lfht_find(&mmap_tbl, ( uintptr_t)ptr, &val);
 
-  assert(szp != NULL);
-
-  addr = (uintptr_t)((char*)ptr - HEADER_SIZE);
-  return lfht_find(&mmap_tbl, addr, szp);
+  if(success){
+    if( szp != NULL ){ *szp = val; }
+  }
+  //note bene: having val TOMBSTONE means it has been freed and could now be
+  //part of a super block!
+  return val == TOMBSTONE ? false : success;
 }
 
 #define heap_for_ptr(ptr) \
@@ -634,6 +639,8 @@ void free(void* ptr)
     bool success;
     size_t sz;
 
+    assert(is_mmapped(optr, NULL));
+
     sz = *((unsigned long *)(ptr + TYPE_SIZE));
     
     //<temporary metadata check>
@@ -660,56 +667,61 @@ void free(void* ptr)
     }    
     return;
   }
-  desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
+  else {
 
-  //<temporary metadata check>
-  const descriptor* tdesc = pointer2Descriptor(optr);
-  if( ! tdesc ){
-    fprintf(stderr, "free(): desc table find failed.\n");
-    fflush(stderr);
-  } else if( tdesc != desc ){
-    fprintf(stderr, "free(): mmap table find sizes conflict tdesc = %p, desc = %p.\n", tdesc, desc);
-    fflush(stderr);
-  }
-  //</temporary metadata check>
-  
+    assert( ! is_mmapped(optr, NULL));
 
-  
-  sb = desc->sb;
-  do { 
-    newanchor = oldanchor = desc->Anchor;
+    desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
 
-    *((unsigned long*)ptr) = oldanchor.avail;
-    newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
-
-    if (oldanchor.state == FULL) {
-      newanchor.state = PARTIAL;
-    }
-
-    if (oldanchor.count == desc->maxcount - 1) {
-      heap = desc->heap;
-      // instruction fence.
-      newanchor.state = EMPTY;
-    } 
-    else {
-      ++newanchor.count;
-    }
-    // memory fence.
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
-		   *((unsigned long*)&oldanchor), 
-		   *((unsigned long*)&newanchor)));
-
-  if (newanchor.state == EMPTY) {
-    bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
-    if( ! success ){
-      fprintf(stderr, "malloc() desc table update failed\n");
+    //<temporary metadata check>
+    const descriptor* tdesc = pointer2Descriptor(optr);
+    if( ! tdesc ){
+      fprintf(stderr, "free(): desc table find failed.\n");
       fflush(stderr);
-    }    
-    munmap(sb, heap->sc->sbsize);
-    RemoveEmptyDesc(heap, desc);
-  } 
-  else if (oldanchor.state == FULL) {
-    HeapPutPartial(desc);
+    } else if( tdesc != desc ){
+      fprintf(stderr, "free(): mmap table find sizes conflict tdesc = %p, desc = %p.\n", tdesc, desc);
+      fflush(stderr);
+    }
+    //</temporary metadata check>
+    
+    
+    
+    sb = desc->sb;
+    do { 
+      newanchor = oldanchor = desc->Anchor;
+      
+      *((unsigned long*)ptr) = oldanchor.avail;
+      newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
+      
+      if (oldanchor.state == FULL) {
+	newanchor.state = PARTIAL;
+      }
+      
+      if (oldanchor.count == desc->maxcount - 1) {
+	heap = desc->heap;
+	// instruction fence.
+	newanchor.state = EMPTY;
+      } 
+      else {
+	++newanchor.count;
+      }
+      // memory fence.
+    } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
+		     *((unsigned long*)&oldanchor), 
+		     *((unsigned long*)&newanchor)));
+
+    if (newanchor.state == EMPTY) {
+      bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
+      if( ! success ){
+	fprintf(stderr, "malloc() desc table update failed\n");
+	fflush(stderr);
+      }    
+      munmap(sb, heap->sc->sbsize);
+      RemoveEmptyDesc(heap, desc);
+    } 
+    else if (oldanchor.state == FULL) {
+      HeapPutPartial(desc);
+    }
   }
 }
 
@@ -734,6 +746,8 @@ void *realloc(void *object, size_t size)
 
   if (*((char*)header) == (char)LARGE) {
     size_t sz = *((unsigned long *)(header + TYPE_SIZE));
+
+    assert(is_mmapped(object, NULL));
     
     //<temporary metadata check>
 
@@ -776,6 +790,9 @@ void *realloc(void *object, size_t size)
   }
   else {
 
+    assert( ! is_mmapped(object, NULL));
+
+    
     desc = *((descriptor**)((unsigned long)header + TYPE_SIZE));
 
     //<temporary metadata check>

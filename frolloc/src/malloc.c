@@ -676,7 +676,7 @@ void free(void* ptr)
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(optr);
     if( ! tdesc ){
-      fprintf(stderr, "free(%p): desc table find failed.\n", optr);
+      fprintf(stderr, "free(%p): desc table find failed. Should have been %p\n", optr, desc);
       fflush(stderr);
     } else if( tdesc != desc ){
       fprintf(stderr, "free(%p): desc table find sizes conflict tdesc = %p, desc = %p.\n", optr, tdesc, desc);
@@ -798,7 +798,7 @@ void *realloc(void *object, size_t size)
     //<temporary metadata check>
     const descriptor* tdesc = pointer2Descriptor(object);
     if( ! tdesc ){
-      fprintf(stderr, "realloc(%p): desc table find failed.\n", object);
+      fprintf(stderr, "realloc(%p): desc table find failed. Should have been %p\n", object, desc);
       fflush(stderr);
     } else if( tdesc != desc ){
       fprintf(stderr, "realloc(%p): mmap table find sizes conflict tdesc = %p, desc = %p\n", object, tdesc, desc);

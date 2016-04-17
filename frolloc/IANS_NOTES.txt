@@ -14,20 +14,9 @@ But do we want to pay the fragmentation price?
 
 4.[X]  Write pointer2SuperBlock
 
-5. Get to a twinned state.
+5.[X] Get to a twinned state.
 
-6. Eliminate the metadata.
+6.  Stress test in a multithreaded multicore environment.
 
+7. Eliminate the metadata.
 
-
-Fails on shaman (1):
-
-LD_PRELOAD=../HeapMetadata/src/frolloc/lib/libfrolloc.so ./build/x86_64-unknown-linux-gnu-release/bin/yices_smt2 tests/regress/coverage/smtlib/QF_ABV/brummayerbiere/fifo32ia06k05.smt2
-
-Fails on vagrant (2):
-
-LD_PRELOAD=/vagrant/HeapMetadata/src/frolloc/lib/libfrolloc.so ./build/x86_64-unknown-linux-gnu-release/bin/yices_main tests/regress/arrays/frugal1000.ys
-
-tests/regress/coverage/smtlib/QF_ABV/brummayerbiere/fifo32ia06k05.smt2
-
-tests/regress/arrays/frugal1000.smt

@@ -698,7 +698,11 @@ void *lfpa_realloc(void *object, size_t size)
   header = (void*)((unsigned long)object - HEADER_SIZE);  
 
   if (*((char*)header) == (char)LARGE) {
-    osize = *((unsigned long *)(header + TYPE_SIZE));
+    size_t sz = *((unsigned long *)(header + TYPE_SIZE));
+    // the size in the header is the size of the entire mmap region
+    // (i.e. client sz + HEADER_SIZE), when we copy below we will
+    // only be copying the client memory, not the header.
+    osize = sz - HEADER_SIZE;
     ret = malloc(size);
     minsize = osize;
     /* note that we could be getting smaller NOT larger */

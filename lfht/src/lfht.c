@@ -25,10 +25,10 @@ bool init_lfht(lfht_t *ht, uint32_t max){
 
 bool delete_lfht(lfht_t *ht){
   int retcode;
-
+  
   if(ht != NULL && ht->table != NULL){
     retcode = munmap(ht->table, ht->sz);
-
+    ht->table = NULL;
     if(retcode == 0){
       return true;
     }

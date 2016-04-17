@@ -34,6 +34,9 @@
 
 static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 
+/* Currently the same size as SBSIZE */
+#define HTABLE_CAPACITY 16*4096
+
 static lfht_t desc_tbl;  // maps superblock ptr --> desc
 static lfht_t mmap_tbl;  // maps mmapped region --> size
 
@@ -47,22 +50,12 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
 static volatile bool __initialized__ = false;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-#define HTABLE_CAPACITY 16*4096
-
-/* not sure how we will ever call this */
-void frolloc_delete(void)
-{
-  __initialized__ = false;
-  delete_lfht(&desc_tbl);
-  delete_lfht(&mmap_tbl);
-}
-
-
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
-static void init_sizeclasses(void){
+static void init_sizeclasses(void)
+{
   int i;
   const int length = MAX_BLOCK_SIZE / GRANULARITY;
   for(i = 0; i < length; i++){ 
@@ -89,17 +82,34 @@ void frolloc_init(void)
   return;
 }
 
-static descriptor* pointer2Descriptor(void *ptr){
-  uintptr_t val = 0, key = ((uintptr_t)ptr & ~(SBSIZE - 1));
-  bool success = lfht_find(&desc_tbl, key, &val);
+/* not sure how we will ever call this */
+void frolloc_delete(void)
+{
+  __initialized__ = false;
+  delete_lfht(&desc_tbl);
+  delete_lfht(&mmap_tbl);
+}
 
+/* 
+   Since SuperBlocks are aligned on SBSIZE boundaries, we use Gloger's
+   technique (arena.c in ptmalloc or glibc malloc to lookup the descriptor 
+   associated with a arbitrary client pointer.
+*/
+static descriptor* pointer2Descriptor(void *ptr)
+{
+  uintptr_t val = 0, key;
+  bool success;
+  
+  key = ((uintptr_t)ptr & ~(SBSIZE - 1));
+  success = lfht_find(&desc_tbl, key, &val);
   return success ? (descriptor*)val : NULL;
 }
 
-static bool is_mmapped(void *ptr, size_t* szp){
+static bool is_mmapped(void *ptr, size_t* szp)
+{
   uintptr_t val;
-  bool success = false;
-  
+  bool success;
+
   success = lfht_find(&mmap_tbl, ( uintptr_t)ptr, &val);
 
   if(success){
@@ -109,10 +119,6 @@ static bool is_mmapped(void *ptr, size_t* szp){
   //part of a super block!
   return val == TOMBSTONE ? false : success;
 }
-
-#define heap_for_ptr(ptr) \
- ((heap_info *)((unsigned long)(ptr) & ~(HEAP_MAX_SIZE-1)))
-
 
 static void* AllocNewSB(size_t size, unsigned long alignment)
 {
@@ -159,8 +165,8 @@ static void organize_list(void* start, unsigned long count, unsigned long stride
   }
 }
 
-static descriptor* DescAlloc() {
-  
+static descriptor* DescAlloc()
+{
   descriptor_queue old_queue, new_queue;
   descriptor* desc;
   
@@ -177,7 +183,13 @@ static descriptor* DescAlloc() {
       }
     }
     else {
-      desc = AllocNewSB(DESCSBSIZE, 0); //no alignment needed
+      desc = aligned_mmap(DESCSBSIZE, 0);
+      
+      if (desc == NULL) {
+	fprintf(stderr, "DescAlloc: aligned_mmap of size %lu returned NULL\n", DESCSBSIZE);
+	fflush(stderr);
+	abort();
+      }
 
       organize_desc_list((void *)desc, DESCSBSIZE / sizeof(descriptor), sizeof(descriptor));
 
@@ -442,7 +454,6 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   
   desc = DescAlloc();
   desc->sb = AllocNewSB(heap->sc->sbsize, SBSIZE);
-  //desc->sb = AllocNewSB(SBSIZE, SBSIZE);
 
   desc->heap = heap;
   desc->Anchor.avail = 1;
@@ -464,7 +475,7 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 	      *((u128_t*)&oldactive), 
 	      *((u128_t*)&newactive))) { 
     addr = desc->sb;
-    *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
+    *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this (will get tosssed with the rest of the metadata...)
     addr += TYPE_SIZE;
     *((descriptor **)addr) = desc; 
 
@@ -626,11 +637,12 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 void free(void* ptr) 
 {
   descriptor* desc;
-  void* sb;
-  void *optr;
+  void *sb, *optr;
   anchor oldanchor, newanchor;
   procheap* heap = NULL;
-
+  bool success;
+  size_t sz;
+  
   if (!ptr) {
     return;
   }
@@ -639,8 +651,6 @@ void free(void* ptr)
   // get prefix
   ptr = (void*)((unsigned long)ptr - HEADER_SIZE);  
   if (*((char*)ptr) == (char)LARGE) {
-    bool success;
-    size_t sz;
 
     assert(is_mmapped(optr, NULL));
 
@@ -657,8 +667,8 @@ void free(void* ptr)
       fflush(stderr);
     }
     //</temporary metadata check>
-
-
+    
+    
     munmap(ptr, sz);
     success = lfht_update(&mmap_tbl, (uintptr_t)optr, TOMBSTONE);
     if( ! success ){

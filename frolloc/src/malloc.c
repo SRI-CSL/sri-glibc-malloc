@@ -614,13 +614,59 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
   }
 }
 
+/* 
+   free the pointer ptr from the superblock desc->sb that it belongs to.
+   called from free and realloc.
+ */
+void free_from_sb(void* ptr, descriptor* desc){
+  anchor oldanchor, newanchor;
+  procheap* heap = NULL;
+  void *sb;
+
+  assert(desc != NULL);
+
+  sb = desc->sb;
+  do { 
+    newanchor = oldanchor = desc->Anchor;
+    
+    *((unsigned long*)ptr) = oldanchor.avail;
+    newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
+    
+    if (oldanchor.state == FULL) {
+      newanchor.state = PARTIAL;
+    }
+    
+    if (oldanchor.count == desc->maxcount - 1) {
+      heap = desc->heap;
+      // instruction fence.
+      newanchor.state = EMPTY;
+    } 
+    else {
+      ++newanchor.count;
+    }
+    // memory fence.
+  } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		   *((uint64_t*)&oldanchor), 
+		   *((uint64_t*)&newanchor)));
+  
+  if (newanchor.state == EMPTY) {
+    bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
+    if( ! success ){
+      fprintf(stderr, "free() desc table update failed\n");
+      fflush(stderr);
+    }    
+    munmap(sb, heap->sc->sbsize);
+    RemoveEmptyDesc(heap, desc);
+  } 
+  else if (oldanchor.state == FULL) {
+    HeapPutPartial(desc);
+  }
+}
+
 
 void free(void* ptr) 
 {
   descriptor* desc;
-  void *sb;
-  anchor oldanchor, newanchor;
-  procheap* heap = NULL;
   bool success;
   size_t sz;
   
@@ -642,42 +688,9 @@ void free(void* ptr)
     desc = pointer2Descriptor(ptr);
 
     if( desc != NULL ){
-      sb = desc->sb;
-      do { 
-	newanchor = oldanchor = desc->Anchor;
-      
-	*((unsigned long*)ptr) = oldanchor.avail;
-	newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
-      
-	if (oldanchor.state == FULL) {
-	  newanchor.state = PARTIAL;
-	}
-      
-	if (oldanchor.count == desc->maxcount - 1) {
-	  heap = desc->heap;
-	  // instruction fence.
-	  newanchor.state = EMPTY;
-	} 
-	else {
-	  ++newanchor.count;
-	}
-	// memory fence.
-      } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
-		       *((uint64_t*)&oldanchor), 
-		       *((uint64_t*)&newanchor)));
-      
-      if (newanchor.state == EMPTY) {
-	bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
-	if( ! success ){
-	  fprintf(stderr, "free() desc table update failed\n");
-	  fflush(stderr);
-	}    
-	munmap(sb, heap->sc->sbsize);
-	RemoveEmptyDesc(heap, desc);
-      } 
-      else if (oldanchor.state == FULL) {
-	HeapPutPartial(desc);
-      }
+
+      free_from_sb(ptr, desc);
+
     } else {
       fprintf(stderr, "free(%p) ferrel pointer ignoring. desc = '%p'\n", ptr, desc);
       fflush(stderr);
@@ -724,7 +737,7 @@ void *realloc(void *object, size_t size)
     else {
       ret = malloc(size);
       memcpy(ret, object, desc->sz);
-      free(object);  //this could be optimized size we know stuff about object ...
+      free_from_sb(object, desc); 
     }
   }
   return ret;

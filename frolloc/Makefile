@@ -54,9 +54,9 @@ lib:
 	mkdir -p lib
 
 
-UNIT_TESTS=./tests/unit
+UNIT_TESTS=./tests/static
 
-check:
+check: $(TARGET)
 	make -C ${UNIT_TESTS} check
 
 

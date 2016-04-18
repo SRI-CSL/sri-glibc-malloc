@@ -638,10 +638,10 @@ void free(void* ptr)
     return;
   }
   else {
-
+    
     desc = pointer2Descriptor(ptr);
 
-    if( !desc ){
+    if( desc != NULL ){
       sb = desc->sb;
       do { 
 	newanchor = oldanchor = desc->Anchor;
@@ -679,7 +679,7 @@ void free(void* ptr)
 	HeapPutPartial(desc);
       }
     } else {
-      fprintf(stderr, "free(%p) ferrel pointer ignoring\n", ptr);
+      fprintf(stderr, "free(%p) ferrel pointer ignoring. desc = '%p'\n", ptr, desc);
       fflush(stderr);
     }
   }

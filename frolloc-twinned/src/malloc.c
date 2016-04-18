@@ -95,7 +95,7 @@ void frolloc_delete(void)
 
 /* 
    Since SuperBlocks are aligned on SBSIZE boundaries, we use Gloger's
-   technique (arena.c in ptmalloc or glibc malloc to lookup the descriptor 
+   technique (arena.c in ptmalloc or glibc malloc) to lookup the descriptor 
    associated with a arbitrary client pointer.
 */
 static descriptor* pointer2Descriptor(void *ptr)
@@ -316,9 +316,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
     newanchor = oldanchor = desc->Anchor;
     newanchor.count += morecredits;
     newanchor.state = PARTIAL;
-  } while (!cas_64((volatile uintptr_t *)&desc->Anchor, 
-		   *((uintptr_t*)&oldanchor), 
-		   *((uintptr_t*)&newanchor)));
+  } while (!cas_64((volatile uint64_t *)&desc->Anchor, 
+		   *((uint64_t*)&oldanchor), 
+		   *((uint64_t*)&newanchor)));
 
   HeapPutPartial(desc);
 }
@@ -377,9 +377,9 @@ static void* MallocFromActive(procheap *heap)
         newanchor.count -= morecredits;
       }
     } 
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
-		   *((unsigned long*)&oldanchor), 
-		   *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		   *((uint64_t*)&oldanchor), 
+		   *((uint64_t*)&newanchor)));
 
   if (oldactive.credits == 0 && oldanchor.count > 0) {
     UpdateActive(heap, desc, morecredits);
@@ -418,9 +418,9 @@ static void* MallocFromPartial(procheap* heap)
     morecredits = min(oldanchor.count - 1, MAXCREDITS);
     newanchor.count -= morecredits + 1;
     newanchor.state = (morecredits > 0) ? ACTIVE : FULL;
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
-		   *((unsigned long*)&oldanchor), 
-		   *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		   *((uint64_t*)&oldanchor), 
+		   *((uint64_t*)&newanchor)));
 
   do { 
     // pop reserved block
@@ -429,9 +429,9 @@ static void* MallocFromPartial(procheap* heap)
 
     newanchor.avail = *(unsigned long*)addr;
     ++newanchor.tag;
-  } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
-		   *((unsigned long*)&oldanchor), 
-		   *((unsigned long*)&newanchor)));
+  } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		   *((uint64_t*)&oldanchor), 
+		   *((uint64_t*)&newanchor)));
 
   if (morecredits > 0) {
     UpdateActive(heap, desc, morecredits);
@@ -660,7 +660,7 @@ void free(void* ptr)
     sz = *((unsigned long *)(ptr + TYPE_SIZE));
     
     //<temporary metadata check>
-    uintptr_t val = NULL;
+    uintptr_t val = 0;
     success = lfht_find(&mmap_tbl, (uintptr_t)optr, &val);
     if( ! success ){
       fprintf(stderr, "free(%p): mmap table find failed in free\n", optr);
@@ -723,9 +723,9 @@ void free(void* ptr)
 	++newanchor.count;
       }
       // memory fence.
-    } while (!cas_64((volatile unsigned long*)&desc->Anchor, 
-		     *((unsigned long*)&oldanchor), 
-		     *((unsigned long*)&newanchor)));
+    } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		     *((uint64_t*)&oldanchor), 
+		     *((uint64_t*)&newanchor)));
 
     if (newanchor.state == EMPTY) {
       bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
@@ -767,7 +767,7 @@ void *realloc(void *object, size_t size)
     assert(is_mmapped(object, NULL));
     
     //<temporary metadata check>
-    uintptr_t val = NULL;
+    uintptr_t val = 0;
     success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
     if( ! success ){
       fprintf(stderr, "realloc(%p): mmap table find failed.\n", object);

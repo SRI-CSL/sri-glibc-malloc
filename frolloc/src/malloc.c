@@ -385,10 +385,7 @@ static void* MallocFromActive(procheap *heap)
     UpdateActive(heap, desc, morecredits);
   }
 
-  *((char*)addr) = (char)SMALL;  //sri: not seeing a use of this
-  addr += TYPE_SIZE;
-  *((descriptor**)addr) = desc; 
-  return ((void*)((unsigned long)addr + PTR_SIZE));
+  return addr;
 }
 
 static void* MallocFromPartial(procheap* heap)
@@ -437,10 +434,7 @@ static void* MallocFromPartial(procheap* heap)
     UpdateActive(heap, desc, morecredits);
   }
 
-  *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
-  addr += TYPE_SIZE;
-  *((descriptor**)addr) = desc; 
-  return ((void *)((unsigned long)addr + PTR_SIZE));
+  return addr;
 }
 
 static void* MallocFromNewSB(procheap* heap, descriptor** descp)
@@ -451,7 +445,6 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 
   assert(descp != NULL);
 
-  // *((unsigned long long*)&oldactive) = 0;
   oldactive.ptr = 0;
   oldactive.credits = 0;
   
@@ -478,14 +471,10 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 	      *((u128_t*)&oldactive), 
 	      *((u128_t*)&newactive))) { 
     addr = desc->sb;
-    *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this (will get tosssed with the rest of the metadata...)
-    addr += TYPE_SIZE;
-    *((descriptor **)addr) = desc; 
-
     // pass out the new descriptor
     *descp = desc;
+    return addr;
 
-    return (void *)((unsigned long)addr + PTR_SIZE);
   } 
   else {
     //Free the superblock desc->sb.
@@ -498,9 +487,7 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 static procheap* find_heap(size_t sz)
 {
   procheap* heap;
-  
-  // We need to fit both the object and the descriptor in a single block
-  sz += HEADER_SIZE;
+
   if (sz >= MAX_BLOCK_SIZE) {
     return NULL;
   }
@@ -523,28 +510,19 @@ static void* alloc_large_block(size_t sz)
   
   sz = align_up(sz, GRANULARITY);
 
-  sz += HEADER_SIZE;
-
   addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
   //sri: remember that we can fail ...
   if(addr == NULL){
     return addr;
   } else {
-    void *ptr =  addr + HEADER_SIZE;
-    bool success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+    bool success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)addr, (uintptr_t)sz);
     if( ! success ){
       fprintf(stderr, "malloc() mmap table full\n");
       fflush(stderr);
       abort();
     }
-
-    // If the highest byte of the header is 0, 
-    // then the object is large (allocated / freed directly from / to the OS)
-    *((char*)addr) = (char)LARGE;
-    addr += TYPE_SIZE;
-    *((unsigned long *)addr) = sz;
-    return (void*)(addr + PTR_SIZE); 
+    return addr;
   }
 }
 
@@ -640,7 +618,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 void free(void* ptr) 
 {
   descriptor* desc;
-  void *sb, *optr;
+  void *sb;
   anchor oldanchor, newanchor;
   procheap* heap = NULL;
   bool success;
@@ -649,31 +627,10 @@ void free(void* ptr)
   if (!ptr) {
     return;
   }
-        
-  optr = ptr;
-  // get prefix
-  ptr = (void*)((unsigned long)ptr - HEADER_SIZE);  
-  if (*((char*)ptr) == (char)LARGE) {
 
-    assert(is_mmapped(optr, NULL));
-
-    sz = *((unsigned long *)(ptr + TYPE_SIZE));
-    
-    //<temporary metadata check>
-    uintptr_t val = 0;
-    success = lfht_find(&mmap_tbl, (uintptr_t)optr, &val);
-    if( ! success ){
-      fprintf(stderr, "free(%p): mmap table find failed in free\n", optr);
-      fflush(stderr);
-    } else if( sz != val ){
-      fprintf(stderr, "free(%p): mmap table find sizes conflict sz = %zu, val = %zu\n", optr, sz, val);
-      fflush(stderr);
-    }
-    //</temporary metadata check>
-    
-    
+  if(is_mmapped(ptr, &sz)){
     munmap(ptr, sz);
-    success = lfht_update(&mmap_tbl, (uintptr_t)optr, TOMBSTONE);
+    success = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "free(): mmap table update failed\n");
       fflush(stderr);
@@ -682,62 +639,48 @@ void free(void* ptr)
   }
   else {
 
-    assert( ! is_mmapped(optr, NULL));
+    desc = pointer2Descriptor(ptr);
 
-    desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
-
-    //<temporary metadata check>
-    const descriptor* tdesc = pointer2Descriptor(optr);
-    if( ! tdesc ){
-      void *sb = NULL;
-      if(desc != NULL){
-	sb = desc->sb;
-      }
-      fprintf(stderr, "free(%p): desc table find failed. Should have been %p\n", optr, sb);
-      fflush(stderr);
-    } else if( tdesc != desc ){
-      fprintf(stderr, "free(%p): desc table find descriptor conflicts tdesc = %p, desc = %p.\n", optr, tdesc, desc);
-      fflush(stderr);
-    }
-    //</temporary metadata check>
-    
-    
-    
-    sb = desc->sb;
-    do { 
-      newanchor = oldanchor = desc->Anchor;
+    if( !desc ){
+      sb = desc->sb;
+      do { 
+	newanchor = oldanchor = desc->Anchor;
       
-      *((unsigned long*)ptr) = oldanchor.avail;
-      newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
+	*((unsigned long*)ptr) = oldanchor.avail;
+	newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
       
-      if (oldanchor.state == FULL) {
-	newanchor.state = PARTIAL;
-      }
+	if (oldanchor.state == FULL) {
+	  newanchor.state = PARTIAL;
+	}
       
-      if (oldanchor.count == desc->maxcount - 1) {
-	heap = desc->heap;
-	// instruction fence.
-	newanchor.state = EMPTY;
+	if (oldanchor.count == desc->maxcount - 1) {
+	  heap = desc->heap;
+	  // instruction fence.
+	  newanchor.state = EMPTY;
+	} 
+	else {
+	  ++newanchor.count;
+	}
+	// memory fence.
+      } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
+		       *((uint64_t*)&oldanchor), 
+		       *((uint64_t*)&newanchor)));
+      
+      if (newanchor.state == EMPTY) {
+	bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
+	if( ! success ){
+	  fprintf(stderr, "free() desc table update failed\n");
+	  fflush(stderr);
+	}    
+	munmap(sb, heap->sc->sbsize);
+	RemoveEmptyDesc(heap, desc);
       } 
-      else {
-	++newanchor.count;
+      else if (oldanchor.state == FULL) {
+	HeapPutPartial(desc);
       }
-      // memory fence.
-    } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
-		     *((uint64_t*)&oldanchor), 
-		     *((uint64_t*)&newanchor)));
-
-    if (newanchor.state == EMPTY) {
-      bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
-      if( ! success ){
-	fprintf(stderr, "malloc() desc table update failed\n");
-	fflush(stderr);
-      }    
-      munmap(sb, heap->sc->sbsize);
-      RemoveEmptyDesc(heap, desc);
-    } 
-    else if (oldanchor.state == FULL) {
-      HeapPutPartial(desc);
+    } else {
+      fprintf(stderr, "free(%p) ferrel pointer ignoring\n", ptr);
+      fflush(stderr);
     }
   }
 }
@@ -745,11 +688,10 @@ void free(void* ptr)
 void *realloc(void *object, size_t size)
 {
   descriptor* desc;
-  void* header;
   void* ret;
-  size_t osize;
   size_t minsize;
   bool success;
+  size_t sz;
   
   if (object == NULL) {
     return malloc(size);
@@ -759,89 +701,38 @@ void *realloc(void *object, size_t size)
     return NULL;
   }
 
-  header = (void*)((unsigned long)object - HEADER_SIZE);  
-
-  if (*((char*)header) == (char)LARGE) {
-    size_t sz = *((unsigned long *)(header + TYPE_SIZE));
-
-    assert(is_mmapped(object, NULL));
-    
-    //<temporary metadata check>
-    uintptr_t val = 0;
-    success = lfht_find(&mmap_tbl, (uintptr_t)object, &val);
-    if( ! success ){
-      fprintf(stderr, "realloc(%p): mmap table find failed.\n", object);
-      fflush(stderr);
-    } else if( sz != val ){
-      fprintf(stderr, "realloc(%p): mmap table find sizes conflict sz = %zu, val = %zu.\n", object, sz, val);
-      fflush(stderr);
-    }
-    //</temporary metadata check>
-
-    
-    // the size in the header is the size of the entire mmap region
-    // (i.e. client sz + HEADER_SIZE), when we copy below we will
-    // only be copying the client memory, not the header.
-    osize = sz - HEADER_SIZE;
+  if(is_mmapped(object, &sz)){
     ret = malloc(size);
-
-    minsize = osize;
+    minsize = sz;
     /* note that we could be getting smaller NOT larger */
-    if(osize > size){
+    if(sz > size){
       minsize = size;
     }
-
     memcpy(ret, object, minsize);
-    munmap(object, osize);
-    
+    munmap(object, sz);
     success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
     if( ! success ){
-      fprintf(stderr, "malloc() mmap table update failed\n");
+      fprintf(stderr, "realloc() mmap table update failed\n");
       fflush(stderr);
     }    
-
-    
   }
   else {
-    
-    assert( ! is_mmapped(object, NULL));
-
-    
-    desc = *((descriptor**)((unsigned long)header + TYPE_SIZE));
-
-    //<temporary metadata check>
-    const descriptor* tdesc = pointer2Descriptor(object);
-    void *sb = NULL;
-    if( ! tdesc ){
-      if(desc != NULL){
-	sb = desc->sb;
-      }
-      fprintf(stderr, "realloc(%p): desc table find failed. Should have been %p\n", object, sb);
-      fflush(stderr);
-    } else if( tdesc != desc ){
-      fprintf(stderr, "realloc(%p): desc table find descriptor conflict tdesc = %p, desc = %p\n", object, tdesc, desc);
-      fflush(stderr);
-    }
-    //</temporary metadata check>
-
-
-    
-    if (size <= desc->sz - HEADER_SIZE) {
+    desc = pointer2Descriptor(object);
+    if (desc == NULL || size <= desc->sz ) {
       ret = object;
     }
     else {
       ret = malloc(size);
-      memcpy(ret, object, desc->sz - HEADER_SIZE);
-      free(object);
+      memcpy(ret, object, desc->sz);
+      free(object);  //this could be optimized size we know stuff about object ...
     }
   }
-
   return ret;
 }
 
 
 void malloc_stats(void){
-   fprintf(stderr, "malloc_stats coming soon(ish)\n");
+  fprintf(stderr, "malloc_stats coming soon(ish)\n");
 }
 
 

@@ -17,13 +17,6 @@ typedef struct Descriptor descriptor;
 struct Procheap;
 typedef struct Procheap procheap;
 
-#define TYPE_SIZE	8
-#define PTR_SIZE	sizeof(void*)
-#define HEADER_SIZE	(TYPE_SIZE + PTR_SIZE)
-
-#define LARGE		0
-#define SMALL		1
-
 #define	PAGESIZE	4096
 #define SBSIZE		(16 * PAGESIZE)
 #define DESCSBSIZE	(1024 * sizeof(descriptor))
@@ -84,16 +77,6 @@ struct Procheap {
 	volatile descriptor*	Partial;	// initially NULL
 	sizeclass*		sc;		// pointer to parent sizeclass
 };
-
-static inline long min(long a, long b)
-{
-  return a < b ? a : b;
-}
-
-static inline long max(long a, long b)
-{
-  return a > b ? a : b;
-}
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON

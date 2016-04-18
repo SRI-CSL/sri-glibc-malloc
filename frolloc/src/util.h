@@ -6,14 +6,26 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+static inline long min(long a, long b)
+{
+  return a < b ? a : b;
+}
+
+static inline long max(long a, long b)
+{
+  return a > b ? a : b;
+}
+
 
 /* for sanity checking */
-static inline bool is_power_of_two(uint64_t n) {
+static inline bool is_power_of_two(uint64_t n)
+{
   return (n & (n - 1)) == 0;
 }
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
-static inline size_t mod_power_of_two(uint64_t x, uint64_t y){
+static inline size_t mod_power_of_two(uint64_t x, uint64_t y)
+{
   assert(is_power_of_two(y));
   return x & (y - 1);
 }
@@ -28,8 +40,6 @@ static inline size_t align_up(size_t value, size_t align)
 extern uint32_t jenkins_hash_uint64(uint64_t x);
 
 extern uint32_t jenkins_hash_ptr(const void *p);
-
-
 
 /*
   mmaps a region of size sz. if alignment is

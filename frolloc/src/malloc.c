@@ -35,7 +35,10 @@
 static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 
 /* Currently the same size as SBSIZE */
-#define HTABLE_CAPACITY 16*4096
+#define DESC_HTABLE_CAPACITY 16*4096
+
+/* Currently pulled out of a hat with the rabbit  */
+#define MMAP_HTABLE_CAPACITY 4096*4096
 
 static lfht_t desc_tbl;  // maps superblock ptr --> desc
 static lfht_t mmap_tbl;  // maps mmapped region --> size
@@ -72,8 +75,8 @@ void frolloc_init(void)
     return;
   }
   init_sizeclasses();
-  if( ! init_lfht(&desc_tbl, HTABLE_CAPACITY) ||  
-      ! init_lfht(&mmap_tbl, HTABLE_CAPACITY)  ){
+  if( ! init_lfht(&desc_tbl, DESC_HTABLE_CAPACITY) ||  
+      ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
     fprintf(stderr, "Off to frollocing a bad start\n");
     abort();
   }

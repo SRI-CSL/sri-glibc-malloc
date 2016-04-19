@@ -43,7 +43,8 @@ static void storehexstring(char *buf, uintptr_t val)
 
 void log_init (void)
 {
-  int fd = open(logfile, O_WRONLY | O_EXCL | O_CREAT | O_APPEND, 0600);
+  int fd ;
+  fd = open(logfile, O_WRONLY | O_EXCL | O_CREAT | O_TRUNC, 0600);
   if (fd > 0) {
     logfd = fd;
   }

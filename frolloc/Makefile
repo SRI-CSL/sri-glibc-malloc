@@ -22,8 +22,9 @@ endif
 OPT= -O3 -ggdb
 
 
-CFLAGS= -Wall -DSRI_DEBUG -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
 #CFLAGS+= -DNDEBUG
+#CFLAGS+= -DSRI_DEBUG 
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

@@ -509,7 +509,8 @@ static procheap* find_heap(size_t sz)
 static void* alloc_large_block(size_t sz)
 {
   void* addr;
-  
+  bool success;
+
   sz = align_up(sz, GRANULARITY);
 
   addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -518,7 +519,7 @@ static void* alloc_large_block(size_t sz)
   if(addr == NULL){
     return addr;
   } else {
-    bool success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)addr, (uintptr_t)sz);
+    success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)addr, (uintptr_t)sz);
     if( ! success ){
       fprintf(stderr, "malloc() mmap table full\n");
       fflush(stderr);
@@ -528,12 +529,6 @@ static void* alloc_large_block(size_t sz)
   }
 }
 
-/*
-  void log_malloc(void* val, size_t size);
-  void log_realloc(void* val, void* oval, size_t size);
-  void log_calloc(void* val, size_t nmemb, size_t size);
-  void log_free(void* val);
-*/
 
 void* malloc(size_t sz)
 { 
@@ -590,17 +585,17 @@ void* malloc(size_t sz)
   
 }
 
-
 void *calloc(size_t nmemb, size_t size)
 {
   void *ptr;
         
   ptr = malloc(nmemb*size);
-  if (!ptr) {
-    return NULL;
-  }
 
-  return memset(ptr, 0, nmemb*size);
+  if ( ptr != NULL) {
+    memset(ptr, 0, nmemb*size);
+  }
+  
+  return ptr;
 }
 
 void *memalign(size_t boundary, size_t size)
@@ -682,18 +677,24 @@ void free(void* ptr)
   descriptor* desc;
   bool success;
   size_t sz;
+
+  log_free(ptr);
   
   if (!ptr) {
     return;
   }
-
+  
   if(is_mmapped(ptr, &sz)){
-    munmap(ptr, sz);
+    /* it is important to update the table prior to giving back the
+       memory to the operating system. since it can be very quick
+       it putting the addresses back into play.
+    */
     success = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "free(): mmap table update failed\n");
       fflush(stderr);
     }    
+    munmap(ptr, sz);
     return;
   }
   else {
@@ -718,9 +719,11 @@ void *realloc(void *object, size_t size)
   size_t minsize;
   bool success;
   size_t sz;
-  
+  void* newobject;
+
   if (object == NULL) {
-    return malloc(size);
+    newobject = malloc(size);
+    return newobject;
   }
   else if (size == 0) {
     free(object);
@@ -735,24 +738,42 @@ void *realloc(void *object, size_t size)
       minsize = size;
     }
     memcpy(ret, object, minsize);
-    munmap(object, sz);
+    /* 
+       it is important to update the table prior to giving back the
+       memory to the operating system. since it can be very quick
+       it putting the addresses back into play.
+    */
     success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "realloc() mmap table update failed\n");
       fflush(stderr);
     }    
+    munmap(object, sz);
+    log_free(object);
   }
   else {
     desc = pointer2Descriptor(object);
-    if (desc == NULL || size <= desc->sz ) {
+    if (desc == NULL){
+      /* not much we can do here; but fail */
+      sz = -1;
+      is_mmapped(object, &sz);
+      fprintf(stderr, "realloc(%p) in %p has no meta data!  (sz in mmap table = %d)\n", 
+	      object, (void *)pthread_self(), (int)sz);
+      fflush(stderr);
+      log_realloc(NULL, object, size);
+      log_end();
+      exit(1);
+    } else if (size <= desc->sz ) {
       ret = object;
     }
     else {
       ret = malloc(size);
       memcpy(ret, object, desc->sz);
       free_from_sb(object, desc); 
+      log_free(object);
     }
   }
+  
   return ret;
 }
 

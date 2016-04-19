@@ -163,7 +163,8 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
       }
 
       if(kval == key){
-	*valp = ht->table[i].val;
+	/* tobias does not do an atomic read here */
+	*valp = read_64((volatile uint64_t *)&ht->table[i].val);
 	return true;
       }
 

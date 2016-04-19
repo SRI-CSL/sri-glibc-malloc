@@ -1,4 +1,4 @@
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(SRI_DEBUG)
 
 #define _GNU_SOURCE
 
@@ -17,7 +17,7 @@
 
 static int logfd = -1;
 
-static const char hex[16] = "0123456789ABCDEF";
+static const char hex[16] = "0123456789abcdef";
 
 static const char logfile[] = "/tmp/frolloc.log";
 
@@ -44,12 +44,20 @@ static void storehexstring(char *buf, uintptr_t val)
 void log_init (void)
 {
   int fd ;
-  fd = open(logfile, O_WRONLY | O_EXCL | O_CREAT | O_TRUNC, 0600);
-  if (fd > 0) {
+  unlink(logfile);
+  fd = open(logfile, O_WRONLY | O_CREAT | O_APPEND, 0600);
+  if (fd >= 0) {
     logfd = fd;
   }
 }
 
+void log_end(void){
+  if(logfd >= 0){
+    fsync(logfd);
+    close(logfd);
+    logfd = -1;
+  }
+}
 
 static void _writelogentry(char func, size_t size1, size_t size2, void *p, void *q, void *caller)
 {
@@ -64,27 +72,27 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
   buffer[0] = func;
   switch (func) {
   case 'm':
-    storehexstring(&buffer[4], (uintptr_t)size1);
-    storehexstring(&buffer[23], (uintptr_t)p);
+    storehexstring(&buffer[4],  (uintptr_t)p);
+    storehexstring(&buffer[23], (uintptr_t)size1);
     storehexstring(&buffer[42], (uintptr_t)caller);
     sz = MALLOCLEN;
     break;
   case 'f':
-    storehexstring(&buffer[4], (uintptr_t)p);
+    storehexstring(&buffer[4],  (uintptr_t)p);
     storehexstring(&buffer[23], (uintptr_t)caller);
     sz = FREELEN;
     break;
   case 'c':
-    storehexstring(&buffer[4], (uintptr_t)size1);
-    storehexstring(&buffer[23], (uintptr_t)size2);
-    storehexstring(&buffer[42], (uintptr_t)p);
+    storehexstring(&buffer[4],  (uintptr_t)p);
+    storehexstring(&buffer[23], (uintptr_t)size1);
+    storehexstring(&buffer[42], (uintptr_t)size2);
     storehexstring(&buffer[61], (uintptr_t)caller);
     sz = CALLOCLEN;
     break;
   case 'r':
-    storehexstring(&buffer[4], (uintptr_t)p);
-    storehexstring(&buffer[23], (uintptr_t)size1);
-    storehexstring(&buffer[42], (uintptr_t)q);
+    storehexstring(&buffer[4],  (uintptr_t)q);
+    storehexstring(&buffer[23], (uintptr_t)p);
+    storehexstring(&buffer[42], (uintptr_t)size1);
     storehexstring(&buffer[61], (uintptr_t)caller);
     sz = REALLOCLEN;
     break;

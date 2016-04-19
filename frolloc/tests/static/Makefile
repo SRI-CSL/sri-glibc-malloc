@@ -4,7 +4,7 @@ CFLAGS= -Wall -I../../include/
 
 OBJDIR=../../obj
 
-OBJS= ${OBJDIR}/lfht.o ${OBJDIR}/util.o ${OBJDIR}/malloc.o
+OBJS= ${OBJDIR}/debug.o ${OBJDIR}/lfht.o ${OBJDIR}/util.o ${OBJDIR}/malloc.o
 
 
 all:

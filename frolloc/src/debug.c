@@ -114,19 +114,19 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
 
 void log_malloc(void* val, size_t size)
 {
-  _writelogentry('m', size, 0, val, NULL, pthread_self());
+  _writelogentry('m', size, 0, val, NULL, (void*)pthread_self());
 }
 void log_realloc(void* val, void* oval, size_t size)
 {
-  _writelogentry('r', size, 0, oval, val, pthread_self());
+  _writelogentry('r', size, 0, oval, val, (void*)pthread_self());
 }
 void log_calloc(void* val, size_t nmemb, size_t size)
 {
-  _writelogentry('c', nmemb, size, val, NULL, pthread_self());
+  _writelogentry('c', nmemb, size, val, NULL, (void*)pthread_self());
 }
 void log_free(void* val)
 {
-  _writelogentry('f', 0, 0, val, NULL, pthread_self());
+  _writelogentry('f', 0, 0, val, NULL, (void*)pthread_self());
 }
 
 

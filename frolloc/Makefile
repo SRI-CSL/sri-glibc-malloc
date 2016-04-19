@@ -22,7 +22,7 @@ endif
 OPT= -O3 -ggdb
 
 
-CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -DSRI_DEBUG -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
 #CFLAGS+= -DNDEBUG
 
 SRC_GLOBS = $(addsuffix /*.c,src)

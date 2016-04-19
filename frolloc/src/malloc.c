@@ -23,6 +23,7 @@
 #include "malloc_internals.h"
 #include "lfht.h"
 #include "util.h"
+#include "debug.h"
 
 /* 
    Just a placeholder to mark where we *really* should be using
@@ -74,6 +75,7 @@ void frolloc_init(void)
     pthread_mutex_unlock(&lock);
     return;
   }
+  log_init();
   init_sizeclasses();
   if( ! init_lfht(&desc_tbl, DESC_HTABLE_CAPACITY) ||  
       ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
@@ -526,6 +528,12 @@ static void* alloc_large_block(size_t sz)
   }
 }
 
+/*
+  void log_malloc(void* val, size_t size);
+  void log_realloc(void* val, void* oval, size_t size);
+  void log_calloc(void* val, size_t nmemb, size_t size);
+  void log_free(void* val);
+*/
 
 void* malloc(size_t sz)
 { 
@@ -533,7 +541,7 @@ void* malloc(size_t sz)
   void* addr;
   descriptor* desc = NULL;
   
-  if (! __initialized__){ frolloc_init();  }
+  if (! __initialized__ ){ frolloc_init();  }
 
 
   //minimum block size
@@ -547,16 +555,19 @@ void* malloc(size_t sz)
   if (!heap) {
     // Large block (sri: unless the mmap fails)
     addr = alloc_large_block(sz);
+    log_malloc(addr, sz);
     return addr;
   }
 
   while(1) { 
     addr = MallocFromActive(heap);
     if (addr) {
+      log_malloc(addr, sz);
       return addr;
     }
     addr = MallocFromPartial(heap);
     if (addr) {
+      log_malloc(addr, sz);
       return addr;
     }
     addr = MallocFromNewSB(heap, &desc);
@@ -572,9 +583,11 @@ void* malloc(size_t sz)
     }
 
     if (addr) {
+      log_malloc(addr, sz);
       return addr;
     }
-  } 
+  }
+  
 }
 
 

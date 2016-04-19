@@ -4,13 +4,13 @@
 
 #include <stdlib.h>
 
-#ifdef NDEBUG
+#if defined(NDEBUG) && !defined(SRI_DEBUG)
 #define log_init()
 #define log_malloc(V, S)
 #define log_realloc(V, O, S)
 #define log_calloc(V, N, S)
 #define log_free(V)
-#else
+#else 
 void log_init(void);
 void log_malloc(void* val, size_t size);
 void log_realloc(void* val, void* oval, size_t size);

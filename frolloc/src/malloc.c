@@ -658,6 +658,10 @@ void free_from_sb(void* ptr, descriptor* desc){
 		   *((uint64_t*)&newanchor)));
   
   if (newanchor.state == EMPTY) {
+    /* it is important to update the table prior to giving back the
+       memory to the operating system. since it can be very quick
+       it putting the addresses back into play.
+    */
     bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "free() desc table update failed\n");

@@ -672,12 +672,16 @@ void free(void* ptr)
     //</temporary metadata check>
     
     
-    munmap(ptr, sz);
+    /* it is important to update the table prior to giving back the
+       memory to the operating system. since it can be very quick
+       it putting the addresses back into play.
+    */
     success = lfht_update(&mmap_tbl, (uintptr_t)optr, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "free(): mmap table update failed\n");
       fflush(stderr);
     }    
+    munmap(ptr, sz);
     return;
   }
   else {
@@ -728,6 +732,10 @@ void free(void* ptr)
 		     *((uint64_t*)&newanchor)));
 
     if (newanchor.state == EMPTY) {
+      /* it is important to update the table prior to giving back the
+	 memory to the operating system. since it can be very quick
+	 it putting the addresses back into play.
+      */
       bool success = lfht_update(&desc_tbl, (uintptr_t)sb, TOMBSTONE);
       if( ! success ){
 	fprintf(stderr, "malloc() desc table update failed\n");
@@ -791,15 +799,17 @@ void *realloc(void *object, size_t size)
       minsize = size;
     }
 
-    memcpy(ret, object, minsize);
-    munmap(object, osize);
-    
+    /* it is important to update the table prior to giving back the
+       memory to the operating system. since it can be very quick
+       it putting the addresses back into play.
+    */
     success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
     if( ! success ){
       fprintf(stderr, "malloc() mmap table update failed\n");
       fflush(stderr);
     }    
-
+    memcpy(ret, object, minsize);
+    munmap(object, osize);
     
   }
   else {

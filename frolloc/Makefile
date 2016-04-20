@@ -23,7 +23,7 @@ OPT= -O3 -ggdb
 
 
 CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
-#CFLAGS+= -DNDEBUG
+CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_DEBUG 
 
 SRC_GLOBS = $(addsuffix /*.c,src)

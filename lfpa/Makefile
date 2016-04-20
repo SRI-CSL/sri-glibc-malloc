@@ -53,11 +53,13 @@ CLANG_OPT	= -O3 -ggdb #-DDEBUG
 ifeq ($(CC), gcc)
 	OPT = $(GCC_OPT)
 	CFLAGS += $(GCC_CFLAGS)  -Iinclude-$(ASM)
+	CFLAGS+= -DNDEBUG
 endif
 
 ifeq ($(CC), clang)
 	OPT = $(CLANG_OPT)
 	CFLAGS += $(CLANG_CFLAGS)  -Iinclude-$(ASM)
+	CFLAGS+= -DNDEBUG
 endif
 
 # Rules

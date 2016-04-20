@@ -22,9 +22,9 @@ static const char hex[16] = "0123456789abcdef";
 static const char logfile[] = "/tmp/frolloc.log";
 
 
-enum mhooklen { MALLOCLEN = 58, FREELEN = 39, CALLOCLEN = 77, REALLOCLEN = 77 };
+enum mhooklen { MALLOCLEN = 58, FREELEN = 39, REALLOCLEN = 77 };
 
-enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, CALLOCARGS = 4, REALLOCARGS = 4 };
+enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, REALLOCARGS = 4 };
 
 
 // A set of logging functions that don't call malloc() and friends....
@@ -82,13 +82,6 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
     storehexstring(&buffer[23], (uintptr_t)caller);
     sz = FREELEN;
     break;
-  case 'c':
-    storehexstring(&buffer[4],  (uintptr_t)p);
-    storehexstring(&buffer[23], (uintptr_t)size1);
-    storehexstring(&buffer[42], (uintptr_t)size2);
-    storehexstring(&buffer[61], (uintptr_t)caller);
-    sz = CALLOCLEN;
-    break;
   case 'r':
     storehexstring(&buffer[4],  (uintptr_t)q);
     storehexstring(&buffer[23], (uintptr_t)p);
@@ -128,10 +121,6 @@ void log_malloc(void* val, size_t size)
 void log_realloc(void* val, void* oval, size_t size)
 {
   _writelogentry('r', size, 0, oval, val, (void*)pthread_self());
-}
-void log_calloc(void* val, size_t nmemb, size_t size)
-{
-  _writelogentry('c', nmemb, size, val, NULL, (void*)pthread_self());
 }
 void log_free(void* val)
 {

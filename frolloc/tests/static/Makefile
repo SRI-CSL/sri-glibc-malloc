@@ -1,6 +1,7 @@
 
 
-CFLAGS= -Wall -I../../include/
+CFLAGS= -Wall -I../../include/ -ggdb
+
 
 OBJDIR=../../obj
 

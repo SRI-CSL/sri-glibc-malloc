@@ -18,19 +18,19 @@ static inline uint64_t read_64(volatile uint64_t *address){
 
 static inline unsigned int cas_64(volatile uint64_t *address, uint64_t old_value, uint64_t new_value)
 {
-	 uint64_t prev = 0;
+  uint64_t prev = 0;
+  
+  asm volatile(LOCK_PREFIX "cmpxchgq %1,%2"
+	       : "=a"(prev)
+	       : "r"(new_value), "m"(*address), "0"(old_value)
+	       : "memory");
 
-	asm volatile(LOCK_PREFIX "cmpxchgq %1,%2"
-		: "=a"(prev)
-		: "r"(new_value), "m"(*address), "0"(old_value)
-		: "memory");
-
-	return prev == old_value;
+  return prev == old_value;
 }
 
 static inline unsigned int cas_128(volatile u128_t *address, u128_t old_value, u128_t new_value)
 {
-
+  
   char result;
   asm volatile
     (LOCK_PREFIX "cmpxchg16b %1\n\t"

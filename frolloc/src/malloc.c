@@ -56,7 +56,11 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
-static volatile descriptor_queue queue_head;
+/* 
+   the alignment voodoo is because clang gets it wrong on darwin and the 
+   cas_128  (i.e. cmpxchg16b) requires 16 byte alignment
+*/
+static volatile descriptor_queue queue_head __attribute__ ((aligned (16)));
 
 static void init_sizeclasses(void)
 {
@@ -180,14 +184,13 @@ static descriptor* DescAlloc()
     if (old_queue.DescAvail) {
       new_queue.DescAvail = (uintptr_t)((descriptor*)old_queue.DescAvail)->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, 
-		  *((u128_t*)&old_queue), 
-		  *((u128_t*)&new_queue))) {
+      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
         desc = (descriptor*)old_queue.DescAvail;
         break;
       }
     }
     else {
+
       desc = aligned_mmap(DESCSBSIZE, 0);
       
       if (desc == NULL) {
@@ -200,9 +203,7 @@ static descriptor* DescAlloc()
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, 
-		  *((u128_t*)&old_queue), 
-		  *((u128_t*)&new_queue))) {
+      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
         break;
       }
       munmap((void*)desc, DESCSBSIZE);   

@@ -19,7 +19,8 @@ LIBFLAGS = -shared -Wl,-soname,${LIB}
 LDFLAGS = -lpthread
 endif
 
-OPT= -O3 -ggdb
+#OPT= -O3 -ggdb
+OPT=  -ggdb
 
 
 CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}

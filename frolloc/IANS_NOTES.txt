@@ -16,7 +16,15 @@ But do we want to pay the fragmentation price?
 
 5.[X] Get to a twinned state.
 
-6.  Stress test in a multithreaded multicore environment.
+6.[X]  Stress test in a multithreaded multicore environment.
 
-7. Eliminate the metadata.
+7.[X] Eliminate the metadata.
 
+
+8. Grow and shrink the tables
+
+
+9. Clean up the dodgey code that came from the maged implementation.
+
+
+10. Tune it somewhat.

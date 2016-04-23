@@ -1,0 +1,30 @@
+Need to understand this better!
+
+Q1. When do superblocks migrate from heap to heap?
+
+Q2. How does the descriptor queue work, and why is the
+implementation partial?
+
+
+
+
+
+==============
+Overview:
+
+
+- an anchor stores the "fullness" of a superblock:
+     * avail
+     * count
+     * state
+     * tag    (for the aba problem)
+
+- a descriptor stores the global state of a superblock
+     * anchor
+     * Next (a pointer to the "Next" superblock)
+     * sb   (the actual superblock)
+     * heap (the heap that owns the superblock)
+     * sz   (the size of the blocks in the superblock)
+     * maxcount  (the total number of blokc in the superblock)
+
+

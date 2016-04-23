@@ -5,13 +5,16 @@ Q1. When do superblocks migrate from heap to heap?
 Q2. How does the descriptor queue work, and why is the
 implementation partial?
 
+Q3. Why Partial slots in both sizeclass and procheap?
+
+Q4. What is the Next slot of a descriptor used for?
 
 
 
 
-==============
-Overview:
+= Overview =
 
+=== Structures ==
 
 - an anchor stores the "fullness" of a superblock:
      * avail
@@ -25,6 +28,23 @@ Overview:
      * sb   (the actual superblock)
      * heap (the heap that owns the superblock)
      * sz   (the size of the blocks in the superblock)
-     * maxcount  (the total number of blokc in the superblock)
+     * maxcount  (the total number of block in the superblock)
+
+- an active is a pointer to the descriptor of the superblock.
+  they are aligned on 8 byte boundaries, so the lower 8 bytes
+  are used to carve out:
+     * credits (one less that the lower bound on the available blocks in the
+       superblock)
+     * ptr the "upper" 58 bits of the word. i.e. the descriptor*.
+
+- a procheap is a thread local heap structure.
+     * active
+     * Partial  (a descriptor list ??)
+     * sc  (a pointer to sizeclass, the parent size class)
+
+- a sizeclass
+     * Partial (a descriptor list ??)
+     * sz (the blocksize)
+     * sbsize (the superblock size)
 
 

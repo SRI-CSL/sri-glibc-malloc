@@ -67,7 +67,9 @@ Q4. What is the Next slot of a descriptor used for?
 
 A super block starts out life being allocated and installed as the
 active super block on a procheap by MallocFromNewSB. It remains there
-until it become full, when it is set free (not placed any where).
+until it becomes full, when it is set free (i.e. removed from the
+active slot and not placed any where).
+
 Thus free must be responsible for putting it back into play when
 blocks are freed.
 
@@ -84,7 +86,7 @@ NULL, it tries to service the request from that superblock, if it
 succeeds and the superblock is not FULL as a result, it tries to
 install it as the active superblock of heap (this is not guaranteed
 to succeed). If heap->Partial is NULL it also tries much the same
-thing for the first block in the heap->sc->Partial linked list.
+thing for the first superblock in the heap->sc->Partial linked list.
 
 
 = Life Cycle of Descriptors =

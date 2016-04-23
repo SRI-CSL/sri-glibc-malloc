@@ -483,6 +483,8 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   else {
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
+    //iam suggests:
+    desc->sb = NULL;
     DescRetire(desc); 
     return NULL;
   }

@@ -1,11 +1,26 @@
 Need to understand this better!
 
+Q0. What is the descriptor_queue for?
+
 Q1. When do superblocks migrate from heap to heap?
 
 Q2. How does the descriptor queue work, and why is the
 implementation partial?
 
-Q3. Why Partial slots in both sizeclass and procheap?
+
+Q3. Why Partial slots in both sizeclass and procheap, and what
+are they used for, and how do they relate to the descriptor_queue?
+
+heap->Partial  is *directly* updated by
+	    RemoveEmptyDesc
+	    HeapGetPartial
+	    HeapPutPartial
+
+sc->Partial is *directly* updated by
+	    ListRemoveEmptyDesc
+	    ListGetPartial
+	    ListPutPartial
+	    
 
 Q4. What is the Next slot of a descriptor used for?
 
@@ -48,3 +63,31 @@ Q4. What is the Next slot of a descriptor used for?
      * sbsize (the superblock size)
 
 
+= Life Cycle of SuperBlocks =
+
+A super block starts out life being allocated and installed as the
+active super block on a procheap by MallocFromNewSB. It remains there
+until it become full, when it is set free (not placed any where).
+Thus free must be responsible for putting it back into play when
+blocks are freed.
+
+When a block is freed, and the superblock it belongs to was FULL,
+(and thus becomes PARTIAL) the free routine calls:
+
+     HeapPutPartial(desc);
+
+which installs it as desc->heap->Partial, moving the old value to
+the front of the desc->heap->sc->Partial linked list.
+
+When MallocFromPartial gets a request, and heap->Partial is not
+NULL, it tries to service the request from that superblock, if it
+succeeds and the superblock is not FULL as a result, it tries to
+install it as the active superblock of heap (this is not guaranteed
+to succeed). If heap->Partial is NULL it also tries much the same
+thing for the first block in the heap->sc->Partial linked list.
+
+
+= Life Cycle of Descriptors =
+
+
+= Any Other Life Cyles? =

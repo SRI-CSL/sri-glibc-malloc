@@ -434,6 +434,8 @@ static void* MallocFromNewSB(procheap* heap)
   else {
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
+    //iam suggests:
+    desc->sb = NULL;
     DescRetire(desc); 
     return NULL;
   }
@@ -664,6 +666,8 @@ void lfpa_free(void* ptr)
 #endif
 
     munmap(sb, heap->sc->sbsize);
+    //iam suggests:
+    desc->sb = NULL;
     RemoveEmptyDesc(heap, desc);
   } 
   else if (oldanchor.state == FULL) {

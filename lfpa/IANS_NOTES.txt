@@ -2,9 +2,12 @@ Need to understand this better!
 
 Q0. What is the descriptor_queue for?
 
+A: Looks to be the head of a free linked list of
+descriptors. See the Descriptor life cycle below.
+
 Q1. When do superblocks migrate from heap to heap?
 
-A: See the life cycle below. It can/does happen.
+A: See the SuperBlock life cycle below. It can/does happen.
 
 Q2. How does the descriptor queue work, and why is the
 implementation partial?
@@ -24,7 +27,9 @@ sc->Partial is *directly* updated by:
 	    ListRemoveEmptyDesc  (not implemented)
 	    ListGetPartial
 	    ListPutPartial
-	    
+
+Note that the main differences b/w these two is that one is a thread
+local reference, while the other is a global linked list.
 
 Q4. What is the Next slot of a descriptor used for?
 

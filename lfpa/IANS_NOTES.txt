@@ -4,6 +4,8 @@ Q0. What is the descriptor_queue for?
 
 Q1. When do superblocks migrate from heap to heap?
 
+A: See the life cycle below. It can/does happen.
+
 Q2. How does the descriptor queue work, and why is the
 implementation partial?
 
@@ -88,6 +90,8 @@ install it as the active superblock of heap (this is not guaranteed
 to succeed). If heap->Partial is NULL it also tries much the same
 thing for the first superblock in the heap->sc->Partial linked list.
 
+So from the looks of this we can get migration when heap->Partial is
+NULL, since we just grab a superblock from the sizeclass list.
 
 = Life Cycle of Descriptors =
 

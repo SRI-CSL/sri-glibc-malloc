@@ -13,20 +13,23 @@ implementation partial?
 Q3. Why Partial slots in both sizeclass and procheap, and what
 are they used for, and how do they relate to the descriptor_queue?
 
-heap->Partial  is *directly* updated by
+heap->Partial  is *directly* updated by:
+
 	    RemoveEmptyDesc
 	    HeapGetPartial
 	    HeapPutPartial
 
-sc->Partial is *directly* updated by
-	    ListRemoveEmptyDesc
+sc->Partial is *directly* updated by:
+
+	    ListRemoveEmptyDesc  (not implemented)
 	    ListGetPartial
 	    ListPutPartial
 	    
 
 Q4. What is the Next slot of a descriptor used for?
 
-
+It is the pointer used to maintain the global descriptor_list
+linked list. See the life cycle of descriptors.
 
 
 = Overview =

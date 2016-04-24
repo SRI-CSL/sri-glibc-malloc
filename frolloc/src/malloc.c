@@ -251,24 +251,28 @@ void DescRetire(descriptor* desc)
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
-  /*
-    descriptor *desc;
-    lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
 
-    while (desc = (descriptor *)lf_fifo_dequeue(&sc->Partial)) {
+#if 1
+  descriptor *desc;
+  lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
+  while (true) {
+    desc = (descriptor *)lf_fifo_dequeue(&sc->Partial);
+    if(desc == NULL){ break; }
     lf_fifo_enqueue(&temp, (void *)desc);
     if (desc->sb == NULL) {
-    DescRetire(desc);
+      DescRetire(desc);
     }
     else {
-    break;
+      break;
     }
-    }
-
-    while (desc = (descriptor *)lf_fifo_dequeue(&temp)) {
+  }
+  
+  while (true) {
+    desc = (descriptor *)lf_fifo_dequeue(&temp);
+    if(desc == NULL){ break; }
     lf_fifo_enqueue(&sc->Partial, (void *)desc);
-    }
-  */
+  }
+#endif
 }
 
 static descriptor* ListGetPartial(sizeclass* sc)
@@ -431,6 +435,10 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
+
+      //iam: added this in the hope that it is now true...
+      assert(desc->sb == NULL);
+      
       DescRetire(desc); 
       goto retry;
     }
@@ -693,6 +701,8 @@ void free_from_sb(void* ptr, descriptor* desc){
       fflush(stderr);
     }    
     munmap(sb, heap->sc->sbsize);
+    //iam suggests:
+    desc->sb = NULL;
     RemoveEmptyDesc(heap, desc);
   } 
   else if (oldanchor.state == FULL) {

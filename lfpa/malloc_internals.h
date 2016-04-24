@@ -219,5 +219,18 @@ static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY] =
   };
 
 
+static inline long min(long a, long b)
+{
+  return a < b ? a : b;
+}
+
+static inline long max(long a, long b)
+{
+  return a > b ? a : b;
+}
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 #endif	/* __MAGED_INTERNALS_H__ */

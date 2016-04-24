@@ -56,7 +56,9 @@ static inline void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 			return NULL;
 		next.top = (uintptr_t)((struct queue_elem_t *)head.top)->next;
 		next.ocount = head.ocount + 1;
-		if (compare_and_swap64((unsigned long *)&(queue->both), *((uintptr_t*)&head), *((uintptr_t*)&next))) {
+		if (compare_and_swap64((unsigned long *)&(queue->both),
+				       *((uintptr_t*)&head),
+				       *((uintptr_t*)&next))) {
 			return((void *)head.top);
 		}
 	}

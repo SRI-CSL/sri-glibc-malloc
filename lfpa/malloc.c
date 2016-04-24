@@ -16,28 +16,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <inttypes.h>
+#include <stdbool.h>
+
 #include "malloc.h"
 #include "malloc_internals.h"
-#include <inttypes.h>
 
 
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
-static inline long min(long a, long b)
-{
-  return a < b ? a : b;
-}
-
-static inline long max(long a, long b)
-{
-  return a > b ? a : b;
-}
-
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
 
 static void* AllocNewSB(size_t size, unsigned long alignment)
 {
@@ -162,24 +151,36 @@ void DescRetire(descriptor* desc)
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
-  /*
-    descriptor *desc;
-    lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
+#ifdef DEBUG
+  fprintf(stderr, "ListRemoveEmptyDesc(%u)\n", sc->sz);
+  fflush(stderr);
+#endif  
+#if 1
+  descriptor *desc;
+  lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
 
-    while (desc = (descriptor *)lf_fifo_dequeue(&sc->Partial)) {
+  while (true) {
+    desc = (descriptor *)lf_fifo_dequeue(&sc->Partial);
+    if(desc == NULL){ break; }
     lf_fifo_enqueue(&temp, (void *)desc);
     if (desc->sb == NULL) {
-    DescRetire(desc);
+#ifdef DEBUG
+      fprintf(stderr, "ListRemoveEmptyDesc(%u) retired one!\n", sc->sz);
+      fflush(stderr);
+#endif  
+      DescRetire(desc);
     }
     else {
-    break;
+      break;
     }
-    }
-
-    while (desc = (descriptor *)lf_fifo_dequeue(&temp)) {
+  }
+  
+  while (true) {
+    desc = (descriptor *)lf_fifo_dequeue(&temp);
+    if(desc == NULL){ break; }
     lf_fifo_enqueue(&sc->Partial, (void *)desc);
-    }
-  */
+  }
+#endif
 }
 
 static descriptor* ListGetPartial(sizeclass* sc)
@@ -357,6 +358,10 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
+
+      //iam: added this in the hope that it is now true...
+      assert(desc->sb == NULL); 
+
       DescRetire(desc); 
       goto retry;
     }

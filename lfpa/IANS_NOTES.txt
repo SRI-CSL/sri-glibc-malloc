@@ -55,6 +55,7 @@ linked list. See the life cycle of descriptors.
      * tag    (for the aba problem)
 
 - a descriptor stores the global state of a superblock
+     * a slot used in the lf_fifo_queue implementation
      * anchor
      * Next (a pointer to the "Next" superblock)
      * sb   (the actual superblock)
@@ -118,7 +119,7 @@ is DescAlloc.
 When (or if) the super block is returned to the OS in the course of a
 free, RemoveEmptyDesc is called. At other times in a descriptor's life
 cycle it is recycled using DescRetire. We will look into this in more
-detail shortly. Fiirst we want to point out the follow sentences on
+detail shortly. First we want to point out the follow sentences on
 page 8:
 
 "In the current implementation, superblock descriptors are not reused
@@ -166,6 +167,10 @@ In the MallocFromPartial we repeated call HeapGetPartial trying
 to get a super block to service our request. If we come across
 an empty superblock we retire it's descriptor, but not munmap
 it's sb. Also Hmmmmm.
+
+Random Notes:
+
+-- lf_fifo_queue looks to my untrained eye to be a lifo not a fifo.
 
 
 = Any Other Life Cyles? =

@@ -151,11 +151,7 @@ void DescRetire(descriptor* desc)
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
-#ifdef DEBUG
-  fprintf(stderr, "ListRemoveEmptyDesc(%u)\n", sc->sz);
-  fflush(stderr);
-#endif  
-#if 1
+#if 0
   descriptor *desc;
   lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
 

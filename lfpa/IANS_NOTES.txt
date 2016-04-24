@@ -28,8 +28,15 @@ sc->Partial is *directly* updated by:
 	    ListGetPartial
 	    ListPutPartial
 
-Note that the main differences b/w these two is that one is a thread
-local reference, while the other is a global linked list.
+Note that the main differences b/w these two is that
+
+heap->Partial
+
+is a thread local slot of type descriptor*, while
+
+sc->Partial
+
+is a global linked list of type lf_fifo_queue_t.
 
 Q4. What is the Next slot of a descriptor used for?
 

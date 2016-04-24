@@ -125,14 +125,19 @@ static descriptor* DescAlloc() {
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (compare_and_swap128((volatile aba_128_t*)&queue_head, *((aba_128_t*)&old_queue), *((aba_128_t*)&new_queue))) {
+      if (compare_and_swap128((volatile aba_128_t*)&queue_head,
+			      *((aba_128_t*)&old_queue),
+			      *((aba_128_t*)&new_queue))) {
 #ifdef DEBUG
         fprintf(stderr, "Returning descriptor %p from new descriptor block\n", desc);
         fflush(stderr);
 #endif
         break;
       }
-      munmap((void*)desc, DESCSBSIZE);   
+      else {
+	// someone beat us to it
+	munmap((void*)desc, DESCSBSIZE);
+      }
     }
   }
 
@@ -633,7 +638,7 @@ void lfpa_free(void* ptr)
   do { 
     newanchor = oldanchor = desc->Anchor;
 
-    *((unsigned long*)ptr) = oldanchor.avail;    //sri: low order pointer shenanigans? i.e. storing the previous free index.
+    *((unsigned long*)ptr) = oldanchor.avail;
     newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
 
     if (oldanchor.state == FULL) {

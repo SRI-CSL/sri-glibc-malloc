@@ -180,18 +180,31 @@ static descriptor* DescAlloc()
   descriptor_queue old_queue, new_queue;
   descriptor* desc;
   
-  while(1) {
+  while(true) {
+
     old_queue = queue_head;
+
+    
     if (old_queue.DescAvail) {
+
+      //there is a descriptor in the queue; try and grab it.
+      
       new_queue.DescAvail = (uintptr_t)((descriptor*)old_queue.DescAvail)->Next;
       new_queue.tag = old_queue.tag + 1;
       if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
+	//we succeeded
         desc = (descriptor*)old_queue.DescAvail;
         break;
+      }
+      else {
+	//we failed
+	continue;
       }
     }
     else {
 
+      // we need to allocate a new block of descriptors and install it in the queue.
+      
       desc = aligned_mmap(DESCSBSIZE, 0);
       
       if (desc == NULL) {
@@ -207,13 +220,18 @@ static descriptor* DescAlloc()
       if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
         break;
       }
-      munmap((void*)desc, DESCSBSIZE);   
+      else {
+	// someone beat us to it
+	munmap((void*)desc, DESCSBSIZE);
+	continue;
+      }
     }
   }
-
+  
   return desc;
 }
 
+/* lock free push of desc onto the front of the descriptor queue queue_head */
 void DescRetire(descriptor* desc)
 {
   descriptor_queue old_queue, new_queue;
@@ -223,6 +241,9 @@ void DescRetire(descriptor* desc)
     desc->Next = (descriptor*)old_queue.DescAvail;
     new_queue.DescAvail = (uintptr_t)desc;
     new_queue.tag = old_queue.tag + 1;
+
+    /* maged michael has a memory fence here; and no ABA tag */
+    
   } while (!cas_128((volatile u128_t*)&queue_head, 
 		    *((u128_t*)&old_queue), 
 		    *((u128_t*)&new_queue)));

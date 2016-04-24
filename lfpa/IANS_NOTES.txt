@@ -101,7 +101,69 @@ thing for the first superblock in the heap->sc->Partial linked list.
 So from the looks of this we can get migration when heap->Partial is
 NULL, since we just grab a superblock from the sizeclass list.
 
+
 = Life Cycle of Descriptors =
+
+When a new super block is allocated (MallocFromNewSB) a new descriptor
+is required to manage the new super block. The routine that does this
+is DescAlloc.
+
+When (or if) the super block is returned to the OS in the course of a
+free, RemoveEmptyDesc is called. At other times in a descriptor's life
+cycle it is recycled using DescRetire. We will look into this in more
+detail shortly. Fiirst we want to point out the follow sentences on
+page 8:
+
+"In the current implementation, superblock descriptors are not reused
+as regular blocks and cannot be returned to the OS. This is acceptable
+as descriptors constitute on average less than 1% of allocated
+memory."
+
+Descriptors are allocated in blocks of 1024 descriptors. They
+are organized into linked lists using the Next pointer of
+the descriptor struct. The descriptor_queue is used to maintain
+a handle on this list of avaliable descriptors. DescAlloc
+maintains this queue (the global queue_head). It is called
+when a new super block is created. If the newly created
+super block does not successfully get installed as the active
+super block of the heap, the super block is munmapped and
+the newly allocated descriptor is recycled using DescRetire.
+DescRetire(desc) is a lock-free push of desc onto the front
+of the queue_head.
+
+
+So lets look at the other places where descriptors get recycled.
+
+We loose the race in MallocFromNewSB we just call DescRetire.
+
+In a free we call RemoveEmptyDesc(desc). This checks to
+see if desc is the heap's current Partial. If it
+is it replaces it by NULL and calls DescRetire(desc).
+If it is not the heap's current Partial it calls
+
+ListRemoveEmptyDesc(heap->sc);
+
+Which to me makes no sense, since desc is not even involved in this
+call. Maged must say something sensible here, surely. Nope. The
+psuedo-code is identical:
+
+RemoveEmptyDesc(heap,desc) {
+  if CAS(&heap->Partial, desc, NULL)
+    DescRetire(desc);
+  else ListRemoveEmptyDesc(heap->sc);
+  }
+
+Hmmmmm.
+
+In the MallocFromPartial we repeated call HeapGetPartial trying
+to get a super block to service our request. If we come across
+an empty superblock we retire it's descriptor, but not munmap
+it's sb. Also Hmmmmm.
 
 
 = Any Other Life Cyles? =
+
+Nyet. But the fact that, apart from the client mmapped regions, only
+two types on blocks are allocated, descriptor blocks and super blocks,
+means we could base this allocator on top of a specialized version of
+itself, which would prevent much fragmentation.

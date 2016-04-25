@@ -1,63 +1,5 @@
 Need to understand this better!
 
-Q0. What is the descriptor_queue for?
-
-A: Looks to be the head of a free linked list of
-descriptors. See the Descriptor life cycle below.
-
-Q1. When do superblocks migrate from heap to heap?
-
-A: See the SuperBlock life cycle below. It can/does happen.
-
-Q2. How does the descriptor queue work, and why is the
-implementation partial?
-
-
-Q3. Why Partial slots in both sizeclass and procheap, and what
-are they used for, and how do they relate to the descriptor_queue?
-
-heap->Partial  is *directly* updated by:
-
-	    free calling RemoveEmptyDesc(desc): If heap->Partial is
-	    desc, it tries to replace it with NULL.
-
-	    MallocFromPartial calling HeapGetPartial(heap): if NULL installs
-	    a sb from heap->sc if there is one
-
-	    free & MallocFromActive calling HeapPutPartial(desc) :
-	    pushes the current heap->Partial onto heap->sc->Partial
-	    and replaces it with desc.
-
-sc->Partial is *directly* updated by:
-
-	    ListRemoveEmptyDesc
-	    ListGetPartial
-	    ListPutPartial
-
-Note that the main differences b/w these two is that
-
-heap->Partial
-
-is a *thread* local slot of type descriptor*, while
-
-sc->Partial
-
-is a global linked list of type lf_fifo_queue_t.
-
-Q4. What is the Next slot of a descriptor used for?
-
-It is the pointer used to maintain the global descriptor_list
-linked list. See the life cycle of descriptors.
-
-Q5. Does heap->Partial store the most recent super block
-that this thread freed a block to, or is updated more or less
-frequently?
-
-Q6. If desc is heap->Partial does this mean desc->heap = heap?
-
-Q7. Are there repetitions in the sc->Partial queue?
-
-
 = Overview =
 
 === Structures ==
@@ -182,7 +124,6 @@ the desc becomes EMPTY, but it is not heap->Partial. It looks
 to me like it just gets lost.
 
 
-
 In the MallocFromPartial we repeated call HeapGetPartial trying
 to get a super block to service our request. If we come across
 an empty superblock we retire it's descriptor, but not munmap
@@ -206,3 +147,84 @@ Nyet. But the fact that, apart from the client mmapped regions, only
 two types on blocks are allocated, descriptor blocks and super blocks,
 means we could base this allocator on top of a specialized version of
 itself, which would prevent much fragmentation.
+
+= Questions that Pop into my Head = 
+
+Q0.[X] What is the descriptor_queue for?
+
+A: Looks to be the head of a free linked list of
+descriptors. See the Descriptor life cycle below.
+
+Q1.[X] When do superblocks migrate from heap to heap?
+
+A: See the SuperBlock life cycle below. It does appear to
+be possible.
+
+Q2.[X] How does the descriptor queue work, and why is the
+implementation partial?
+
+A: It is used as a pool of "empty" descriptors. I think I have fixed
+the partial implementation. Note that the current implmentation
+of lf_fifo_queue is in fact a LIFO queue, and is *not* Maged's
+prefered solution, which is a FIFO queue.
+
+Q3.[X] Why Partial slots in both sizeclass and procheap, and what
+are they used for, and how do they relate to the descriptor_queue?
+
+A. The sizeclass Partial is a list of descriptors, the heap is
+a handle on the "current" partial descriptor. I.e. 
+
+heap->Partial
+
+is a *thread* local slot of type descriptor*, while
+
+sc->Partial
+
+is a global linked list of type lf_fifo_queue_t.
+
+heap->Partial  is *directly* updated by:
+
+	    free calling RemoveEmptyDesc(desc): If heap->Partial is
+	    desc, it tries to replace it with NULL.
+
+	    MallocFromPartial calling HeapGetPartial(heap): if NULL installs
+	    a sb from heap->sc if there is one
+
+	    free & MallocFromActive calling HeapPutPartial(desc) :
+	    pushes the current heap->Partial onto heap->sc->Partial
+	    and replaces it with desc.
+
+sc->Partial is *directly* updated by:
+
+	    ListRemoveEmptyDesc
+	    ListGetPartial
+	    ListPutPartial
+
+Q4.[X] What is the Next slot of a descriptor used for?
+
+A. It is the pointer used to maintain the global free descriptor_list
+linked list. See the life cycle of descriptors.
+
+Q5.[X] Does heap->Partial store the most recent super block
+that this thread freed a block to, or is updated more or less
+frequently?
+
+A. Looks to be a bit more complicated than this. Since it can get
+updated from free, MallocFromActive, and MallocFromPartial.
+
+Q6. If desc is heap->Partial does this mean desc->heap = heap?
+
+A.[?] When a desc is first allocated it's desc->heap slot is the heap that
+created it. The only place this slot changes is in the
+MallocFromPartial routine, where it is updated to the to the heap that
+got it from a call to HeapGetPartial(heap).
+
+
+Q7. Are there repetitions in the sc->Partial queue?
+
+Q8. I am not really sure why descriptors cannot be returned back to
+the OS in principle. Is it more than just a lack of infrastructure to
+do this?
+
+
+

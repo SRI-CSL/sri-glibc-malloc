@@ -18,13 +18,19 @@ are they used for, and how do they relate to the descriptor_queue?
 
 heap->Partial  is *directly* updated by:
 
-	    RemoveEmptyDesc
-	    HeapGetPartial
-	    HeapPutPartial
+	    free calling RemoveEmptyDesc(desc): If heap->Partial is
+	    desc, it tries to replace it with NULL.
+
+	    MallocFromPartial calling HeapGetPartial(heap): if NULL installs
+	    a sb from heap->sc if there is one
+
+	    free & MallocFromActive calling HeapPutPartial(desc) :
+	    pushes the current heap->Partial onto heap->sc->Partial
+	    and replaces it with desc.
 
 sc->Partial is *directly* updated by:
 
-	    ListRemoveEmptyDesc  (not implemented)
+	    ListRemoveEmptyDesc
 	    ListGetPartial
 	    ListPutPartial
 
@@ -32,7 +38,7 @@ Note that the main differences b/w these two is that
 
 heap->Partial
 
-is a thread local slot of type descriptor*, while
+is a *thread* local slot of type descriptor*, while
 
 sc->Partial
 
@@ -42,6 +48,14 @@ Q4. What is the Next slot of a descriptor used for?
 
 It is the pointer used to maintain the global descriptor_list
 linked list. See the life cycle of descriptors.
+
+Q5. Does heap->Partial store the most recent super block
+that this thread freed a block to, or is updated more or less
+frequently?
+
+Q6. If desc is heap->Partial does this mean desc->heap = heap?
+
+Q7. Are there repetitions in the sc->Partial queue?
 
 
 = Overview =
@@ -72,11 +86,11 @@ linked list. See the life cycle of descriptors.
 
 - a procheap is a thread local heap structure.
      * active
-     * Partial  (a descriptor list ??)
+     * Partial  (a single descriptor)
      * sc  (a pointer to sizeclass, the parent size class)
 
 - a sizeclass
-     * Partial (a descriptor list ??)
+     * Partial (a descriptor list/queue )
      * sz (the blocksize)
      * sbsize (the superblock size)
 
@@ -144,10 +158,11 @@ So lets look at the other places where descriptors get recycled.
 
 We loose the race in MallocFromNewSB we just call DescRetire.
 
-In a free we call RemoveEmptyDesc(desc). This checks to
-see if desc is the heap's current Partial. If it
-is it replaces it by NULL and calls DescRetire(desc).
-If it is not the heap's current Partial it calls
+In a free call if the desc becomes EMPTY, then we call
+RemoveEmptyDesc(desc). This checks to see if desc is the heap's
+current Partial. If it is it replaces it by NULL and calls
+DescRetire(desc).  If it is not the heap's current Partial it
+just calls
 
 ListRemoveEmptyDesc(heap->sc);
 
@@ -161,7 +176,12 @@ RemoveEmptyDesc(heap,desc) {
   else ListRemoveEmptyDesc(heap->sc);
   }
 
-Hmmmmm.
+Hmmmmm.  I'm still not clear on the case when is a free:
+
+the desc becomes EMPTY, but it is not heap->Partial. It looks
+to me like it just gets lost.
+
+
 
 In the MallocFromPartial we repeated call HeapGetPartial trying
 to get a super block to service our request. If we come across

@@ -63,6 +63,12 @@ static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 */
 static volatile descriptor_queue queue_head __attribute__ ((aligned (16)));
 
+
+/* some bean counting  */
+
+static atomic_ulong active_superblocks = 0;
+static atomic_ulong active_descriptor_blocks = 0;
+
 static void init_sizeclasses(void)
 {
   int i;
@@ -143,7 +149,9 @@ static void* AllocNewSB(size_t size, unsigned long alignment)
     fflush(stderr);
     abort();
   }
-  
+
+  atomic_increment(&active_superblocks);
+    
   return addr;
 }
 
@@ -206,7 +214,9 @@ static descriptor* DescAlloc()
       // we need to allocate a new block of descriptors and install it in the queue.
       
       desc = aligned_mmap(DESCSBSIZE, 0);
-      
+
+      atomic_increment(&active_descriptor_blocks);
+
       if (desc == NULL) {
 	fprintf(stderr, "DescAlloc: aligned_mmap of size %lu returned NULL\n", DESCSBSIZE);
 	fflush(stderr);
@@ -223,6 +233,7 @@ static descriptor* DescAlloc()
       else {
 	// someone beat us to it
 	munmap((void*)desc, DESCSBSIZE);
+	atomic_decrement(&active_descriptor_blocks);
 	continue;
       }
     }
@@ -251,9 +262,11 @@ void DescRetire(descriptor* desc)
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
+  //gotta figure out why this is broken
 #if 0
   descriptor *desc;
   lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
+
   while (true) {
     desc = (descriptor *)lf_fifo_dequeue(&sc->Partial);
     if(desc == NULL){ break; }
@@ -514,6 +527,7 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
     //iam suggests:
     desc->sb = NULL;
     DescRetire(desc); 
+    atomic_decrement(&active_superblocks);
     return NULL;
   }
 }
@@ -703,6 +717,7 @@ void free_from_sb(void* ptr, descriptor* desc){
     //iam suggests:
     desc->sb = NULL;
     RemoveEmptyDesc(heap, desc);
+    atomic_decrement(&active_superblocks);
   } 
   else if (oldanchor.state == FULL) {
     HeapPutPartial(desc);
@@ -815,9 +830,9 @@ void *realloc(void *object, size_t size)
   return ret;
 }
 
-
 void malloc_stats(void){
-  fprintf(stderr, "malloc_stats coming soon(ish)\n");
+  fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
+  fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
 }
 
 

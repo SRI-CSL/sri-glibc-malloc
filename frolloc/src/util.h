@@ -22,6 +22,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdatomic.h>
+
+static inline void atomic_increment(atomic_ulong *counter){
+  atomic_fetch_add(counter, 1);
+}
+
+static inline void atomic_add(atomic_ulong *counter, atomic_ulong incr){
+  atomic_fetch_add(counter, incr);
+}
+
+static inline void atomic_decrement(atomic_ulong *counter){
+  atomic_fetch_sub(counter, 1);
+}
+
+static inline void atomic_sub(atomic_ulong *counter, atomic_ulong decr){
+  atomic_fetch_sub(counter, decr);
+}
+
 
 static inline long min(long a, long b)
 {

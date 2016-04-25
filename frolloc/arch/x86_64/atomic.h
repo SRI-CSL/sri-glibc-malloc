@@ -11,7 +11,6 @@ typedef struct u128_s {
 
 #define LOCK_PREFIX	"lock ; "
 
-
 static inline uint64_t read_64(volatile uint64_t *address){
   return __atomic_load_n(address, __ATOMIC_SEQ_CST);
 }

@@ -57,9 +57,11 @@ lib:
 
 
 UNIT_TESTS=./tests/static
+REPLAYS=./tests/replay
 
 check: $(TARGET)
 	make -C ${UNIT_TESTS} check
+	make -C ${REPLAYS} check
 
 
 clean:

@@ -168,9 +168,16 @@ to get a super block to service our request. If we come across
 an empty superblock we retire it's descriptor, but not munmap
 it's sb. Also Hmmmmm.
 
+
+Maged say (about ListRemoveEmpty) The goal of the latter is to ensure
+that empty descriptors are eventually made available for reuse, and
+not necessarily to remove a specific empty descriptor immediately.
+
+
 Random Notes:
 
 -- lf_fifo_queue looks to my untrained eye to be a lifo not a fifo.
+
 
 
 = Any Other Life Cyles? =

@@ -637,6 +637,8 @@ void lfpa_free(void* ptr)
   desc = *((descriptor**)((unsigned long)ptr + TYPE_SIZE));
         
   sb = desc->sb;
+
+
   do { 
     newanchor = oldanchor = desc->Anchor;
 

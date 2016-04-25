@@ -120,8 +120,8 @@ int process_file(const char *filename, bool verbose){
   fprintf(stderr, "Replayed %zu lines from  %s\n", linecount, filename);
 
   if(verbose){
-    fprintf(stderr, "Replay hash:\n");
-    dump_lphash(stderr, &htbl, false);
+    //fprintf(stderr, "Replay hash:\n");
+    //dump_lphash(stderr, &htbl, false);
     dump_stats(stderr, &stats);
   }
   

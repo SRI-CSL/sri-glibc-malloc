@@ -262,21 +262,18 @@ void DescRetire(descriptor* desc)
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
-  //gotta figure out why this is broken
-#if 0
+#if 1
   descriptor *desc;
   lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
 
   while (true) {
     desc = (descriptor *)lf_fifo_dequeue(&sc->Partial);
     if(desc == NULL){ break; }
-    lf_fifo_enqueue(&temp, (void *)desc);
     if (desc->sb == NULL) {
       DescRetire(desc);
-    }
-    else {
       break;
     }
+    lf_fifo_enqueue(&temp, (void *)desc);
   }
   
   while (true) {

@@ -152,6 +152,7 @@ void DescRetire(descriptor* desc)
 static void ListRemoveEmptyDesc(sizeclass* sc)
 {
 #if 1
+  //gotta figure out why this is broken
   descriptor *desc;
   lf_fifo_queue_t temp = LF_FIFO_QUEUE_STATIC_INIT;
 

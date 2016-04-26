@@ -68,6 +68,7 @@ static volatile descriptor_queue queue_head __attribute__ ((aligned (16)));
 
 static atomic_ulong active_superblocks = 0;
 static atomic_ulong active_descriptor_blocks = 0;
+static atomic_ulong active_mmaps = 0;
 
 static void init_sizeclasses(void)
 {
@@ -549,7 +550,7 @@ static procheap* find_heap(size_t sz)
   return heap;
 }
 
-static void* alloc_large_block(size_t sz)
+static void* malloc_large_block(size_t sz)
 {
   void* addr;
   bool success;
@@ -568,8 +569,62 @@ static void* alloc_large_block(size_t sz)
       fflush(stderr);
       abort();
     }
+
+    atomic_increment(&active_mmaps);
+
     return addr;
   }
+}
+
+void *realloc_large_block(void *object, size_t old_size, size_t new_size)
+{
+  void* ret;
+  size_t minsize;
+  bool success;
+
+  ret = malloc(new_size);
+  minsize = old_size;
+  /* note that we could be getting smaller NOT larger */
+  if(old_size > new_size){
+    minsize = new_size;
+  }
+  memcpy(ret, object, minsize);
+  /* 
+     it is important to update the table prior to giving back the
+     memory to the operating system. since it can be very quick
+     it putting the addresses back into play.
+  */
+  success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
+  if( ! success ){
+    fprintf(stderr, "realloc() mmap table update failed\n");
+    fflush(stderr);
+  }    
+  munmap(object, old_size);
+
+  log_free(object);
+  
+  return ret;
+}
+
+
+static void free_large_block(void *ptr, size_t sz)
+{
+  bool success;
+
+  /* it is important to update the table prior to giving back the
+     memory to the operating system. since it can be very quick
+     it putting the addresses back into play.
+  */
+  success = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  if( ! success ){
+    fprintf(stderr, "free_large_block(): mmap table update failed\n");
+    fflush(stderr);
+  }    
+  munmap(ptr, sz);
+
+  atomic_decrement(&active_mmaps);
+
+  return;
 }
 
 
@@ -592,7 +647,7 @@ void* malloc(size_t sz)
 
   if (!heap) {
     // Large block (sri: unless the mmap fails)
-    addr = alloc_large_block(sz);
+    addr = malloc_large_block(sz);
     log_malloc(addr, sz);
     return addr;
   }
@@ -725,7 +780,6 @@ void free_from_sb(void* ptr, descriptor* desc){
 void free(void* ptr) 
 {
   descriptor* desc;
-  bool success;
   size_t sz;
 
   log_free(ptr);
@@ -735,17 +789,9 @@ void free(void* ptr)
   }
   
   if(is_mmapped(ptr, &sz)){
-    /* it is important to update the table prior to giving back the
-       memory to the operating system. since it can be very quick
-       it putting the addresses back into play.
-    */
-    success = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
-    if( ! success ){
-      fprintf(stderr, "free(): mmap table update failed\n");
-      fflush(stderr);
-    }    
-    munmap(ptr, sz);
-    return;
+
+    free_large_block(ptr, sz);
+
   }
   else {
     
@@ -766,14 +812,10 @@ void *realloc(void *object, size_t size)
 {
   descriptor* desc;
   void* ret;
-  size_t minsize;
-  bool success;
   size_t sz;
-  void* newobject;
 
   if (object == NULL) {
-    newobject = malloc(size);
-    return newobject;
+    return malloc(size);
   }
   else if (size == 0) {
     free(object);
@@ -781,28 +823,14 @@ void *realloc(void *object, size_t size)
   }
 
   if(is_mmapped(object, &sz)){
-    ret = malloc(size);
-    minsize = sz;
-    /* note that we could be getting smaller NOT larger */
-    if(sz > size){
-      minsize = size;
-    }
-    memcpy(ret, object, minsize);
-    /* 
-       it is important to update the table prior to giving back the
-       memory to the operating system. since it can be very quick
-       it putting the addresses back into play.
-    */
-    success = lfht_update(&mmap_tbl, (uintptr_t)object, TOMBSTONE);
-    if( ! success ){
-      fprintf(stderr, "realloc() mmap table update failed\n");
-      fflush(stderr);
-    }    
-    munmap(object, sz);
-    log_free(object);
+
+    return realloc_large_block(object, sz, size);
+
   }
   else {
+
     desc = pointer2Descriptor(object);
+
     if (desc == NULL){
       /* not much we can do here; but fail */
       sz = -1;
@@ -830,6 +858,7 @@ void *realloc(void *object, size_t size)
 void malloc_stats(void){
   fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
   fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
+  fprintf(stderr, "active mmapped blocks: %lu\n", active_mmaps);
 }
 
 

@@ -20,7 +20,6 @@ typedef struct Procheap procheap;
 #define	PAGESIZE	4096
 #define SBSIZE		(16 * PAGESIZE)
 #define DESCSBSIZE	(1024 * sizeof(descriptor))
-#define SB_ALIGNMENT    SBSIZE
 
 #define ACTIVE		0
 #define FULL		1
@@ -49,9 +48,8 @@ typedef struct Procheap procheap;
 */  
                               
 
-/* We need to squeeze this in 64-bits, but conceptually
- * this is the case:
- *	descriptor* DescAvail;
+/* 
+ * Global "free" descriptor list (with ABA tag)
  */
 typedef struct {
   uintptr_t 	DescAvail;

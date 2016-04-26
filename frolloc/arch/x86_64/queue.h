@@ -24,19 +24,19 @@ typedef struct {
 	uintptr_t 	_pad0[8];
 	top_aba_t	both;
 	uintptr_t 	_pad1[8];
-} lf_fifo_queue_t;
+} lf_lifo_queue_t;
 
-#define LF_FIFO_QUEUE_STATIC_INIT	{{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}
+#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}
 					  
 /******************************************************************************/
 
-static inline void lf_fifo_queue_init(lf_fifo_queue_t *queue);
-static inline int lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element);
-static inline void *lf_fifo_dequeue(lf_fifo_queue_t *queue);
+static inline void lf_lifo_queue_init(lf_lifo_queue_t *queue);
+static inline int lf_lifo_enqueue(lf_lifo_queue_t *queue, void *element);
+static inline void *lf_lifo_dequeue(lf_lifo_queue_t *queue);
 
 /******************************************************************************/
 
-static inline void lf_fifo_queue_init(lf_fifo_queue_t *queue)
+static inline void lf_lifo_queue_init(lf_lifo_queue_t *queue)
 {
 	queue->both.top = 0;
 	queue->both.ocount = 0;
@@ -44,7 +44,7 @@ static inline void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 
 /******************************************************************************/
 
-static inline void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
+static inline void *lf_lifo_dequeue(lf_lifo_queue_t *queue)
 {
 	top_aba_t head;
 	top_aba_t next;
@@ -64,7 +64,7 @@ static inline void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 
 /******************************************************************************/
 
-static inline int lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
+static inline int lf_lifo_enqueue(lf_lifo_queue_t *queue, void *element)
 {
 	top_aba_t old_top;
 	top_aba_t new_top;

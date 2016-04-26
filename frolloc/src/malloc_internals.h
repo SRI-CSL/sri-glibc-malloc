@@ -63,7 +63,7 @@ typedef struct {
 } anchor;
 
 struct Descriptor {
-	struct queue_elem_t	lf_fifo_queue_padding;
+	struct queue_elem_t	lf_lifo_queue_padding;
 	volatile anchor		Anchor;
 	descriptor*		Next;
 	void*			sb;		// pointer to superblock
@@ -73,7 +73,7 @@ struct Descriptor {
 };
 
 typedef struct {
-	lf_fifo_queue_t		Partial;	// initially empty
+	lf_lifo_queue_t		Partial;	// initially empty
 	unsigned int		sz;		// block size
 	unsigned int		sbsize;		// superblock size
 } sizeclass;

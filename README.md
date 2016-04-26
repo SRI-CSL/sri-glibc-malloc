@@ -33,6 +33,8 @@ implementations.
 
 -  `lfht` a lock free hash table built from scratch (as described by Tobias Maier).
 
--  `frolloc` our first attempt at a lock free metadata free malloc
+-  `frolloc` our first attempt at a lock free metadata free malloc, uses a double word CAS.
+
+
 
 

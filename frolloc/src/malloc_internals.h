@@ -30,15 +30,14 @@ typedef struct Procheap procheap;
 #define	MAXCREDITS	64    // 2^(bits for credits in active)
 #define GRANULARITY	16    // sri: for x86_64 alignment we require 16 NOT 8
 
-// sri: bigger than this we mmap. code is not yet 
-// parametric in this. change it and the code needs
-// changing too.
-
-/* glibc's default is 128 * 1024 */
+// sri: bigger than this we mmap. 
+// glibc's default is 128 * 1024 
+// but since our SBSIZE is 16 * 4 * 1024
+// we can't get much bigger than this unless we increase SBIZE too.
 #ifdef DARWIN
 #define MAX_BLOCK_SIZE  32 * 1024
 #else
-#define MAX_BLOCK_SIZE  128 * 1024
+#define MAX_BLOCK_SIZE  32 * 1024
 #endif
 /* 
    Seems like XCode 7.3 has a bug: 
@@ -46,7 +45,7 @@ typedef struct Procheap procheap;
    ld: section __DATA/__thread_bss extends beyond end of file, file
    'obj/malloc.o' for architecture x86_64
 
-   So we have to be more modest for the Mac
+   So we have to be no bigger than 32 * 1024 for the Mac
 */  
                               
 

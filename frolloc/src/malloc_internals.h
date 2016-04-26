@@ -33,7 +33,21 @@ typedef struct Procheap procheap;
 // sri: bigger than this we mmap. code is not yet 
 // parametric in this. change it and the code needs
 // changing too.
-#define MAX_BLOCK_SIZE  2048  
+
+/* glibc's default is 128 * 1024 */
+#ifdef DARWIN
+#define MAX_BLOCK_SIZE  32 * 1024
+#else
+#define MAX_BLOCK_SIZE  128 * 1024
+#endif
+/* 
+   Seems like XCode 7.3 has a bug: 
+
+   ld: section __DATA/__thread_bss extends beyond end of file, file
+   'obj/malloc.o' for architecture x86_64
+
+   So we have to be more modest for the Mac
+*/  
                               
 
 /* We need to squeeze this in 64-bits, but conceptually

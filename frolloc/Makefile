@@ -13,17 +13,19 @@ ifeq (Darwin, $(findstring Darwin, ${OS}))
 LIB = ${LIBRARYNAME}.dylib
 LIBFLAGS = -dynamiclib
 LDFLAGS =
+CFLAGS = -DDARWIN
 else
 LIB = ${LIBRARYNAME}.so
 LIBFLAGS = -shared -Wl,-soname,${LIB}
 LDFLAGS = -lpthread
+CFLAGS = -DLINUX
 endif
 
 #OPT= -O3 -ggdb
 OPT=  -ggdb
 
 
-CFLAGS= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
 CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_DEBUG 
 

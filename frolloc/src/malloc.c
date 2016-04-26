@@ -871,6 +871,7 @@ void malloc_stats(void){
   fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
   fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
   fprintf(stderr, "active mmapped blocks: %lu\n", active_mmaps);
+  fflush(stderr);
 }
 
 

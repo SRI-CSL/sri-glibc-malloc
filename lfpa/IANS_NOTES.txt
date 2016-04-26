@@ -1,5 +1,3 @@
-Need to understand this better!
-
 = Overview =
 
 === Structures ==
@@ -140,7 +138,6 @@ Random Notes:
 -- lf_fifo_queue looks to my untrained eye to be a lifo not a fifo.
 
 
-
 = Any Other Life Cyles? =
 
 Nyet. But the fact that, apart from the client mmapped regions, only
@@ -212,7 +209,7 @@ frequently?
 A. Looks to be a bit more complicated than this. Since it can get
 updated from free, MallocFromActive, and MallocFromPartial.
 
-Q6. If desc is heap->Partial does this mean desc->heap = heap?
+Q6.[?] If desc is heap->Partial does this mean desc->heap = heap?
 
 A.[?] When a desc is first allocated it's desc->heap slot is the heap that
 created it. The only place this slot changes is in the
@@ -222,9 +219,18 @@ got it from a call to HeapGetPartial(heap).
 
 Q7. Are there repetitions in the sc->Partial queue?
 
-Q8. I am not really sure why descriptors cannot be returned back to
+Q8.[?] I am not really sure why descriptors cannot be returned back to
 the OS in principle. Is it more than just a lack of infrastructure to
 do this?
+
+A.[?] This might be because the FIFO queue algorithm in Michael & Scott
+can't release the nodes back to the OS, since these nodes are descriptors
+I think we have our answer. Not that after Maged's pool allocator paper
+came out, he subsequently "fixed" thsi problem with his hazard pointer
+paper.
+
+
+
 
 
 

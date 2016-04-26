@@ -24,7 +24,10 @@ But do we want to pay the fragmentation price?
 8. Grow and shrink the tables
 
 
-9. Clean up the dodgey code that came from the maged implementation.
+9.[X] Clean up the dodgey code that came from the maged implementation.
 
 
-10. Tune it somewhat.
+10.[X] Tune it somewhat.
+
+
+11. Use FIFO queues of decriptors rather than LIFO queues.

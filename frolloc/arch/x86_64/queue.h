@@ -11,22 +11,18 @@ typedef struct {
 } top_aba_t;
 
 // Pseudostructure for lock-free list elements.
-// The only requirement is that the 5th-8th byte of
-// each element should be available to be used as
-// the pointer for the implementation of a singly-linked
-// list. 
 struct queue_elem_t {
-  //char 				*_dummy;   BD&DD
   volatile struct queue_elem_t 	*next;
 };
 
 typedef struct {
-	uintptr_t 	_pad0[8];
+  //	uintptr_t 	_pad0[8];
 	top_aba_t	both;
-	uintptr_t 	_pad1[8];
+  //	uintptr_t 	_pad1[8];
 } lf_lifo_queue_t;
 
-#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}
+#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0}}
+//#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}
 					  
 /******************************************************************************/
 

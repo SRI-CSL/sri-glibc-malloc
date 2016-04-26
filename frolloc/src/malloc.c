@@ -64,6 +64,18 @@ static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 static volatile descriptor_queue queue_head __attribute__ ((aligned (16)));
 
 
+/* these remain for debigging and profiling purposes */
+__attribute__ ((__constructor__)) 
+void frolloc_load(void) {
+
+}
+
+__attribute__ ((__destructor__))
+void frolloc_unload(void)
+{
+  malloc_stats();
+}
+ 
 /* some bean counting  */
 
 static atomic_ulong active_superblocks = 0;

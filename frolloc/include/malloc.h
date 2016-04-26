@@ -11,5 +11,12 @@ extern void *memalign(size_t boundary, size_t size);
 extern int posix_memalign(void **memptr, size_t alignment, size_t size);
 extern void malloc_stats(void);
 
+
+extern void frolloc_load(void)   __attribute__((constructor)) ;
+extern void frolloc_unload(void) __attribute__((destructor)) ;
+
+ 
+ 
+
 #endif	/* __FROLLOC_MALLOC_H__ */
 

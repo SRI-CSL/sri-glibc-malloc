@@ -52,7 +52,7 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
   touch the lock again. But here it is, in all it's non-lock-free
   glory.
 */
-static volatile bool __initialized__ = false;
+static volatile atomic_bool __initialized__ = ATOMIC_VAR_INIT(false);
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
@@ -92,22 +92,28 @@ static void init_sizeclasses(void)
   }
 }
 
+/* http://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/ */
 void frolloc_init(void) 
 {
-  pthread_mutex_lock(&lock);
-  if( __initialized__ ){
+  atomic_bool _init_ = atomic_load_explicit(&__initialized__, memory_order_relaxed);
+  atomic_thread_fence(memory_order_acquire);
+  if (! _init_ ){ 
+    pthread_mutex_lock(&lock);
+    _init_ = atomic_load_explicit(&__initialized__, memory_order_relaxed);
+    if( ! _init_ ){
+      log_init();
+      init_sizeclasses();
+      if( ! init_lfht(&desc_tbl, DESC_HTABLE_CAPACITY) ||  
+	  ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
+	fprintf(stderr, "Off to frollocing a bad start\n");
+	abort();
+      }
+      atomic_thread_fence(memory_order_release);
+      atomic_store_explicit(&__initialized__, true, memory_order_relaxed);
+      __initialized__ = true;
+    }
     pthread_mutex_unlock(&lock);
-    return;
   }
-  log_init();
-  init_sizeclasses();
-  if( ! init_lfht(&desc_tbl, DESC_HTABLE_CAPACITY) ||  
-      ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
-    fprintf(stderr, "Off to frollocing a bad start\n");
-    abort();
-  }
-  __initialized__ = true;
-  pthread_mutex_unlock(&lock);
   return;
 }
 
@@ -646,8 +652,7 @@ void* malloc(size_t sz)
   void* addr;
   descriptor* desc = NULL;
   
-  if (! __initialized__ ){ frolloc_init();  }
-
+  frolloc_init(); 
 
   //minimum block size
   if (sz < 16){

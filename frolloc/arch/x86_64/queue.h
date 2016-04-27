@@ -1,5 +1,5 @@
-#ifndef __QUEUE_H_
-#define __QUEUE_H_
+#ifndef __LF_LIFO_QUEUE_H_
+#define __LF_LIFO_QUEUE_H_
 
 #include "atomic.h"
 #include <stdlib.h>

@@ -73,7 +73,9 @@ void frolloc_load(void) {
 __attribute__ ((__destructor__))
 void frolloc_unload(void)
 {
+#ifdef SRI_DEBUG
   malloc_stats();
+#endif
 }
  
 /* some bean counting  */

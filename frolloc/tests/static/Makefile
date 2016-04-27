@@ -23,3 +23,5 @@ check: all
 
 clean:
 	rm -f stest0 stest1 stest2
+	rm -rf *.dSYM
+

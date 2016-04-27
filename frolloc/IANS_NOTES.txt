@@ -21,7 +21,7 @@ But do we want to pay the fragmentation price?
 7.[X] Eliminate the metadata.
 
 
-8. Grow and shrink the tables
+8. Grow (and shrink) the tables.
 
 
 9.[X] Clean up the dodgey code that came from the maged implementation.
@@ -31,3 +31,17 @@ But do we want to pay the fragmentation price?
 
 
 11. Use FIFO queues of decriptors rather than LIFO queues.
+
+
+12. Ditch the 128 CAS for just 64 CAS.
+
+
+===========================
+
+frolloc gets 8, 11, and 12.
+
+then glibc gets debug 
+
+glibc?
+
+

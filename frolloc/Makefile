@@ -69,6 +69,8 @@ check: $(TARGET)
 clean:
 	rm -f *~ *.o
 	rm -rf obj lib
+	make -C ${UNIT_TESTS} clean
+	make -C ${REPLAYS} clean
 
 
 

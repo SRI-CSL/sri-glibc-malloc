@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #include "atomic.h"
-#include "queue.h"
+#include "lf_lifo_queue.h"
 
 struct Descriptor;
 typedef struct Descriptor descriptor;

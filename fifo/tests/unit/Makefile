@@ -1,6 +1,12 @@
+ARCH ?= $(shell uname -m)
 
 
-CFLAGS= -Wall -I../../include/ -ggdb
+ifneq ($(ARCH), x86_64)
+  error  "Got me just one ARCH today."
+endif
+
+
+CFLAGS= -Wall -I../../include/  -I../../arch/${ARCH} -ggdb
 
 
 OBJDIR=../../obj

@@ -1,6 +1,4 @@
-#ifndef __LF_FIFO_QUEUE_H_
-#define __LF_FIFO_QUEUE_H_
-
+#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -84,7 +82,4 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
   
 
 }
-
-
-#endif
 

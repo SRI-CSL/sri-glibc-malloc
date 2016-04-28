@@ -16,12 +16,13 @@
    https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html
 */
 
-static node_t end = {{0, 0}};
+static node_t end  __attribute__ ((aligned (16)));
 
 void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 {
   assert(queue != NULL);
-  
+  end.next.ptr = 0;
+  end.next.count = 0;
   queue->head.ptr = (uintptr_t)&end;
   queue->tail.ptr = (uintptr_t)&end;
 

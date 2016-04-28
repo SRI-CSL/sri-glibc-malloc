@@ -32,11 +32,11 @@ typedef struct {
 } lf_fifo_queue_t;
 
 
-extern inline void lf_fifo_queue_init(lf_fifo_queue_t *queue);
+extern void lf_fifo_queue_init(lf_fifo_queue_t *queue);
 
-extern inline void *lf_fifo_dequeue(lf_fifo_queue_t *queue);
+extern void *lf_fifo_dequeue(lf_fifo_queue_t *queue);
 
-extern inline void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element);
+extern void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element);
 
 #endif
 

@@ -27,14 +27,65 @@ void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 
 }
 
-void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
-{
-
-  return NULL;
-}
-
 static inline bool eq(pointer_t* lhs, volatile pointer_t* rhs){
   return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
+}
+
+
+void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
+{
+  pointer_t head;
+  pointer_t tail;
+  pointer_t next;
+
+  pointer_t temp;
+
+  node_t* retval;
+  
+  assert(queue != NULL);
+
+  retval = NULL;
+  
+  while(true){
+
+    head = queue->head;       //read the head
+    tail = queue->tail;       //read the tail
+    next = ((node_t *)head.ptr)->next;    //read the head.ptr->next
+
+    if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
+
+      if( head.ptr == tail.ptr ){   //is queue empty or tail falling behind
+
+	if(next.ptr == 0){
+	  return NULL;
+	}
+	//tail is falling behind. Try to advance it.
+	temp.ptr = next.ptr;
+	temp.count = tail.count + 1;
+	cas_128((volatile u128_t *)&queue->tail,
+		*((u128_t *)&tail),
+		*((u128_t *)&temp));
+	
+      } else { //no need to deal with tail.
+
+	//read the value before the cas
+	//otherwise, another dequeue might free the next node
+	retval = (node_t *)next.ptr;
+	//try to swing head to the next node
+	temp.ptr = next.ptr;
+	temp.count = head.count + 1;
+
+	if( cas_128((volatile u128_t *)&queue->head,
+		    *((u128_t *)&head),
+		    *((u128_t *)&temp)) ){
+	  break; //dequeue is done, exit loop;
+	}
+	retval = NULL;
+      }
+    }
+  }
+  
+  return retval;
 }
 
 void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
@@ -47,7 +98,11 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
 
   pointer_t temp;
 
+  assert(queue != NULL);
+  assert(node != NULL);
+
   node->next.ptr = 0;  //is this needed?
+
   
   while(true){
 

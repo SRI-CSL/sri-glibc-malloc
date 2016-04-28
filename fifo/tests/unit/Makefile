@@ -6,23 +6,45 @@ ifneq ($(ARCH), x86_64)
 endif
 
 
-CFLAGS= -Wall -I../../include/  -I../../arch/${ARCH} -ggdb
+OS   =  $(shell uname)
 
+ifeq (Darwin, $(findstring Darwin, ${OS}))
+LDFLAGS =
+else
+LDFLAGS = -lpthread
+endif
+
+CFLAGS= -Wall -I../../include/  -I../../arch/${ARCH} -ggdb
 
 OBJDIR=../../obj
 
-OBJS= ${OBJDIR}/lf_fifo_queue.o 
+OBJS = ${OBJDIR}/lf_fifo_queue.o
+
+EXES = test0 test1 test2
+
+all: ${EXES}
+
+test0: test0.c
+	@echo "OBJS = ${OBJS}"
+	${CC} ${CFLAGS} test0.c ${OBJS} -o test0 ${LDFLAGS}
+
+test1: test1.c
+	@echo "OBJS = ${OBJS}"
+	${CC} ${CFLAGS} test1.c ${OBJS} -o test1 ${LDFLAGS}
+
+test2: test2.c
+	@echo "OBJS = ${OBJS}"
+	${CC} ${CFLAGS} test2.c ${OBJS} -o test2 ${LDFLAGS}
 
 
-all:
-	${CC} ${CFLAGS} test0.c ${OBJS} -o  test0
-	${CC} ${CFLAGS} test1.c ${OBJS} -o  test1
+
 
 check: all
 	./test0
 	./test1
+	./test2
 
 clean:
-	rm -f test0 test1
+	rm -f test0 test1 test2
 	rm -rf *.dSYM
 

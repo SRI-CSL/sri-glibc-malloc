@@ -11,6 +11,7 @@
 
 #include "atomic.h"
 #include "lf_lifo_queue.h"
+#include "lf_fifo_queue.h"
 
 struct Descriptor;
 typedef struct Descriptor descriptor;

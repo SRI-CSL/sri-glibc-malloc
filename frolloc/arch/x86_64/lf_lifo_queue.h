@@ -10,19 +10,18 @@ typedef struct {
   volatile uint64_t ocount;
 } top_aba_t;
 
+
 // Pseudostructure for lock-free list elements.
-struct queue_elem_t {
+typedef struct queue_elem_t {
   volatile struct queue_elem_t 	*next;
-};
+} lf_queue_elem_t;
+
 
 typedef struct {
-  //	uintptr_t 	_pad0[8];
 	top_aba_t	both;
-  //	uintptr_t 	_pad1[8];
 } lf_lifo_queue_t;
 
 #define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0}}
-//#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0, 0, 0, 0, 0, 0, 0}, {0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}
 					  
 /******************************************************************************/
 

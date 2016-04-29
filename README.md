@@ -35,6 +35,7 @@ implementations.
 
 -  `frolloc` our first attempt at a lock free metadata free malloc, uses a double word CAS.
 
+- `fifo_128` our version of Michael & Scott's lock free fifo queue buit using CAS_128.
 
 
 

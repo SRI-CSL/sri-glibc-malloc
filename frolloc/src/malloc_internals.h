@@ -63,6 +63,14 @@ typedef struct {
 	unsigned long long 	avail:24,count:24, state:2, tag:14;
 } anchor;
 
+/*
+  Note Bene: the first element of the descriptor struct allows it to
+  be stored in the lf_lifo_queue, also with a slight change the same is true 
+  for the lf_fifo_queue. This means that a descrriptor cannot be stored
+  in more than one queue, and should not be enqueued more than once.
+  This same remark holds true for lfpa.
+*/
+
 struct Descriptor {
 	struct queue_elem_t	lf_lifo_queue_padding;
 	volatile anchor		Anchor;

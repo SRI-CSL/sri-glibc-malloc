@@ -226,7 +226,7 @@ do this?
 A.[?] This might be because the FIFO queue algorithm in Michael & Scott
 can't release the nodes back to the OS, since these nodes are descriptors
 I think we have our answer. Not that after Maged's pool allocator paper
-came out, he subsequently "fixed" thsi problem with his hazard pointer
+came out, he subsequently "fixed" this problem with his hazard pointer
 paper.
 
 

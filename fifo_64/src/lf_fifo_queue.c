@@ -28,7 +28,8 @@ void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 }
 
 static inline bool eq(pointer_t* lhs, volatile pointer_t* rhs){
-  return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
+  //return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
+  return *((uint64_t *)lhs) == *((uint64_t *)rhs);
 }
 
 

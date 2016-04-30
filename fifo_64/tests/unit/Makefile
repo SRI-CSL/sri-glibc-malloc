@@ -20,20 +20,21 @@ OBJDIR=../../obj
 
 OBJS = ${OBJDIR}/lf_fifo_queue.o
 
-EXES = test0 test1 test2
+EXES = main test0 test1 test2
 
 all: ${EXES}
 
+main: main.c
+	${CC} ${CFLAGS} main.c ${OBJS} -o main ${LDFLAGS}
+
 test0: test0.c
-	@echo "OBJS = ${OBJS}"
 	${CC} ${CFLAGS} test0.c ${OBJS} -o test0 ${LDFLAGS}
 
+
 test1: test1.c
-	@echo "OBJS = ${OBJS}"
 	${CC} ${CFLAGS} test1.c ${OBJS} -o test1 ${LDFLAGS}
 
 test2: test2.c
-	@echo "OBJS = ${OBJS}"
 	${CC} ${CFLAGS} test2.c ${OBJS} -o test2 ${LDFLAGS}
 
 

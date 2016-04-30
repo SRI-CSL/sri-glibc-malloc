@@ -62,9 +62,9 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 	//tail is falling behind. Try to advance it.
 	temp.ptr = next.ptr;
 	temp.count = tail.count + 1;
-	cas_128((volatile u128_t *)&queue->tail,
-		*((u128_t *)&tail),
-		*((u128_t *)&temp));
+	cas_64((volatile uint64_t *)&queue->tail,
+		*((uint64_t *)&tail),
+		*((uint64_t *)&temp));
 	
       } else { //no need to deal with tail.
 
@@ -75,9 +75,9 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 	temp.ptr = next.ptr;
 	temp.count = head.count + 1;
 
-	if( cas_128((volatile u128_t *)&queue->head,
-		    *((u128_t *)&head),
-		    *((u128_t *)&temp)) ){
+	if( cas_64((volatile uint64_t *)&queue->head,
+		    *((uint64_t *)&head),
+		    *((uint64_t *)&temp)) ){
 	  break; //dequeue is done, exit loop;
 	}
 	retval = NULL;
@@ -115,9 +115,9 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
 	// try to link node at the end of the linked list
 	temp.ptr = (uintptr_t)node;
 	temp.count = next.count + 1;
-	if ( cas_128((volatile u128_t *)&(((node_t*)tail.ptr)->next),
-		     *((u128_t *)&next),
-		     *((u128_t *)&temp)) ){
+	if ( cas_64((volatile uint64_t *)&(((node_t*)tail.ptr)->next),
+		     *((uint64_t *)&next),
+		     *((uint64_t *)&temp)) ){
 	  break;
 	} 
       } else {
@@ -125,7 +125,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
 	//try to swing tail to the next node
 	temp.ptr = next.ptr;
 	temp.count = tail.count + 1;
-	cas_128((volatile u128_t *)&queue->tail, *((u128_t *)&tail), *((u128_t *)&temp));
+	cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
       }
       
     }
@@ -133,7 +133,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
   // enqueue is done, Try to swing tail to the inserted node
   temp.ptr = (uintptr_t)node;
   temp.count = tail.count + 1;
-  cas_128((volatile u128_t *)&queue->tail, *((u128_t *)&tail), *((u128_t *)&temp));
+  cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
   
 
 }

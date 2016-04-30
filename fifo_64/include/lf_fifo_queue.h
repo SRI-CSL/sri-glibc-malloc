@@ -8,18 +8,8 @@
 #include "atomic.h"
 
 
-/*
- *
- * If we insist that pointer_t must be 16 byte aligned we can 
- * steal 4 bits from the pointer to store an ABA tag. Not a very 
- * convincing ABA tag, but ... if the size of a decriptor is
- * a bigger power of two we can beef up the size of the ABA tag.
- *
- */
-#define TAG_MASK    0xF
-
 typedef struct {
-  unsigned long long  ptr:60, count:4;
+  unsigned long long  ptr:48, count:16;
 } pointer_t;
 
 

@@ -15,7 +15,7 @@ int main(int argc, char* argv[]){
   three.number = 3;
 
   fprintf(stderr, "sizeof(%s) = %zu\n", "pointer_t", sizeof(pointer_t));
-  fprintf(stderr, "sizeof(%s) = %zu\n", "node_t", sizeof(node_t));
+  fprintf(stderr, "sizeof(%s) = %zu\n", "lf_queue_elem_t", sizeof(lf_queue_elem_t));
   fprintf(stderr, "sizeof(%s) = %zu\n", "elem_t", sizeof(elem_t));
   
 

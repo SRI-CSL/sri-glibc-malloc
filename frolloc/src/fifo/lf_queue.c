@@ -15,7 +15,7 @@
    https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html
 */
 
-static node_t end  __attribute__ ((aligned (16)));
+static lf_queue_elem_t end  __attribute__ ((aligned (16)));
 
 void lf_queue_init(lf_queue_t *queue)
 {
@@ -41,7 +41,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
   pointer_t temp;
 
-  node_t* retval;
+  lf_queue_elem_t* retval;
   
   assert(queue != NULL);
 
@@ -51,7 +51,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
-    next = ((node_t *)head.ptr)->next;    //read the head.ptr->next
+    next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
 
     if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
 
@@ -71,7 +71,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
 	//read the value before the cas
 	//otherwise, another dequeue might free the next node
-	retval = (node_t *)next.ptr;
+	retval = (lf_queue_elem_t *)next.ptr;
 	//try to swing head to the next node
 	temp.ptr = next.ptr;
 	temp.count = head.count + 1;
@@ -91,7 +91,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
 void lf_enqueue(lf_queue_t *queue, void *element)
 {
-  node_t* node = (node_t*)element;
+  lf_queue_elem_t* node = (lf_queue_elem_t*)element;
 
   
   pointer_t next;
@@ -108,7 +108,7 @@ void lf_enqueue(lf_queue_t *queue, void *element)
   while(true){
 
     tail = queue->tail;                //read tail.ptr and tail.count together
-    next = ((node_t*)tail.ptr)->next;  //read next.ptr and next.count together
+    next = ((lf_queue_elem_t*)tail.ptr)->next;  //read next.ptr and next.count together
     
     if ( eq(&tail, &(queue->tail)) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
@@ -116,7 +116,7 @@ void lf_enqueue(lf_queue_t *queue, void *element)
 	// try to link node at the end of the linked list
 	temp.ptr = (uintptr_t)node;
 	temp.count = next.count + 1;
-	if ( cas_64((volatile uint64_t *)&(((node_t*)tail.ptr)->next),
+	if ( cas_64((volatile uint64_t *)&(((lf_queue_elem_t*)tail.ptr)->next),
 		     *((uint64_t *)&next),
 		     *((uint64_t *)&temp)) ){
 	  break;

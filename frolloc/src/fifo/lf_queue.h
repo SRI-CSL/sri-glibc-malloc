@@ -13,9 +13,9 @@ typedef struct {
 } pointer_t;
 
 
-typedef struct node_s {
+typedef struct queue_elem_t {
   volatile pointer_t next;
-} node_t;
+} lf_queue_elem_t;
 
 
 typedef struct {
@@ -23,7 +23,7 @@ typedef struct {
   volatile pointer_t tail;
 } lf_queue_t;
 
-
+#define LF_QUEUE_STATIC_INIT  {0, 0}
 
 extern void lf_queue_init(lf_queue_t *queue);
 

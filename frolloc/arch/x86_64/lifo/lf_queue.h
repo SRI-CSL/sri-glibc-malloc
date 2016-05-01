@@ -6,10 +6,8 @@
 #include <stdint.h>
 
 typedef struct {
-  volatile uintptr_t top;
-  volatile uint64_t ocount;
+	volatile unsigned long long top:48, ocount:16;
 } top_aba_t;
-
 
 /* Header for lock-free list elements. */
 typedef struct queue_elem_t {

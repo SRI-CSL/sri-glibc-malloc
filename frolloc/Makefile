@@ -36,6 +36,7 @@ SRC = $(sort $(wildcard $(SRC_GLOBS)))
 
 
 OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
+OBJ += obj/lf_queue.o
 
 TARGET = lib/${LIB}
 
@@ -54,6 +55,13 @@ obj:
 
 obj/%.o: src/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+
+obj/%.o: src/%.c | obj
+	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+
+obj/%.o: arch/${ARCH}/${LF_QUEUE}/%.c | obj
+	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+
 
 lib:
 	mkdir -p lib

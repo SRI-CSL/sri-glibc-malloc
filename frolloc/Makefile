@@ -24,6 +24,7 @@ endif
 #OPT= -O3 -ggdb
 OPT=  -ggdb
 
+#choice of lifo or fifo (fifo has not been tested yet).
 LF_QUEUE = lifo
 
 CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./src/${LF_QUEUE}

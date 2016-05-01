@@ -26,7 +26,7 @@ OPT=  -ggdb
 
 LF_QUEUE = lifo
 
-CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./arch/${ARCH}/${LF_QUEUE}
+CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./src/${LF_QUEUE}
 CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_DEBUG 
 
@@ -59,7 +59,7 @@ obj/%.o: src/%.c | obj
 obj/%.o: src/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 
-obj/%.o: arch/${ARCH}/${LF_QUEUE}/%.c | obj
+obj/%.o: src/${LF_QUEUE}/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 
 

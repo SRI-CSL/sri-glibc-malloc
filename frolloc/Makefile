@@ -24,8 +24,9 @@ endif
 #OPT= -O3 -ggdb
 OPT=  -ggdb
 
+LF_QUEUE = lifo
 
-CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./arch/${ARCH}/${LF_QUEUE}
 CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_DEBUG 
 

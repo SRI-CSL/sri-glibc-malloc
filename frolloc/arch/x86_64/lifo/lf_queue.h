@@ -19,19 +19,19 @@ typedef struct queue_elem_t {
 
 typedef struct {
 	top_aba_t	both;
-} lf_lifo_queue_t;
+} lf_queue_t;
 
 
-#define LF_LIFO_QUEUE_STATIC_INIT	{{0, 0}}
+#define LF_QUEUE_STATIC_INIT  {{0, 0}}
 
-static inline void lf_lifo_queue_init(lf_lifo_queue_t *queue)
+static inline void lf_queue_init(lf_queue_t *queue)
 {
 	queue->both.top = 0;
 	queue->both.ocount = 0;
 }
 
 
-static inline void *lf_lifo_dequeue(lf_lifo_queue_t *queue)
+static inline void *lf_dequeue(lf_queue_t *queue)
 {
 	top_aba_t head;
 	top_aba_t next;
@@ -50,7 +50,7 @@ static inline void *lf_lifo_dequeue(lf_lifo_queue_t *queue)
 		}
 	}
 }
-static inline int lf_lifo_enqueue(lf_lifo_queue_t *queue, void *element)
+static inline int lf_enqueue(lf_queue_t *queue, void *element)
 {
 	top_aba_t old_top;
 	top_aba_t new_top;
@@ -58,7 +58,6 @@ static inline int lf_lifo_enqueue(lf_lifo_queue_t *queue, void *element)
 	while(1) {
 		old_top.ocount = queue->both.ocount;
 		old_top.top = queue->both.top;
-
 		((struct queue_elem_t *)element)->next = (struct queue_elem_t *)old_top.top;
 		new_top.top = (unsigned long)element;
 		new_top.ocount = old_top.ocount + 1;

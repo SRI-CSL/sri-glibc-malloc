@@ -10,8 +10,7 @@
 #include <stdint.h>
 
 #include "atomic.h"
-#include "lf_lifo_queue.h"
-#include "lf_fifo_queue.h"
+#include "lf_queue.h"
 
 struct Descriptor;
 typedef struct Descriptor descriptor;
@@ -65,14 +64,13 @@ typedef struct {
 
 /*
   Note Bene: the first element of the descriptor struct allows it to
-  be stored in the lf_lifo_queue, also with a slight change the same is true 
-  for the lf_fifo_queue. This means that a descrriptor cannot be stored
-  in more than one queue, and should not be enqueued more than once.
-  This same remark holds true for lfpa.
+  be stored in the either form of the lf_queue. This means that a
+  descriptor cannot be stored in more than one queue, and should not
+  be enqueued more than once.  This same remark holds true for lfpa.
 */
 
 struct Descriptor {
-	struct queue_elem_t	lf_lifo_queue_padding;
+	struct queue_elem_t	lf_queue_padding;
 	volatile anchor		Anchor;
 	descriptor*		Next;
 	void*			sb;		// pointer to superblock
@@ -82,7 +80,7 @@ struct Descriptor {
 };
 
 typedef struct {
-	lf_lifo_queue_t		Partial;	// initially empty
+	lf_queue_t		Partial;	// initially empty
 	unsigned int		sz;		// block size
 	unsigned int		sbsize;		// superblock size
 } sizeclass;

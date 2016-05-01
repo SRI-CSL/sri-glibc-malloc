@@ -285,34 +285,34 @@ static void ListRemoveEmptyDesc(sizeclass* sc)
 {
 #if 1
   descriptor *desc;
-  lf_lifo_queue_t temp = LF_LIFO_QUEUE_STATIC_INIT;
+  lf_queue_t temp = LF_QUEUE_STATIC_INIT;
 
   while (true) {
-    desc = (descriptor *)lf_lifo_dequeue(&sc->Partial);
+    desc = (descriptor *)lf_dequeue(&sc->Partial);
     if(desc == NULL){ break; }
     if (desc->sb == NULL) {
       DescRetire(desc);
       break;
     }
-    lf_lifo_enqueue(&temp, (void *)desc);
+    lf_enqueue(&temp, (void *)desc);
   }
   
   while (true) {
-    desc = (descriptor *)lf_lifo_dequeue(&temp);
+    desc = (descriptor *)lf_dequeue(&temp);
     if(desc == NULL){ break; }
-    lf_lifo_enqueue(&sc->Partial, (void *)desc);
+    lf_enqueue(&sc->Partial, (void *)desc);
   }
 #endif
 }
 
 static descriptor* ListGetPartial(sizeclass* sc)
 {
-  return (descriptor*)lf_lifo_dequeue(&sc->Partial);
+  return (descriptor*)lf_dequeue(&sc->Partial);
 }
 
 static void ListPutPartial(descriptor* desc)
 {
-  lf_lifo_enqueue(&desc->heap->sc->Partial, (void*)desc);  
+  lf_enqueue(&desc->heap->sc->Partial, (void*)desc);  
 }
 
 static void RemoveEmptyDesc(procheap* heap, descriptor* desc)

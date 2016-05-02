@@ -40,7 +40,7 @@ static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 #define DESC_HTABLE_CAPACITY 16*4096
 
 /* Currently pulled out of a hat with the rabbit  */
-#define MMAP_HTABLE_CAPACITY  64*4096
+#define MMAP_HTABLE_CAPACITY  128*4096
 
 static lfht_t desc_tbl;  // maps superblock ptr --> desc
 static lfht_t mmap_tbl;  // maps mmapped region --> size

@@ -9,18 +9,18 @@
 
 
 typedef struct {
-  uint64_t  top:48, count:16;
-} pointer_t;
+  uint64_t  ptr:48, aba:16;
+} aba_ptr_t;
 
 
 typedef struct lf_queue_elem_s {
-  volatile pointer_t next;
+  volatile aba_ptr_t next;
 } lf_queue_elem_t;
 
 
 typedef struct {
-  volatile pointer_t head;
-  volatile pointer_t tail;
+  volatile aba_ptr_t head;
+  volatile aba_ptr_t tail;
 } lf_fifo_queue_t;
 
 #define LF_ELEM_PTR(X) ((lf_queue_elem_t *)(intptr_t)X)

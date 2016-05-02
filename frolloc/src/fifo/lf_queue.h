@@ -9,7 +9,7 @@
 
 
 typedef struct {
-  unsigned long long  ptr:48, count:16;
+  uintptr_t ptr:48, count:16;
 } pointer_t;
 
 

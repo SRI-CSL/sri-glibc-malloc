@@ -15,7 +15,7 @@ int main(int argc, char* argv[]){
   two.number   = 2;
   three.number = 3;
 
-  fprintf(stderr, "sizeof(%s) = %zu\n", "pointer_t", sizeof(pointer_t));
+  fprintf(stderr, "sizeof(%s) = %zu\n", "aba_ptr_t", sizeof(aba_ptr_t));
   fprintf(stderr, "sizeof(%s) = %zu\n", "lf_queue_elem_t", sizeof(lf_queue_elem_t));
   fprintf(stderr, "sizeof(%s) = %zu\n", "elem_t", sizeof(elem_t));
   

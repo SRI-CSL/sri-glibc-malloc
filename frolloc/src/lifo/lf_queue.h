@@ -11,7 +11,6 @@ typedef struct {
 
 /* Header for lock-free list elements. */
 typedef struct queue_elem_t {
-  //  volatile struct queue_elem_t 	*next;
   volatile aba_ptr_t next;
 } lf_queue_elem_t;
 

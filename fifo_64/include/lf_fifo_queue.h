@@ -9,8 +9,19 @@
 
 
 typedef struct {
-  unsigned long long  ptr:48, count:16;
+  unsigned long long  top:48, count:16;
 } pointer_t;
+
+typedef union {
+  pointer_t aba;
+  uintptr_t pointer;
+} aba_pointer_t;
+
+static inline uintptr_t  aba_pointer_2_uintptr(aba_pointer_t abaptr){
+  uintptr_t pointer = abaptr.pointer;
+  pointer >>= 16;
+  return pointer;
+}
 
 
 typedef struct lf_queue_elem_s {

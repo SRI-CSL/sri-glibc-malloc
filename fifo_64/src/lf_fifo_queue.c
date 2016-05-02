@@ -20,15 +20,15 @@ static lf_queue_elem_t end  __attribute__ ((aligned (16)));
 void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 {
   assert(queue != NULL);
-  end.next.ptr = 0;
+  end.next.top = 0;
   end.next.count = 0;
-  queue->head.ptr = (uintptr_t)&end;
-  queue->tail.ptr = (uintptr_t)&end;
+  queue->head.top = (uintptr_t)&end;
+  queue->tail.top = (uintptr_t)&end;
 
 }
 
 static inline bool eq(pointer_t* lhs, volatile pointer_t* rhs){
-  //return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
+  //return lhs->top == rhs->top && lhs->count == rhs->count;
   return *((uint64_t *)lhs) == *((uint64_t *)rhs);
 }
 
@@ -51,17 +51,17 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
-    next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
+    next = ((lf_queue_elem_t *)head.top)->next;    //read the head.top->next
 
     if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
 
-      if( head.ptr == tail.ptr ){   //is queue empty or tail falling behind
+      if( head.top == tail.top ){   //is queue empty or tail falling behind
 
-	if(next.ptr == 0){
+	if(next.top == 0){
 	  return NULL;
 	}
 	//tail is falling behind. Try to advance it.
-	temp.ptr = next.ptr;
+	temp.top = next.top;
 	temp.count = tail.count + 1;
 	cas_64((volatile uint64_t *)&queue->tail,
 		*((uint64_t *)&tail),
@@ -71,9 +71,9 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 
 	//read the value before the cas
 	//otherwise, another dequeue might free the next node
-	retval = (lf_queue_elem_t *)next.ptr;
+	retval = (lf_queue_elem_t *)next.top;
 	//try to swing head to the next node
-	temp.ptr = next.ptr;
+	temp.top = next.top;
 	temp.count = head.count + 1;
 
 	if( cas_64((volatile uint64_t *)&queue->head,
@@ -102,21 +102,21 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
   assert(queue != NULL);
   assert(node != NULL);
 
-  node->next.ptr = 0;  //is this needed?
+  node->next.top = 0;  //is this needed?
 
   
   while(true){
 
-    tail = queue->tail;                //read tail.ptr and tail.count together
-    next = ((lf_queue_elem_t*)tail.ptr)->next;  //read next.ptr and next.count together
+    tail = queue->tail;                //read tail.top and tail.count together
+    next = ((lf_queue_elem_t*)tail.top)->next;  //read next.top and next.count together
     
     if ( eq(&tail, &(queue->tail)) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
-      if ( next.ptr == 0 ){
+      if ( next.top == 0 ){
 	// try to link node at the end of the linked list
-	temp.ptr = (uintptr_t)node;
+	temp.top = (uintptr_t)node;
 	temp.count = next.count + 1;
-	if ( cas_64((volatile uint64_t *)&(((lf_queue_elem_t*)tail.ptr)->next),
+	if ( cas_64((volatile uint64_t *)&(((lf_queue_elem_t*)tail.top)->next),
 		     *((uint64_t *)&next),
 		     *((uint64_t *)&temp)) ){
 	  break;
@@ -124,7 +124,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
       } else {
 	//tail was not pointing to the last node
 	//try to swing tail to the next node
-	temp.ptr = next.ptr;
+	temp.top = next.top;
 	temp.count = tail.count + 1;
 	cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
       }
@@ -132,7 +132,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
     }
   }
   // enqueue is done, Try to swing tail to the inserted node
-  temp.ptr = (uintptr_t)node;
+  temp.top = (uintptr_t)node;
   temp.count = tail.count + 1;
   cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
   

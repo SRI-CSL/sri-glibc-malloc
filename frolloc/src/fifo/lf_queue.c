@@ -27,9 +27,9 @@ void lf_queue_init(lf_queue_t *queue)
 
 }
 
-static inline bool eq(pointer_t* lhs, volatile pointer_t* rhs){
-  //return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
-  return *((uint64_t *)lhs) == *((uint64_t *)rhs);
+static inline bool eq(pointer_t lhs, volatile pointer_t rhs){
+  return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
+  //return *((uint64_t *)lhs) == *((uint64_t *)rhs);
 }
 
 
@@ -53,7 +53,7 @@ void *lf_dequeue(lf_queue_t *queue)
     tail = queue->tail;       //read the tail
     next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
 
-    if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
+    if( eq(head, queue->head) ){ //are head, tail, and next consistent
 
       if( head.ptr == tail.ptr ){   //is queue empty or tail falling behind
 
@@ -110,7 +110,7 @@ void lf_enqueue(lf_queue_t *queue, void *element)
     tail = queue->tail;                //read tail.ptr and tail.count together
     next = ((lf_queue_elem_t*)tail.ptr)->next;  //read next.ptr and next.count together
     
-    if ( eq(&tail, &(queue->tail)) ){  // are tail and next consistent ?
+    if ( eq(tail, queue->tail) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
       if ( next.ptr == 0 ){
 	// try to link node at the end of the linked list

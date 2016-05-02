@@ -6,19 +6,21 @@
 #include <stdint.h>
 
 typedef struct {
-	volatile unsigned long long top:48, count:16;
-} top_aba_t;
+  volatile uint64_t ptr:48, aba:16;
+} aba_ptr_t;
 
 /* Header for lock-free list elements. */
 typedef struct queue_elem_t {
-  volatile struct queue_elem_t 	*next;
+  //  volatile struct queue_elem_t 	*next;
+  volatile aba_ptr_t next;
 } lf_queue_elem_t;
 
 
 typedef struct {
-	top_aba_t	both;
+  aba_ptr_t	both;
 } lf_queue_t;
 
+#define LF_ELEM_PTR(X) ((lf_queue_elem_t *)(intptr_t)X)
 
 #define LF_QUEUE_STATIC_INIT  {{0, 0}}
 

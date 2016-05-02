@@ -50,6 +50,12 @@ TO DO LIST:
 
 get lifo_queue back down to 64, then bring in fifo 64 and
 get the switch hitting going.
+ 
+get the lfpa back down from cas_128 to cas_64
+
+struct { ... } active;
+
+struct { ... } descriptor_queue; 
 
 see if we can get a simple lfht that only locks when growing.
 

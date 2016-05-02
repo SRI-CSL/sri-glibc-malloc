@@ -27,9 +27,9 @@ void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 
 }
 
-static inline bool eq(pointer_t* lhs, volatile pointer_t* rhs){
-  //return lhs->top == rhs->top && lhs->count == rhs->count;
-  return *((uint64_t *)lhs) == *((uint64_t *)rhs);
+static inline bool eq(pointer_t lhs, volatile pointer_t rhs){
+  return lhs.top == rhs.top && lhs.count == rhs.count;
+  //return *((uint64_t *)lhs) == *((uint64_t *)rhs);
 }
 
 
@@ -53,7 +53,7 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
     tail = queue->tail;       //read the tail
     next = LF_ELEM_PTR(head.top)->next;    //read the head.top->next
 
-    if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
+    if( eq(head, queue->head) ){ //are head, tail, and next consistent
 
       if( head.top == tail.top ){   //is queue empty or tail falling behind
 
@@ -112,7 +112,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
     tail = queue->tail;                //read tail.top and tail.count together
     next = LF_ELEM_PTR(tail.top)->next;  //read next.top and next.count together
     
-    if ( eq(&tail, &(queue->tail)) ){  // are tail and next consistent ?
+    if ( eq(tail, queue->tail) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
       if ( next.top == 0 ){
 	// try to link node at the end of the linked list

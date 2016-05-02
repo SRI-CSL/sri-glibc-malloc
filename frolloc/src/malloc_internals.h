@@ -50,16 +50,21 @@ typedef struct Procheap procheap;
 
 /* 
  * Global "free" descriptor list (with ABA tag)
- */
 typedef struct {
   uintptr_t 	DescAvail;
   uint64_t      tag;
 } descriptor_queue;
+*/
+
+typedef struct {
+  uintptr_t DescAvail:46, tag:18;
+} descriptor_queue;
+
 
 /* Superblock descriptor structure. We bumped avail and count 
  * to 24 bits to support larger superblock sizes. */
 typedef struct {
-	unsigned long long 	avail:24,count:24, state:2, tag:14;
+  uint64_t 	avail:24,count:24, state:2, tag:14;
 } anchor;
 
 /*
@@ -70,25 +75,32 @@ typedef struct {
 */
 
 struct Descriptor {
-	struct queue_elem_t	lf_queue_padding;
-	volatile anchor		Anchor;
-	descriptor*		Next;
-	void*			sb;		// pointer to superblock
-	procheap*		heap;		// pointer to owner procheap
-	unsigned int		sz;		// block size
-	unsigned int		maxcount;	// superblock size / sz
+  struct queue_elem_t	lf_queue_padding;
+  volatile anchor	Anchor;
+  descriptor*		Next;
+  void*			sb;		// pointer to superblock
+  procheap*		heap;		// pointer to owner procheap
+  unsigned int		sz;		// block size
+  unsigned int		maxcount;	// superblock size / sz
 };
 
 typedef struct {
-	lf_queue_t		Partial;	// initially empty
-	unsigned int		sz;		// block size
-	unsigned int		sbsize;		// superblock size
+  lf_queue_t		Partial;	// initially empty
+  unsigned int		sz;		// block size
+  unsigned int		sbsize;		// superblock size
 } sizeclass;
 
+
+typedef struct {
+  uintptr_t ptr:58, credits:6;
+} active;
+
+/*
 typedef struct {
   uintptr_t	ptr;
   uint64_t      credits;
 } active;
+*/
 
 struct Procheap {
 	volatile active		Active;		// initially NULL

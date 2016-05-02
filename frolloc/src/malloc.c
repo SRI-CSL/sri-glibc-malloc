@@ -157,7 +157,7 @@ static bool is_mmapped(void *ptr, size_t* szp)
   return val == TOMBSTONE ? false : success;
 }
 
-static void* AllocNewSB(size_t size, unsigned long alignment)
+static void* AllocNewSB(size_t size, size_t alignment)
 {
   void* addr;
   
@@ -177,10 +177,10 @@ static void* AllocNewSB(size_t size, unsigned long alignment)
 }
 
 
-static void organize_desc_list(descriptor* start, unsigned long count, unsigned long stride)
+static void organize_desc_list(descriptor* start, uint32_t count, uint32_t stride)
 {
   uintptr_t ptr;
-  unsigned int i;
+  uint32_t i;
  
   start->Next = (descriptor*)(start + stride);
   ptr = (uintptr_t)start; 
@@ -192,15 +192,15 @@ static void organize_desc_list(descriptor* start, unsigned long count, unsigned 
   ((descriptor*)ptr)->Next = NULL;
 }
 
-static void organize_list(void* start, unsigned long count, unsigned long stride)
+static void organize_list(void* start, uint32_t count, uint32_t stride)
 {
   uintptr_t ptr;
-  unsigned long i;
+  uint64_t i;
   
   ptr = (uintptr_t)start; 
   for (i = 1; i < count - 1; i++) {
     ptr += stride;
-    *((uintptr_t*)ptr) = i + 1;
+    *((uintptr_t *)ptr) = i + 1;
   }
 }
 
@@ -218,11 +218,11 @@ static descriptor* DescAlloc()
 
       //there is a descriptor in the queue; try and grab it.
       
-      new_queue.DescAvail = (uintptr_t)((descriptor*)old_queue.DescAvail)->Next;
+      new_queue.DescAvail = (uintptr_t)((descriptor*)(uintptr_t)old_queue.DescAvail)->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
+      if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
 	//we succeeded
-        desc = (descriptor*)old_queue.DescAvail;
+        desc = (descriptor*)(uintptr_t)old_queue.DescAvail;
         break;
       }
       else {
@@ -248,7 +248,7 @@ static descriptor* DescAlloc()
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
       new_queue.tag = old_queue.tag + 1;
-      if (cas_128((volatile u128_t*)&queue_head, *((u128_t*)&old_queue), *((u128_t*)&new_queue))) {
+      if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
         break;
       }
       else {
@@ -270,15 +270,15 @@ void DescRetire(descriptor* desc)
 
   do {
     old_queue = queue_head;
-    desc->Next = (descriptor*)old_queue.DescAvail;
+    desc->Next = (descriptor*)(uintptr_t)old_queue.DescAvail;
     new_queue.DescAvail = (uintptr_t)desc;
     new_queue.tag = old_queue.tag + 1;
 
     /* maged michael has a memory fence here; and no ABA tag */
     
-  } while (!cas_128((volatile u128_t*)&queue_head, 
-		    *((u128_t*)&old_queue), 
-		    *((u128_t*)&new_queue)));
+  } while (!cas_64((volatile uint64_t*)&queue_head, 
+		    *((uint64_t*)&old_queue), 
+		    *((uint64_t*)&new_queue)));
 }
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
@@ -363,9 +363,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
   newactive.ptr = (uintptr_t)desc;
   newactive.credits = morecredits - 1;
 
-  if (cas_128((volatile u128_t *)&heap->Active,
-	      *((u128_t*)&oldactive), 
-	      *((u128_t*)&newactive))) {
+  if (cas_64((volatile uint64_t *)&heap->Active,
+	      *((uint64_t*)&oldactive), 
+	      *((uint64_t*)&newactive))) {
     return;
   }
 
@@ -384,7 +384,7 @@ static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecre
 
 static descriptor* mask_credits(active oldactive)
 {
-  return (descriptor*)oldactive.ptr;
+  return (descriptor*)(uintptr_t)oldactive.ptr;
 }
 
 static void* MallocFromActive(procheap *heap) 
@@ -399,20 +399,19 @@ static void* MallocFromActive(procheap *heap)
   // First step: reserve block
   do { 
     newactive = oldactive = heap->Active;
-    if (!(*((unsigned long long*)(&oldactive)))) {   
-      //sri: we split active and credits, so we do not need to do this
+    if (oldactive.ptr == 0 && oldactive.credits == 0) {   
       return NULL;
     }
     if (oldactive.credits == 0) {
-      *((unsigned long long*)(&newactive)) = 0;  
-      //sri: we split active and credits, so we do not need to do this
+      newactive.ptr = 0;
+      newactive.credits = 0; 
     }
     else {
       --newactive.credits;
     }
-  } while (!cas_128((volatile u128_t*)&heap->Active, 
-		    *((u128_t*)&oldactive), 
-		    *((u128_t*)&newactive)));
+  } while (!cas_64((volatile uint64_t*)&heap->Active, 
+		   *((uint64_t*)&oldactive), 
+		   *((uint64_t*)&newactive)));
   
 
   // Second step: pop block
@@ -420,7 +419,7 @@ static void* MallocFromActive(procheap *heap)
   do {
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
-    addr = (void *)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
+    addr = ((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
     next = *(unsigned long *)addr;
     newanchor.avail = next; 
     ++newanchor.tag;
@@ -530,9 +529,9 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   desc->Anchor.state = ACTIVE;
 
   // memory fence.
-  if (cas_128((volatile u128_t*)&heap->Active, 
-	      *((u128_t*)&oldactive), 
-	      *((u128_t*)&newactive))) { 
+  if (cas_64((volatile uint64_t*)&heap->Active, 
+	      *((uint64_t*)&oldactive), 
+	      *((uint64_t*)&newactive))) { 
     addr = desc->sb;
     // pass out the new descriptor
     *descp = desc;

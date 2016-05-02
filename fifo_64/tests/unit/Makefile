@@ -14,7 +14,7 @@ else
 LDFLAGS = -lpthread
 endif
 
-CFLAGS= -Wall -I../../include/  -I../../arch/${ARCH} -ggdb
+CFLAGS= -Wall -std=gnu11 -I../../include/  -I../../arch/${ARCH} -ggdb
 
 OBJDIR=../../obj
 

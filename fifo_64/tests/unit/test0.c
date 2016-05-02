@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 
 #include "tests.h"
 
@@ -34,7 +35,7 @@ int main(int argc, char* argv[]){
 
   for(int i = 0; i < 3; i++){
     elem_t* node = lf_fifo_dequeue(&queue);
-    fprintf(stderr, "node %d's number is %llu\n", i, node->number);
+    fprintf(stderr, "node %d's number is %" PRIu64 "\n", i, node->number);
   }  
 
 

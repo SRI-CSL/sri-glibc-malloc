@@ -16,10 +16,10 @@ int main(int argc, char* argv[]){
  fprintf(stderr, "sizeof(pointer_t) = %zu\n", sizeof(pointer_t));	
 
   for(i = 0; i < 16; i++){
-    pointer.ptr = (unsigned long)&p[i];
+    pointer.top = (unsigned long long)&p[i];
     pointer.count = 3;
     fprintf(stderr, "&p[%d]       = %p\n", i, &p[i]);	 
-    fprintf(stderr, "pointer.ptr  = Ox%llx\n", pointer.ptr);	 
+    fprintf(stderr, "pointer.ptr  = Ox%llx\n", pointer.top);	 
     fprintf(stderr, "pointer.count = %d\n", pointer.count);	 
   }
 

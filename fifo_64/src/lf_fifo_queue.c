@@ -51,7 +51,7 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
-    next = ((lf_queue_elem_t *)head.top)->next;    //read the head.top->next
+    next = LF_ELEM_PTR(head.top)->next;    //read the head.top->next
 
     if( eq(&head, &(queue->head)) ){ //are head, tail, and next consistent
 
@@ -71,7 +71,9 @@ void *lf_fifo_dequeue(lf_fifo_queue_t *queue)
 
 	//read the value before the cas
 	//otherwise, another dequeue might free the next node
-	retval = (lf_queue_elem_t *)next.top;
+	retval = LF_ELEM_PTR(next.top);
+
+
 	//try to swing head to the next node
 	temp.top = next.top;
 	temp.count = head.count + 1;
@@ -108,7 +110,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
   while(true){
 
     tail = queue->tail;                //read tail.top and tail.count together
-    next = ((lf_queue_elem_t*)tail.top)->next;  //read next.top and next.count together
+    next = LF_ELEM_PTR(tail.top)->next;  //read next.top and next.count together
     
     if ( eq(&tail, &(queue->tail)) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
@@ -116,7 +118,7 @@ void lf_fifo_enqueue(lf_fifo_queue_t *queue, void *element)
 	// try to link node at the end of the linked list
 	temp.top = (uintptr_t)node;
 	temp.count = next.count + 1;
-	if ( cas_64((volatile uint64_t *)&(((lf_queue_elem_t*)tail.top)->next),
+	if ( cas_64((volatile uint64_t *)&(LF_ELEM_PTR(tail.top)->next),
 		     *((uint64_t *)&next),
 		     *((uint64_t *)&temp)) ){
 	  break;

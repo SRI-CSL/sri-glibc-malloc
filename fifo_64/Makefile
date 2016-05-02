@@ -25,7 +25,7 @@ endif
 OPT=  -ggdb
 
 
-CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
+CFLAGS+= -Wall -std=gnu11 -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH}
 CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_DEBUG 
 

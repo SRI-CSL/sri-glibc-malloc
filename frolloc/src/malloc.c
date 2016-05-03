@@ -86,8 +86,8 @@ static atomic_ulong active_mmaps = 0;
 
 static void init_sizeclasses(void)
 {
-  int i;
-  const int length = MAX_BLOCK_SIZE / GRANULARITY;
+  uint32_t i;
+  const  uint32_t length = MAX_BLOCK_SIZE / GRANULARITY;
   for(i = 0; i < length; i++){
     lf_queue_init(&(sizeclasses[i].Partial));
     sizeclasses[i].sz = GRANULARITY * (i + 1);
@@ -201,7 +201,7 @@ static void organize_list(void* start, uint32_t count, uint32_t stride)
   ptr = (uintptr_t)start; 
   for (i = 1; i < count - 1; i++) {
     ptr += stride;
-    *((uintptr_t *)ptr) = i + 1;
+    *((uint32_t *)ptr) = i + 1;
   }
 }
 
@@ -355,7 +355,7 @@ static void HeapPutPartial(descriptor* desc)
   }
 }
 
-static void UpdateActive(procheap* heap, descriptor* desc, unsigned long morecredits)
+static void UpdateActive(procheap* heap, descriptor* desc, uint32_t morecredits)
 { 
   active oldactive, newactive;
   anchor oldanchor, newanchor;
@@ -396,8 +396,8 @@ static void* MallocFromActive(procheap *heap)
   descriptor* desc;
   anchor oldanchor, newanchor;
   void* addr;
-  unsigned long morecredits = 0;
-  unsigned int next = 0;
+  uint32_t morecredits = 0;
+  uint32_t next = 0;
 
   // First step: reserve block
   do { 
@@ -423,7 +423,7 @@ static void* MallocFromActive(procheap *heap)
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
     addr = ((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
-    next = *(unsigned long *)addr;
+    next = *(uint32_t *)addr;
     newanchor.avail = next; 
     ++newanchor.tag;
 
@@ -453,7 +453,7 @@ static void* MallocFromPartial(procheap* heap)
 {
   descriptor* desc;
   anchor oldanchor, newanchor;
-  unsigned long morecredits;
+  uint32_t morecredits;
   void* addr;
   
  retry:
@@ -469,8 +469,18 @@ static void* MallocFromPartial(procheap* heap)
     if (oldanchor.state == EMPTY) {
 
       //iam: added this in the hope that it is now true...
+      //     actually it is not necessarily true, though it
+      //     soon will be. There is a gap b/w when it becomes
+      //     EMPTY and when the sb gets reclaimed (see free_from_sb).
+      //
       assert(desc->sb == NULL);
-      
+      // 
+      //     Though this raises the question that has been worrying me.
+      //     If the assertion fails, then we are probably going to retire
+      //     this descriptor twice.  
+      //
+      //     So I will leave it in as a reminder that our groking is not complete.
+      //
       DescRetire(desc); 
       goto retry;
     }
@@ -487,9 +497,9 @@ static void* MallocFromPartial(procheap* heap)
   do { 
     // pop reserved block
     newanchor = oldanchor = desc->Anchor;
-    addr = (void*)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
+    addr = (uint8_t *)desc->sb + oldanchor.avail * desc->sz;
 
-    newanchor.avail = *(unsigned long*)addr;
+    newanchor.avail = *(uint32_t *)addr;
     ++newanchor.tag;
   } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
 		   *((uint64_t*)&oldanchor), 
@@ -524,11 +534,11 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   // Organize blocks in a linked list starting with index 0.
   organize_list(desc->sb, desc->maxcount, desc->sz);
 
-  *((unsigned long long*)&newactive) = 0;
-  newactive.ptr = (unsigned long)desc;
+  *((uintptr_t*)&newactive) = 0;
+  newactive.ptr = (uintptr_t)desc;
   newactive.credits = min(desc->maxcount - 1, MAXCREDITS) - 1;
 
-  desc->Anchor.count = max(((signed long)desc->maxcount - 1 ) - ((signed long)newactive.credits + 1), 0); // max added by Scott
+  desc->Anchor.count = max(((int32_t)desc->maxcount - 1 ) - ((int32_t)newactive.credits + 1), 0); // max added by Scott
   desc->Anchor.state = ACTIVE;
 
   // memory fence.
@@ -563,7 +573,7 @@ static procheap* find_heap(size_t sz)
   heap = heaps[sz / GRANULARITY];
   if (heap == NULL) {
     heap = mmap(NULL, sizeof(procheap), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    *((unsigned long long*)&(heap->Active)) = 0;
+    *((uintptr_t*)&(heap->Active)) = 0;
     heap->Partial = NULL;
     heap->sc = &sizeclasses[sz / GRANULARITY];
     heaps[sz / GRANULARITY] = heap;
@@ -726,7 +736,7 @@ void *memalign(size_t boundary, size_t size)
     return NULL;
   }
 
-  return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
+  return(void*)(((uintptr_t)p + boundary - 1) & ~(boundary - 1)); 
 }
 
 int posix_memalign(void **memptr, size_t alignment, size_t size)
@@ -756,8 +766,8 @@ void free_from_sb(void* ptr, descriptor* desc){
   do { 
     newanchor = oldanchor = desc->Anchor;
     
-    *((unsigned long*)ptr) = oldanchor.avail;
-    newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
+    *((uint32_t *)ptr) = oldanchor.avail;
+    newanchor.avail = ((uintptr_t)ptr - (uintptr_t)sb) / desc->sz;
     
     if (oldanchor.state == FULL) {
       newanchor.state = PARTIAL;

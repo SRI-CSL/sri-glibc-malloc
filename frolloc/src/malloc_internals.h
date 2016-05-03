@@ -17,17 +17,17 @@ typedef struct Descriptor descriptor;
 struct Procheap;
 typedef struct Procheap procheap;
 
-#define	PAGESIZE	4096
-#define SBSIZE		(16 * PAGESIZE)
-#define DESCSBSIZE	(1024 * sizeof(descriptor))
+#define PAGESIZE        4096
+#define SBSIZE          (16 * PAGESIZE)
+#define DESCSBSIZE      (1024 * sizeof(descriptor))
 
-#define ACTIVE		0
-#define FULL		1
-#define PARTIAL		2
-#define EMPTY		3
+#define ACTIVE          0
+#define FULL            1
+#define PARTIAL         2
+#define EMPTY           3
 
-#define	MAXCREDITS	64    // 2^(bits for credits in active)
-#define GRANULARITY	16    // sri: for x86_64 alignment we require 16 NOT 8
+#define MAXCREDITS      64    // 2^(bits for credits in active)
+#define GRANULARITY     16    // sri: for x86_64 alignment we require 16 NOT 8
 
 // sri: bigger than this we mmap. 
 // glibc's default is 128 * 1024 
@@ -59,7 +59,7 @@ typedef struct {
 /* Superblock descriptor structure. We bumped avail and count 
  * to 24 bits to support larger superblock sizes. */
 typedef struct {
-  uint64_t 	avail:24,count:24, state:2, tag:14;
+  uint64_t      avail:24,count:24, state:2, tag:14;
 } anchor;
 
 /*
@@ -73,19 +73,19 @@ typedef struct {
 */
 
 struct Descriptor {
-  struct queue_elem_t	lf_queue_padding;
-  volatile anchor	Anchor;
-  descriptor*		Next;
-  void*			sb;		// pointer to superblock
-  procheap*		heap;		// pointer to owner procheap
-  unsigned int		sz;		// block size
-  unsigned int		maxcount;	// superblock size / sz
+  struct queue_elem_t   lf_queue_padding;
+  volatile anchor       Anchor;
+  descriptor*           Next;
+  void*                 sb;             // pointer to superblock
+  procheap*             heap;           // pointer to owner procheap
+  uint32_t              sz;             // block size
+  uint32_t              maxcount;       // superblock size / sz
 };
 
 typedef struct {
-  lf_queue_t		Partial;	// initially empty
-  unsigned int		sz;		// block size
-  unsigned int		sbsize;		// superblock size
+  lf_queue_t            Partial;        // initially empty
+  uint32_t              sz;             // block size
+  uint32_t              sbsize;         // superblock size
 } sizeclass;
 
 
@@ -94,13 +94,13 @@ typedef struct {
 } active;
 
 struct Procheap {
-	volatile active		Active;		// initially NULL
-	volatile descriptor*	Partial;	// initially NULL
-	sizeclass*		sc;		// pointer to parent sizeclass
+  volatile active       Active;         // initially NULL
+  volatile descriptor*  Partial;        // initially NULL
+  sizeclass*            sc;             // pointer to parent sizeclass
 };
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-#endif	/* __MAGED_INTERNALS_H__ */
+#endif  /* __MAGED_INTERNALS_H__ */

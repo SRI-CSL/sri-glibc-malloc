@@ -28,8 +28,7 @@ void lf_queue_init(lf_queue_t *queue)
 }
 
 static inline bool eq(pointer_t lhs, volatile pointer_t rhs){
-  return lhs->ptr == rhs->ptr && lhs->count == rhs->count;
-  //return *((uint64_t *)lhs) == *((uint64_t *)rhs);
+  return lhs.ptr == rhs.ptr && lhs.count == rhs.count;
 }
 
 
@@ -51,6 +50,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
+    
     next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
 
     if( eq(head, queue->head) ){ //are head, tail, and next consistent

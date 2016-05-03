@@ -25,7 +25,6 @@ typedef struct {
 
 #define LF_ELEM_PTR(X) ((lf_queue_elem_t *)(intptr_t)X)
 
-
 extern void lf_fifo_queue_init(lf_fifo_queue_t *queue);
 
 extern void *lf_fifo_dequeue(lf_fifo_queue_t *queue);

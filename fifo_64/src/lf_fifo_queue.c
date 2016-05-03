@@ -29,7 +29,6 @@ void lf_fifo_queue_init(lf_fifo_queue_t *queue)
 
 static inline bool eq(aba_ptr_t lhs, volatile aba_ptr_t rhs){
   return lhs.ptr == rhs.ptr && lhs.aba == rhs.aba;
-  //return *((uint64_t *)lhs) == *((uint64_t *)rhs);
 }
 
 

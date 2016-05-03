@@ -278,8 +278,8 @@ void DescRetire(descriptor* desc)
     /* maged michael has a memory fence here; and no ABA tag */
     
   } while (!cas_64((volatile uint64_t*)&queue_head, 
-		    *((uint64_t*)&old_queue), 
-		    *((uint64_t*)&new_queue)));
+		   *((uint64_t*)&old_queue), 
+		   *((uint64_t*)&new_queue)));
 }
 
 static void ListRemoveEmptyDesc(sizeclass* sc)
@@ -467,20 +467,6 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
-
-      //iam: added this in the hope that it is now true...
-      //     actually it is not necessarily true, though it
-      //     soon will be. There is a gap b/w when it becomes
-      //     EMPTY and when the sb gets reclaimed (see free_from_sb).
-      //
-      assert(desc->sb == NULL);
-      // 
-      //     Though this raises the question that has been worrying me.
-      //     If the assertion fails, then we are probably going to retire
-      //     this descriptor twice.  
-      //
-      //     So I will leave it in as a reminder that our groking is not complete.
-      //
       DescRetire(desc); 
       goto retry;
     }

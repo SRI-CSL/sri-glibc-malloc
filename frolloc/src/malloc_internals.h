@@ -50,12 +50,7 @@ typedef struct Procheap procheap;
 
 /* 
  * Global "free" descriptor list (with ABA tag)
-typedef struct {
-  uintptr_t 	DescAvail;
-  uint64_t      tag;
-} descriptor_queue;
 */
-
 typedef struct {
   uintptr_t DescAvail:46, tag:18;
 } descriptor_queue;
@@ -72,6 +67,9 @@ typedef struct {
   be stored in the either form of the lf_queue. This means that a
   descriptor cannot be stored in more than one queue, and should not
   be enqueued more than once.  This same remark holds true for lfpa.
+
+  Currently the fifo version of lf_queue crashes in stest2 by 
+  becoming cyclic (an indication of something going wrong).
 */
 
 struct Descriptor {
@@ -94,13 +92,6 @@ typedef struct {
 typedef struct {
   uintptr_t ptr:58, credits:6;
 } active;
-
-/*
-typedef struct {
-  uintptr_t	ptr;
-  uint64_t      credits;
-} active;
-*/
 
 struct Procheap {
 	volatile active		Active;		// initially NULL

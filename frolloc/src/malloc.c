@@ -286,7 +286,9 @@ static void ListRemoveEmptyDesc(sizeclass* sc)
 {
 #if 1
   descriptor *desc;
-  lf_queue_t temp = LF_QUEUE_STATIC_INIT;
+  lf_queue_t temp;
+
+  lf_queue_init(&temp);
 
   while (true) {
     desc = (descriptor *)lf_dequeue(&sc->Partial);

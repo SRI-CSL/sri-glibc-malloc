@@ -86,8 +86,8 @@ static atomic_ulong active_mmaps = 0;
 
 static void init_sizeclasses(void)
 {
-  uint32_t i;
-  const uint32_t length = MAX_BLOCK_SIZE / GRANULARITY;
+  int i;
+  const int length = MAX_BLOCK_SIZE / GRANULARITY;
   for(i = 0; i < length; i++){
     lf_queue_init(&(sizeclasses[i].Partial));
     sizeclasses[i].sz = GRANULARITY * (i + 1);
@@ -153,7 +153,7 @@ static bool is_mmapped(void *ptr, size_t* szp)
   if(success){
     if( szp != NULL ){ *szp = val; }
   }
-  //NOTE BENE: having val TOMBSTONE means it has been freed and could now be
+  //note bene: having val TOMBSTONE means it has been freed and could now be
   //part of a super block!
   return val == TOMBSTONE ? false : success;
 }
@@ -394,8 +394,8 @@ static void* MallocFromActive(procheap *heap)
   descriptor* desc;
   anchor oldanchor, newanchor;
   void* addr;
-  uint32_t morecredits = 0;
-  uint64_t next = 0;
+  unsigned long morecredits = 0;
+  unsigned int next = 0;
 
   // First step: reserve block
   do { 
@@ -421,7 +421,7 @@ static void* MallocFromActive(procheap *heap)
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
     addr = ((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
-    next = *(uint64_t *)addr;
+    next = *(unsigned long *)addr;
     newanchor.avail = next; 
     ++newanchor.tag;
 
@@ -451,7 +451,7 @@ static void* MallocFromPartial(procheap* heap)
 {
   descriptor* desc;
   anchor oldanchor, newanchor;
-  uint32_t morecredits;
+  unsigned long morecredits;
   void* addr;
   
  retry:
@@ -485,9 +485,9 @@ static void* MallocFromPartial(procheap* heap)
   do { 
     // pop reserved block
     newanchor = oldanchor = desc->Anchor;
-    addr = (void*)((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
+    addr = (void*)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
 
-    newanchor.avail = *(uint64_t *)addr;
+    newanchor.avail = *(unsigned long*)addr;
     ++newanchor.tag;
   } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
 		   *((uint64_t*)&oldanchor), 
@@ -522,11 +522,11 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   // Organize blocks in a linked list starting with index 0.
   organize_list(desc->sb, desc->maxcount, desc->sz);
 
-  *((uint64_t *)&newactive) = 0;
-  newactive.ptr = (uint64_t)desc;
+  *((unsigned long long*)&newactive) = 0;
+  newactive.ptr = (unsigned long)desc;
   newactive.credits = min(desc->maxcount - 1, MAXCREDITS) - 1;
 
-  desc->Anchor.count = max(((uint32_t)desc->maxcount - 1 ) - ((uint32_t)newactive.credits + 1), 0); // max added by Scott
+  desc->Anchor.count = max(((signed long)desc->maxcount - 1 ) - ((signed long)newactive.credits + 1), 0); // max added by Scott
   desc->Anchor.state = ACTIVE;
 
   // memory fence.
@@ -561,7 +561,7 @@ static procheap* find_heap(size_t sz)
   heap = heaps[sz / GRANULARITY];
   if (heap == NULL) {
     heap = mmap(NULL, sizeof(procheap), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    *((uint64_t*)&(heap->Active)) = 0;
+    *((unsigned long long*)&(heap->Active)) = 0;
     heap->Partial = NULL;
     heap->sc = &sizeclasses[sz / GRANULARITY];
     heaps[sz / GRANULARITY] = heap;
@@ -724,7 +724,7 @@ void *memalign(size_t boundary, size_t size)
     return NULL;
   }
 
-  return(void*)(((uintptr_t)p + boundary - 1) & ~(boundary - 1)); 
+  return(void*)(((unsigned long)p + boundary - 1) & ~(boundary - 1)); 
 }
 
 int posix_memalign(void **memptr, size_t alignment, size_t size)
@@ -754,8 +754,8 @@ void free_from_sb(void* ptr, descriptor* desc){
   do { 
     newanchor = oldanchor = desc->Anchor;
     
-    *((uint64_t *)ptr) = oldanchor.avail;
-    newanchor.avail = ((uintptr_t)ptr - (uintptr_t)sb) / desc->sz;
+    *((unsigned long*)ptr) = oldanchor.avail;
+    newanchor.avail = ((unsigned long)ptr - (unsigned long)sb) / desc->sz;
     
     if (oldanchor.state == FULL) {
       newanchor.state = PARTIAL;

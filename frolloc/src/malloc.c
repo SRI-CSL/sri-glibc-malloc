@@ -88,7 +88,8 @@ static void init_sizeclasses(void)
 {
   int i;
   const int length = MAX_BLOCK_SIZE / GRANULARITY;
-  for(i = 0; i < length; i++){ 
+  for(i = 0; i < length; i++){
+    lf_queue_init(&(sizeclasses[i].Partial));
     sizeclasses[i].sz = GRANULARITY * (i + 1);
     sizeclasses[i].sbsize = SBSIZE;
   }

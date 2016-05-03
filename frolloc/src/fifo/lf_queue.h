@@ -23,7 +23,7 @@ typedef struct {
   volatile pointer_t tail;
 } lf_queue_t;
 
-#define LF_QUEUE_STATIC_INIT  {0, 0}
+#define LF_QUEUE_STATIC_INIT  {{0, 0}, {0, 0}}
 
 extern void lf_queue_init(lf_queue_t *queue);
 

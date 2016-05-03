@@ -41,16 +41,16 @@ void *lf_dequeue(lf_queue_t *queue)
   pointer_t temp;
 
   lf_queue_elem_t* retval;
-  
+
   assert(queue != NULL);
 
   retval = NULL;
-  
+
   while(true){
 
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
-    
+
     next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
 
     if( eq(head, queue->head) ){ //are head, tail, and next consistent
@@ -126,7 +126,9 @@ void lf_enqueue(lf_queue_t *queue, void *element)
 	//try to swing tail to the next node
 	temp.ptr = next.ptr;
 	temp.count = tail.count + 1;
-	cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
+	cas_64((volatile uint64_t *)&queue->tail,
+	       *((uint64_t *)&tail),
+	       *((uint64_t *)&temp));
       }
       
     }
@@ -134,7 +136,9 @@ void lf_enqueue(lf_queue_t *queue, void *element)
   // enqueue is done, Try to swing tail to the inserted node
   temp.ptr = (uintptr_t)node;
   temp.count = tail.count + 1;
-  cas_64((volatile uint64_t *)&queue->tail, *((uint64_t *)&tail), *((uint64_t *)&temp));
+  cas_64((volatile uint64_t *)&queue->tail,
+	 *((uint64_t *)&tail),
+	 *((uint64_t *)&temp));
   
 
 }

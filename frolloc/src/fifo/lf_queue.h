@@ -7,6 +7,9 @@
 
 #include "atomic.h"
 
+#ifdef SRI_DEBUG
+#include "../util.h"
+#endif
 
 typedef struct {
   uintptr_t ptr:48, count:16;
@@ -21,9 +24,14 @@ typedef struct queue_elem_t {
 typedef struct {
   volatile pointer_t head;
   volatile pointer_t tail;
+#ifdef SRI_DEBUG
+  atomic_ulong length;
+#endif
 } lf_queue_t;
 
 #define LF_QUEUE_STATIC_INIT  {{0, 0}, {0, 0}}
+
+#define LF_ELEM_PTR(X) ((lf_queue_elem_t *)(intptr_t)X)
 
 extern void lf_queue_init(lf_queue_t *queue);
 

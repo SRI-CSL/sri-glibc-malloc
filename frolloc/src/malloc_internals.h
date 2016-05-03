@@ -52,7 +52,7 @@ typedef struct Procheap procheap;
  * Global "free" descriptor list (with ABA tag)
 */
 typedef struct {
-  uintptr_t DescAvail:46, tag:18;
+  uintptr_t DescAvail:48, tag:16;
 } descriptor_queue;
 
 

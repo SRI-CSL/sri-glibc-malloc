@@ -182,9 +182,11 @@ static void organize_desc_list(descriptor* start, uint32_t count, uint32_t strid
 {
   uintptr_t ptr;
   uint32_t i;
- 
-  start->Next = (descriptor*)(start + stride);
+
   ptr = (uintptr_t)start; 
+ 
+  start->Next = (descriptor*)(ptr + stride);
+  
   for (i = 1; i < count - 1; i++) {
     ptr += stride;
     ((descriptor*)ptr)->Next = (descriptor*)(ptr + stride);
@@ -219,7 +221,7 @@ static descriptor* DescAlloc()
 
       //there is a descriptor in the queue; try and grab it.
       
-      new_queue.DescAvail = (uintptr_t)((descriptor*)(uintptr_t)old_queue.DescAvail)->Next;
+      new_queue.DescAvail = (uintptr_t)(((descriptor *)(uintptr_t)old_queue.DescAvail)->Next);
       new_queue.tag = old_queue.tag + 1;
       if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
 	//we succeeded
@@ -248,6 +250,7 @@ static descriptor* DescAlloc()
       organize_desc_list((void *)desc, DESCSBSIZE / sizeof(descriptor), sizeof(descriptor));
 
       new_queue.DescAvail = (uintptr_t)desc->Next;
+      
       new_queue.tag = old_queue.tag + 1;
       if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
         break;

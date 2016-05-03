@@ -6,6 +6,9 @@
 #include "atomic.h"
 #include "lf_queue.h"
 
+#ifdef SRI_DEBUG
+#include <stdatomic.h>
+#endif
 
 /* 
    From scratch implementation of Maged & Scott's 1996 podc paper.
@@ -24,7 +27,9 @@ void lf_queue_init(lf_queue_t *queue)
   end.next.count = 0;
   queue->head.ptr = (uintptr_t)&end;
   queue->tail.ptr = (uintptr_t)&end;
-
+#ifdef SRI_DEBUG
+  atomic_init(&queue->length, 0);
+#endif
 }
 
 static inline bool eq(pointer_t lhs, volatile pointer_t rhs){
@@ -51,7 +56,7 @@ void *lf_dequeue(lf_queue_t *queue)
     head = queue->head;       //read the head
     tail = queue->tail;       //read the tail
 
-    next = ((lf_queue_elem_t *)head.ptr)->next;    //read the head.ptr->next
+    next = LF_ELEM_PTR(head.ptr)->next;    //read the head.ptr->next
 
     if( eq(head, queue->head) ){ //are head, tail, and next consistent
 
@@ -71,7 +76,7 @@ void *lf_dequeue(lf_queue_t *queue)
 
 	//read the value before the cas
 	//otherwise, another dequeue might free the next node
-	retval = (lf_queue_elem_t *)next.ptr;
+	retval = LF_ELEM_PTR(next.ptr);
 	//try to swing head to the next node
 	temp.ptr = next.ptr;
 	temp.count = head.count + 1;
@@ -85,7 +90,9 @@ void *lf_dequeue(lf_queue_t *queue)
       }
     }
   }
-  
+
+  atomic_decrement(&queue->length);
+
   return retval;
 }
 
@@ -107,8 +114,8 @@ void lf_enqueue(lf_queue_t *queue, void *element)
   
   while(true){
 
-    tail = queue->tail;                //read tail.ptr and tail.count together
-    next = ((lf_queue_elem_t*)tail.ptr)->next;  //read next.ptr and next.count together
+    tail = queue->tail;                  //read tail.ptr and tail.count together
+    next = LF_ELEM_PTR(tail.ptr)->next;  //read next.ptr and next.count together
     
     if ( eq(tail, queue->tail) ){  // are tail and next consistent ?
       // was tail pointing to the last node?
@@ -116,7 +123,7 @@ void lf_enqueue(lf_queue_t *queue, void *element)
 	// try to link node at the end of the linked list
 	temp.ptr = (uintptr_t)node;
 	temp.count = next.count + 1;
-	if ( cas_64((volatile uint64_t *)&(((lf_queue_elem_t*)tail.ptr)->next),
+	if ( cas_64((volatile uint64_t *)&(LF_ELEM_PTR(tail.ptr)->next),
 		     *((uint64_t *)&next),
 		     *((uint64_t *)&temp)) ){
 	  break;
@@ -140,6 +147,8 @@ void lf_enqueue(lf_queue_t *queue, void *element)
 	 *((uint64_t *)&tail),
 	 *((uint64_t *)&temp));
   
+  atomic_increment(&queue->length);
 
 }
+
 

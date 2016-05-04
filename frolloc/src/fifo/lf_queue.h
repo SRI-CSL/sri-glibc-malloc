@@ -24,6 +24,7 @@ typedef struct queue_elem_t {
 typedef struct {
   volatile pointer_t head;
   volatile pointer_t tail;
+  lf_queue_elem_t sentinel;
 #ifdef SRI_DEBUG
   atomic_ulong length;
 #endif

@@ -11,6 +11,16 @@
 #include <pthread.h>
 
 
+#define RESIZE_RATIO 0.6
+
+/* 
+   Just a placeholder to mark where we *really* should be using
+   lfht_delete if we had it. Note that in our world 0 is an 
+   invalid value for either a descriptor ptr or the size of
+   a mmapped region.
+*/
+#define TOMBSTONE 0
+
 typedef struct lfht_entry_s {
   uintptr_t  key;
   uintptr_t  val;
@@ -18,18 +28,30 @@ typedef struct lfht_entry_s {
 
 
 typedef struct lfht_s {
+  
+  // flag to indicate we are in the process of growing the table
   atomic_bool expanding;
+  // count of threads past the gate
   atomic_int threads_inside;
+  // count of threads waiting at the gate
   atomic_int threads_waiting;
+  // lock for the gate
   pthread_mutex_t lock;
+  // the gate
   pthread_cond_t gate;
+  // we may need another cond var for the thread growing the table
+  // to wait on while the inside count in non-zero;
   
   //length of the table in units of lfht_entry_t's
   uint32_t max;
-  //the sizeof the table 
+  // threshold beyond which we should grow the table
+  uint32_t threshold;
+  //the "sizeof" the mmapped region that is the table 
   uint64_t sz;
-  //the number of items in the table
+  //the number of items stored in the table
   atomic_uint_least32_t count;
+  //the number of items in the table
+  atomic_uint_least32_t tombstoned;
   //the table
   lfht_entry_t *table;
 } lfht_t;

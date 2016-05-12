@@ -7,48 +7,77 @@
 
 static bool _should_grow_table(lfht_t *ht);
 
+static bool _am_grower(lfht_t *ht);
+
 static bool _grow_table(lfht_t *ht);
   
-/* N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven */
+/* N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven
+
+   Questions:
+   
+   - When do we grow?
+
+   - Does delete decrement the table count?
+
+   - Should threads that don't win the grow lottery continue or wait?
+
+   - While the grower waits for the inside count to hit zero who signals it? Assuming
+   it waits on a condvar...
+
+ */
+
 static inline void _enter_(lfht_t *ht){
+
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
 
   if(_expanding_){
 
     /* we need to wait */
+  enter_gate:
+    
     pthread_mutex_lock(&ht->lock);
-
+    
     atomic_fetch_add(&ht->threads_waiting, 1);
-
+    
     while(atomic_load_explicit(&ht->expanding, memory_order_relaxed)){
-	
+      
       pthread_cond_wait(&ht->gate, &ht->lock); 
-
+      
     }
-
+    
     atomic_fetch_sub(&ht->threads_waiting, 1);
-
+    
     atomic_fetch_add(&ht->threads_inside, 1);
  
-  } else {
+  } else if(_should_grow_table(ht)){
 
-    /* we should see if the table needs to grow, and, we are the chosen one */
+    /* we should see if the table needs to grow */
 
-    if(_should_grow_table(ht)){
+    if(_am_grower(ht)){
+      /* we are the chosen one */
 
+      atomic_store(&ht->expanding, true);
+      
       _grow_table(ht);
-
+      
     } else {
-
-      atomic_fetch_add(&ht->threads_inside, 1);
-
+      
+      goto enter_gate;
+      
     }
-  }
 
+  } else {
+    /* the usual case */
+    
+    atomic_fetch_add(&ht->threads_inside, 1);
+    
+  }
 }
 
+
 static inline void _exit_(lfht_t *ht){
-  
+
+  // could look at the _expanding_ flag again, and signal the grower if we are expanding.
   atomic_fetch_sub(&ht->threads_inside, 1);
   
 }
@@ -79,6 +108,17 @@ static bool _grow_table(lfht_t *ht){
   return retval;
 }
 
+static bool _am_grower(lfht_t *ht){
+  bool retval = false;
+
+  /* choose a grower */
+
+  
+  
+  return retval;
+}
+
+
 
 bool init_lfht(lfht_t *ht, uint32_t max){
   bool retval = false;
@@ -87,22 +127,25 @@ bool init_lfht(lfht_t *ht, uint32_t max){
     return retval; 
   }
 
+  const uint64_t sz = max * sizeof(lfht_entry_t);
+  
   atomic_init(&ht->expanding, false);
   atomic_init(&ht->threads_inside, 0);
   atomic_init(&ht->threads_waiting, 0);
-  atomic_init(&ht->count, 0);
-    
   pthread_mutex_init(&ht->lock, NULL);
   pthread_cond_init(&ht->gate, NULL);
-    
-  const uint64_t sz = max * sizeof(lfht_entry_t);
+  ht->max = max;
+  ht->threshold = (uint32_t)(max * RESIZE_RATIO);
+  ht->sz = sz;
+  atomic_init(&ht->count, 0);
+  atomic_init(&ht->tombstoned, 0);
+  ht->table = NULL;
+  
   
   const void* addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   
   if (addr != MAP_FAILED) {
     ht->table = (lfht_entry_t *)addr;
-    ht->max = max;
-    ht->sz = sz;
     retval = true;
   }
 
@@ -119,6 +162,11 @@ bool delete_lfht(lfht_t *ht){
   const int retcode = munmap(ht->table, ht->sz);
     
   ht->table = NULL;
+
+  pthread_mutex_destroy(&ht->lock);
+  pthread_cond_destroy(&ht->gate);
+
+  
   if(retcode == 0){
     retval = true;
   }
@@ -132,6 +180,8 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   lfht_entry_t entry, desired;
 
   bool retval = false;
+
+  assert(val != TOMBSTONE);
   
   if(ht == NULL || key == 0){
     return retval;
@@ -157,6 +207,9 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
       if(cas_128((volatile u128_t *)&(ht->table[i]), 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
+
+	atomic_fetch_add(&ht->count, 1);
+
 	retval = true;
 	break;
       } else {
@@ -204,6 +257,13 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       if(cas_128((volatile u128_t *)&ht->table[i], 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
+
+	if( val == TOMBSTONE && entry.val != TOMBSTONE ){
+
+	  atomic_fetch_add(&ht->tombstoned, 1);
+
+	}
+	
 	retval = true;
 	break;
 	
@@ -231,6 +291,8 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   lfht_entry_t entry, desired;
   bool retval = false;
 
+  assert( val != TOMBSTONE );
+  
   if(ht == NULL || key == 0){
     return retval;
   }
@@ -253,6 +315,20 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       if(cas_128((volatile u128_t *)&ht->table[i], 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
+
+
+	if( ! entry.key ){
+
+	  atomic_fetch_add(&ht->count, 1);
+
+	  if( entry.val == TOMBSTONE ){
+
+	    atomic_fetch_sub(&ht->tombstoned, 1);
+
+	  }
+
+	}
+	
 	retval = true;
 	break;
       } else {

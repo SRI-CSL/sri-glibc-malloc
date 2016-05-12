@@ -5,22 +5,76 @@
 #include "util.h"
 #include "atomic.h"
 
+static bool _should_grow_table(lfht_t *ht);
 
+static bool _grow_table(lfht_t *ht);
+  
+/* N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven */
 static inline void _enter_(lfht_t *ht){
+  const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
 
+  if(_expanding_){
+
+    /* we need to wait */
+    pthread_mutex_lock(&ht->lock);
+
+    atomic_fetch_add(&ht->threads_waiting, 1);
+
+    while(atomic_load_explicit(&ht->expanding, memory_order_relaxed)){
+	
+      pthread_cond_wait(&ht->gate, &ht->lock); 
+
+    }
+
+    atomic_fetch_sub(&ht->threads_waiting, 1);
+
+    atomic_fetch_add(&ht->threads_inside, 1);
+ 
+  } else {
+
+    /* we should see if the table needs to grow, and, we are the chosen one */
+
+    if(_should_grow_table(ht)){
+
+      _grow_table(ht);
+
+    } else {
+
+      atomic_fetch_add(&ht->threads_inside, 1);
+
+    }
+  }
 
 }
 
 static inline void _exit_(lfht_t *ht){
+  
+  atomic_fetch_sub(&ht->threads_inside, 1);
+  
+}
 
 
+/*
+  check to see if the table needs to grow, and if so see if we are the one.
+  also a good place to make sure there are no laggards waiting at the gate.
+ */
+static bool _should_grow_table(lfht_t *ht){
+  bool retval = false;
+
+  /* grow the table */
+
+  
+  
+  return retval;
 }
 
 
 static bool _grow_table(lfht_t *ht){
   bool retval = false;
 
+  /* grow the table */
 
+  
   
   return retval;
 }

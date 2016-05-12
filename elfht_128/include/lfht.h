@@ -27,6 +27,9 @@ typedef struct lfht_s {
   uint32_t max;
   //the sizeof the table 
   uint64_t sz;
+  //the number of items in the table
+  atomic_uint_least32_t count;
+  //the table
   lfht_entry_t *table;
 } lfht_t;
 

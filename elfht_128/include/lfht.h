@@ -19,7 +19,8 @@ typedef struct lfht_entry_s {
 
 typedef struct lfht_s {
   atomic_bool expanding;
-  atomic_int threads;
+  atomic_int threads_inside;
+  atomic_int threads_waiting;
   pthread_mutex_t lock;
   pthread_cond_t gate;
   

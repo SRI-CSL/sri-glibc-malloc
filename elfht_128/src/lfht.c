@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 
@@ -7,21 +8,9 @@
 
 static bool _grow_table(lfht_t *ht);
   
-/* N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven
-
-   Questions:
-   
-   - When do we grow?
-
-   - Does delete decrement the table count?
-
-   - Should threads that don't win the grow lottery continue or wait?
-
-   - While the grower waits for the inside count to hit zero who signals it? Assuming
-   it waits on a condvar...
-
+/* 
+ * N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven   
  */
-
 static void _enter_(lfht_t *ht){
 
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
@@ -63,7 +52,10 @@ static void _enter_(lfht_t *ht){
       
       _grow_table(ht);
 
-      //still need to flick off the expanding and broadcast the waiters...
+      atomic_store(&ht->expanding, false);
+      pthread_mutex_lock(&ht->gate_lock);
+      pthread_cond_broadcast(&ht->gate);
+      pthread_mutex_unlock(&ht->gate_lock);
     }
     
     pthread_mutex_unlock(&ht->grow_lock);
@@ -100,15 +92,68 @@ static void _exit_(lfht_t *ht){
 
 
 
+/*
+ * Insert key, val into a freshly allocated table
+ * - n = size of this new table.
+ */
+static void clean_insert(lfht_entry_t *table, uint32_t n, uintptr_t key, uintptr_t val) {
+  uint32_t j, mask;
 
+  assert(table != NULL && key != 0 && val != TOMBSTONE);
+
+  mask = n - 1;
+  j = jenkins_hash_ptr((void *)key) & mask; 
+  while (table[j].key != 0) {
+    j ++;
+    j &= mask;
+  }
+
+  table[j].key = key;
+  table[j].val = val;
+}
+
+/*
+ * Cleanup + make a copy of the current table into a new mmapped region
+ */
 static bool _grow_table(lfht_t *ht){
-  bool retval = false;
+  uint32_t i, n, new_n, new_count;
+  lfht_entry_t *new_table;
+  uint64_t new_sz;
 
-  /* grow the table */
+  n = ht->max;
+  if (n >= UINT32_MAX/2) {
+    // OVERFLOW. We can't grow the table.
+    return false;
+  }
 
-  
-  
-  return retval;
+  // TODO: in some cases, we could just keep the same size (just remove the TOMBSTONE)?
+  new_n = n << 1;
+  assert(is_power_of_two(new_n));
+  new_sz  = new_n * sizeof(lfht_entry_t);
+  new_table = mmap(NULL, new_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (new_table == MAP_FAILED) {
+    return false;
+  }
+
+  new_count = 0;
+  for (i=0; i<n; i++) {
+    if (ht->table[i].key != 0 && ht->table[i].val != TOMBSTONE) {
+      assert(new_count < new_n); // Otherwise clean_insert will loop
+      clean_insert(new_table, new_n, ht->table[i].key, ht->table[i].val);
+      new_count ++;
+    }
+  }
+
+  munmap(ht->table, ht->sz); // free the old version
+
+  ht->max = new_n;
+  ht->threshold = (uint32_t)(new_n * RESIZE_RATIO);
+  ht->sz = new_sz;
+  atomic_store(&ht->count, new_count);
+  atomic_store(&ht->tombstoned, 0);
+  ht->table = new_table;
+
+  return true;
 }
 
 
@@ -120,6 +165,8 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   if(ht == NULL || max == 0){ 
     return retval; 
   }
+
+  assert(is_power_of_two(max));
 
   const uint64_t sz = max * sizeof(lfht_entry_t);
   

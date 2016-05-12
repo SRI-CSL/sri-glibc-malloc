@@ -15,7 +15,7 @@ endif
 
 CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH}
 
-TESTS = test_one test_two
+TESTS = test_one test_two test_three test_four
 
 all: ${TESTS}
 
@@ -30,6 +30,8 @@ check: ${TESTS}
 
 	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
 	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two  32
+	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_three
+	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_four 32
 
 else
 
@@ -37,6 +39,8 @@ check: ${TESTS}
 
 	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
 	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two   32
+	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_three
+	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_four 32
 
 endif
 

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,9 +91,10 @@ int main(int argc, char* argv[]){
       exit(EXIT_FAILURE);
     }
   }
+  
+  assert(tbl.count == count);
+  assert(tbl.tombstoned == 0);
 
-  
-  
   for(i = 0; i < nthreads; i++){
     total += targs[i].successes;
     //fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
@@ -102,8 +104,8 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  if( total != count * nthreads){
-    fprintf(stderr, "%d successes out of %d attempts\n", total, count * nthreads);
+  if( total != count){
+    fprintf(stderr, "%d successes out of %d attempts\n", total, count);
     exit(EXIT_FAILURE);
   }
   

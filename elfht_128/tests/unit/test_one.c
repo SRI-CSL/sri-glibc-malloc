@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -31,6 +32,11 @@ int main(int argc, char* argv[]){
       exit(EXIT_FAILURE);
     }
   }
+
+  
+  assert(ht.count == count);
+  assert(ht.tombstoned == 0);
+  
 
   for(i = 1; i <= count; i++){
     if( ! lfht_find(&ht, i, &val) ){

@@ -36,11 +36,14 @@ typedef struct lfht_s {
   // count of threads waiting at the gate
   atomic_int threads_waiting;
   // lock for the gate
-  pthread_mutex_t lock;
+  pthread_mutex_t gate_lock;
   // the gate
   pthread_cond_t gate;
-  // we may need another cond var for the thread growing the table
-  // to wait on while the inside count in non-zero;
+  // lock for the grower
+  pthread_mutex_t grow_lock;
+  // the var the grower  waits on
+  pthread_cond_t grow_var;
+
   
   //length of the table in units of lfht_entry_t's
   uint32_t max;

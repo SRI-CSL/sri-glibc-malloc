@@ -5,10 +5,6 @@
 #include "util.h"
 #include "atomic.h"
 
-static bool _should_grow_table(lfht_t *ht);
-
-static bool _am_grower(lfht_t *ht);
-
 static bool _grow_table(lfht_t *ht);
   
 /* N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven
@@ -26,76 +22,83 @@ static bool _grow_table(lfht_t *ht);
 
  */
 
-static inline void _enter_(lfht_t *ht){
+static void _enter_(lfht_t *ht){
 
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
 
   if(_expanding_){
 
     /* we need to wait */
-  enter_gate:
-    
-    pthread_mutex_lock(&ht->lock);
+
+    pthread_mutex_lock(&ht->gate_lock);
     
     atomic_fetch_add(&ht->threads_waiting, 1);
     
     while(atomic_load_explicit(&ht->expanding, memory_order_relaxed)){
       
-      pthread_cond_wait(&ht->gate, &ht->lock); 
+      pthread_cond_wait(&ht->gate, &ht->gate_lock); 
       
     }
     
     atomic_fetch_sub(&ht->threads_waiting, 1);
-    
-    atomic_fetch_add(&ht->threads_inside, 1);
+        
+    pthread_mutex_unlock(&ht->gate_lock);
  
-  } else if(_should_grow_table(ht)){
+  } else if(ht->count >= ht->threshold){
 
-    /* we should see if the table needs to grow */
 
-    if(_am_grower(ht)){
-      /* we are the chosen one */
+    /* first thread through gets to do the dirty work */
+    pthread_mutex_lock(&ht->grow_lock);
 
+    /* has the table already been grown */
+    if(ht->count >= ht->threshold){
+      
       atomic_store(&ht->expanding, true);
+    
+      while(atomic_load_explicit(&ht->threads_inside, memory_order_relaxed) > 0){
+      
+	pthread_cond_wait(&ht->grow_var, &ht->grow_lock); 
+	
+      }
       
       _grow_table(ht);
-      
-    } else {
-      
-      goto enter_gate;
-      
-    }
 
-  } else {
-    /* the usual case */
+      //still need to flick off the expanding and broadcast the waiters...
+    }
     
-    atomic_fetch_add(&ht->threads_inside, 1);
+    pthread_mutex_unlock(&ht->grow_lock);
     
   }
+  
+  
+  atomic_fetch_add(&ht->threads_inside, 1);
+  
 }
 
 
-static inline void _exit_(lfht_t *ht){
+static void _exit_(lfht_t *ht){
 
   // could look at the _expanding_ flag again, and signal the grower if we are expanding.
-  atomic_fetch_sub(&ht->threads_inside, 1);
+  const atomic_int _inside_ = atomic_fetch_sub(&ht->threads_inside, 1);
+
+  const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
+
+  /* last one through lets the grower know */
+  if( _expanding_  && _inside_ == 0){
+
+    pthread_mutex_lock(&ht->grow_lock);
+
+    pthread_cond_signal(&ht->grow_var);
+
+    pthread_mutex_unlock(&ht->grow_lock);
+  
+    
+  }
+  
   
 }
 
 
-/*
-  check to see if the table needs to grow, and if so see if we are the one.
-  also a good place to make sure there are no laggards waiting at the gate.
- */
-static bool _should_grow_table(lfht_t *ht){
-  bool retval = false;
-
-  /* grow the table */
-
-  
-  
-  return retval;
-}
 
 
 static bool _grow_table(lfht_t *ht){
@@ -108,15 +111,6 @@ static bool _grow_table(lfht_t *ht){
   return retval;
 }
 
-static bool _am_grower(lfht_t *ht){
-  bool retval = false;
-
-  /* choose a grower */
-
-  
-  
-  return retval;
-}
 
 
 
@@ -132,8 +126,10 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   atomic_init(&ht->expanding, false);
   atomic_init(&ht->threads_inside, 0);
   atomic_init(&ht->threads_waiting, 0);
-  pthread_mutex_init(&ht->lock, NULL);
+  pthread_mutex_init(&ht->gate_lock, NULL);
   pthread_cond_init(&ht->gate, NULL);
+  pthread_mutex_init(&ht->grow_lock, NULL);
+  pthread_cond_init(&ht->grow_var, NULL);
   ht->max = max;
   ht->threshold = (uint32_t)(max * RESIZE_RATIO);
   ht->sz = sz;
@@ -163,8 +159,10 @@ bool delete_lfht(lfht_t *ht){
     
   ht->table = NULL;
 
-  pthread_mutex_destroy(&ht->lock);
+  pthread_mutex_destroy(&ht->gate_lock);
   pthread_cond_destroy(&ht->gate);
+  pthread_mutex_destroy(&ht->grow_lock);
+  pthread_cond_destroy(&ht->grow_var);
 
   
   if(retcode == 0){
@@ -202,14 +200,16 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   while (true) {
     
     entry = ht->table[i];
+
+    if(entry.key == key){ break; } 
     
     if(entry.key == 0){
       if(cas_128((volatile u128_t *)&(ht->table[i]), 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
-
+	
 	atomic_fetch_add(&ht->count, 1);
-
+	
 	retval = true;
 	break;
       } else {
@@ -223,9 +223,9 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
     if( i == j ){ break; }
     
   }
-
+  
   _exit_(ht);
-    
+  
   return retval;
 }
 

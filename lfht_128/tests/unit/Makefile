@@ -40,3 +40,5 @@ check: ${TESTS}
 
 endif
 
+clean:
+	${RM} -f ${TESTS}

@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#include "lfht.h"
+#include "lfht_128.h"
 #include "util.h"
 #include "atomic.h"
 

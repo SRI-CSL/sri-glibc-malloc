@@ -22,7 +22,7 @@
 
 #include "malloc.h"
 #include "malloc_internals.h"
-#include "lfht.h"
+#include "lfht_128.h"
 #include "util.h"
 #include "debug.h"
 

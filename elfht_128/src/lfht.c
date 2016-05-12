@@ -10,6 +10,14 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   uint64_t sz;
   void *addr;
   if(ht != NULL && max != 0){
+
+    atomic_init(&ht->expanding, false);
+    atomic_init(&ht->threads, 0);
+    pthread_mutex_init(&ht->lock, NULL);
+    pthread_cond_init(&ht->gate, NULL);
+
+
+    
     sz = max * sizeof(lfht_entry_t);
     addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 

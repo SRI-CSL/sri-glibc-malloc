@@ -6,6 +6,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
+
+#include <pthread.h>
 
 
 typedef struct lfht_entry_s {
@@ -15,6 +18,11 @@ typedef struct lfht_entry_s {
 
 
 typedef struct lfht_s {
+  atomic_bool expanding;
+  atomic_int threads;
+  pthread_mutex_t lock;
+  pthread_cond_t gate;
+  
   //length of the table in units of lfht_entry_t's
   uint32_t max;
   //the sizeof the table 

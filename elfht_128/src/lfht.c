@@ -42,7 +42,7 @@ static void _enter_(lfht_t *ht){
     /* release the lock */
     pthread_mutex_unlock(&ht->gate_lock);
  
-  } else if(ht->count >= ht->threshold){
+  } else if(ht->count + ht->tombstoned >= ht->threshold){
 
     /* not expanding; but need to expand */
 

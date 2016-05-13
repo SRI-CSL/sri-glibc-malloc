@@ -587,6 +587,7 @@ static void* malloc_large_block(size_t sz)
     success = lfht_insert_or_update(&mmap_tbl, (uintptr_t)addr, (uintptr_t)sz);
     if( ! success ){
       fprintf(stderr, "malloc() mmap table full\n");
+      lfht_stats(stderr, "mmap_tbl", &mmap_tbl);
       fflush(stderr);
       abort();
     }
@@ -690,6 +691,7 @@ void* malloc(size_t sz)
       bool success = lfht_insert_or_update(&desc_tbl, (uintptr_t)desc->sb, (uintptr_t)desc);
       if( ! success ){
 	fprintf(stderr, "malloc() descriptor table full\n");
+	lfht_stats(stderr, "desc_tbl", &desc_tbl);
 	fflush(stderr);
 	abort();
       }

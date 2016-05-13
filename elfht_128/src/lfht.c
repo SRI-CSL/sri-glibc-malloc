@@ -13,8 +13,10 @@ static bool _grow_table(lfht_t *ht);
  */
 static void _enter_(lfht_t *ht){
 
+  // think about memory order
+  const atomic_uint _version_ = atomic_load_explicit(&ht->version, memory_order_relaxed);
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
-
+  
   if(_expanding_){
 
     /* we need to wait */
@@ -37,14 +39,16 @@ static void _enter_(lfht_t *ht){
 
 
     /* first thread through gets to do the dirty work */
-    pthread_mutex_lock(&ht->grow_lock);
+    pthread_mutex_lock(&ht->nominee_lock);
 
     /* has the table already been grown */
-    if(ht->count >= ht->threshold){
+    if(atomic_load(&ht->version) == _version_) {
       
       atomic_store(&ht->expanding, true);
     
-      while(atomic_load_explicit(&ht->threads_inside, memory_order_relaxed) > 0){
+      pthread_mutex_lock(&ht->grow_lock);
+
+     while(atomic_load_explicit(&ht->threads_inside, memory_order_relaxed) > 0){
       
 	pthread_cond_wait(&ht->grow_var, &ht->grow_lock); 
 	
@@ -52,14 +56,15 @@ static void _enter_(lfht_t *ht){
       
       _grow_table(ht);
 
+      atomic_fetch_add(&ht->version, 1);
+      pthread_mutex_unlock(&ht->grow_lock);
       atomic_store(&ht->expanding, false);
       pthread_mutex_lock(&ht->gate_lock);
       pthread_cond_broadcast(&ht->gate);
       pthread_mutex_unlock(&ht->gate_lock);
     }
     
-    pthread_mutex_unlock(&ht->grow_lock);
-    
+    pthread_mutex_unlock(&ht->nominee_lock);
   }
   
   
@@ -76,7 +81,7 @@ static void _exit_(lfht_t *ht){
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
 
   /* last one through lets the grower know */
-  if( _expanding_  && _inside_ == 0){
+  if( _expanding_  && _inside_ == 1){
 
     pthread_mutex_lock(&ht->grow_lock);
 
@@ -170,6 +175,7 @@ bool init_lfht(lfht_t *ht, uint32_t max){
 
   const uint64_t sz = max * sizeof(lfht_entry_t);
   
+  atomic_init(&ht->version, 0);
   atomic_init(&ht->expanding, false);
   atomic_init(&ht->threads_inside, 0);
   atomic_init(&ht->threads_waiting, 0);
@@ -177,6 +183,7 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   pthread_cond_init(&ht->gate, NULL);
   pthread_mutex_init(&ht->grow_lock, NULL);
   pthread_cond_init(&ht->grow_var, NULL);
+  pthread_mutex_init(&ht->nominee_lock, NULL);
   ht->max = max;
   ht->threshold = (uint32_t)(max * RESIZE_RATIO);
   ht->sz = sz;
@@ -210,6 +217,7 @@ bool delete_lfht(lfht_t *ht){
   pthread_cond_destroy(&ht->gate);
   pthread_mutex_destroy(&ht->grow_lock);
   pthread_cond_destroy(&ht->grow_var);
+  pthread_mutex_destroy(&ht->nominee_lock);
 
   
   if(retcode == 0){

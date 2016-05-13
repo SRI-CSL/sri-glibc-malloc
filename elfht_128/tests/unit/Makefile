@@ -13,7 +13,7 @@ LIB = ${LFHT_HOME}/lib/${LIBRARYNAME}.so
 LDFLAGS = -lpthread
 endif
 
-CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH}
+CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH} -ggdb
 
 TESTS = test_one test_two test_three test_four
 

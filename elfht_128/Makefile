@@ -1,4 +1,4 @@
-OS   =  $(shell uname)
+	OS   =  $(shell uname)
 
 ARCH ?= $(shell uname -m)
 
@@ -13,17 +13,17 @@ LIBRARYNAME=liblfht
 ifeq (Darwin, $(findstring Darwin, ${OS}))
 #  DARWIN
 LIB = ${LIBRARYNAME}.dylib
-LIBFLAGS = -dynamiclib
-LDFLAGS =
+LDFLAGS = -g
+LIBFLAGS = -dynamiclib ${LDFLAGS}
 else
 # LINUX
 LIB = ${LIBRARYNAME}.so
-LIBFLAGS = -shared -Wl,-soname,${LIB}
-LDFLAGS = -lpthread
+LDFLAGS = -lpthread -ggdb
+LIBFLAGS = -shared -Wl,-soname,${LIB} ${LDFLAGS}
 endif
 
 
-CFLAGS= -Wall -fPIC -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -fPIC -I./include -I./arch/${ARCH} -ggdb
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

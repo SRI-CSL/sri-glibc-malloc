@@ -102,7 +102,7 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  if( total != count * nthreads){
+  if( total != count ){
     fprintf(stderr, "%d successes out of %d attempts\n", total, count * nthreads);
     exit(EXIT_FAILURE);
   }

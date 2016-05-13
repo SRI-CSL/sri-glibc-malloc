@@ -53,6 +53,8 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
 
       entry = ht->table[i];
 
+      if(entry.key == key){ break; } 
+
       if(entry.key == 0){
 	if(cas_128((volatile u128_t *)&(ht->table[i]), *((u128_t *)&entry), *((u128_t *)&desired))){
 	  return true;

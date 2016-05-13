@@ -56,7 +56,7 @@ lib:
 
 UNIT_TESTS=./tests/unit
 
-check:
+check:  ${TARGET}
 	make -C ${UNIT_TESTS} check
 
 

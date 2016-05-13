@@ -465,6 +465,6 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
 }
   
 void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
-  fprintf(fp, "%s: max = %"PRIu32", count = %"PRIu32", tombstones = %"PRIu32"\n", name, ht->max, ht->count, ht->tombstoned);
+  fprintf(fp, "%s: version = %d, max = %"PRIu32", count = %"PRIu32", tombstones = %"PRIu32"\n", name, ht->version, ht->max, ht->count, ht->tombstoned);
   fflush(fp);
 }

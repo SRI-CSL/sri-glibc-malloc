@@ -56,7 +56,7 @@ typedef struct lfht_s {
   uint64_t sz;
   //the number of items stored in the table
   atomic_uint_least32_t count;
-  //the number of items in the table
+  //the number of tombstones in the table
   atomic_uint_least32_t tombstoned;
   //the table
   lfht_entry_t *table;

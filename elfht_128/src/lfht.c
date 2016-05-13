@@ -20,25 +20,29 @@ static void _enter_(lfht_t *ht){
   if(_expanding_){
 
     /* we need to wait */
-
     pthread_mutex_lock(&ht->gate_lock);
-    
+
+    /* register ourselves as a waiting thread */
     atomic_fetch_add(&ht->threads_waiting, 1);
-    
+
+    /* wait until the table is no longer waiting */
     while(atomic_load_explicit(&ht->expanding, memory_order_relaxed)){
       
       pthread_cond_wait(&ht->gate, &ht->gate_lock); 
       
     }
-    
+
+    /* remove ourselves from the waiting thread tally */
     atomic_fetch_sub(&ht->threads_waiting, 1);
-        
+
+    /* release the lock */
     pthread_mutex_unlock(&ht->gate_lock);
  
   } else if(ht->count >= ht->threshold){
 
+    /* not expanding; but need to expand */
 
-    /* first thread through gets to do the dirty work */
+    /* first thread to get this lock gets to do the dirty work */
     pthread_mutex_lock(&ht->nominee_lock);
 
     /* has the table already been grown */
@@ -57,10 +61,15 @@ static void _enter_(lfht_t *ht){
       _grow_table(ht);
 
       atomic_fetch_add(&ht->version, 1);
+
       pthread_mutex_unlock(&ht->grow_lock);
+
       atomic_store(&ht->expanding, false);
+
       pthread_mutex_lock(&ht->gate_lock);
+
       pthread_cond_broadcast(&ht->gate);
+
       pthread_mutex_unlock(&ht->gate_lock);
     }
     
@@ -75,9 +84,10 @@ static void _enter_(lfht_t *ht){
 
 static void _exit_(lfht_t *ht){
 
-  // could look at the _expanding_ flag again, and signal the grower if we are expanding.
+  // we remove ourselves from the insider tally
   const atomic_int _inside_ = atomic_fetch_sub(&ht->threads_inside, 1);
 
+  // if we are expanding we need to let the grower know if we are the last one through.
   const atomic_bool _expanding_ = atomic_load_explicit(&ht->expanding, memory_order_relaxed);
 
   /* last one through lets the grower know */
@@ -89,10 +99,7 @@ static void _exit_(lfht_t *ht){
 
     pthread_mutex_unlock(&ht->grow_lock);
   
-    
   }
-  
-  
 }
 
 
@@ -131,7 +138,7 @@ static bool _grow_table(lfht_t *ht){
     return false;
   }
 
-  // TODO: in some cases, we could just keep the same size (just remove the TOMBSTONE)?
+  // TODO: in some cases, we could just keep the same size (just remove the tombstones)?
   new_n = n << 1;
   assert(is_power_of_two(new_n));
   new_sz  = new_n * sizeof(lfht_entry_t);

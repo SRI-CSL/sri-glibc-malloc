@@ -37,5 +37,8 @@ implementations.
 
 -  `fifo_128` our version of Michael & Scott's lock free fifo queue buit using CAS_128.
 
+-  `elfht` our Expanding Lock Free Hash Table (locking on when growing).
+
+- `elfpa` our Expanding Lock Free Pool Allocator (frolloc + elfht).
 
 

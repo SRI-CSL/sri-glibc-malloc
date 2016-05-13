@@ -1,5 +1,9 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#include <inttypes.h>
+
 #include <sys/mman.h>
 
 #include "elfht_128.h"
@@ -100,6 +104,12 @@ static void _exit_(lfht_t *ht){
     pthread_mutex_unlock(&ht->grow_lock);
   
   }
+
+  // good place to make some general state invariant assertions 
+  assert(ht->count <= ht->max);
+  assert(ht->tombstoned <= ht->max);
+  
+  
 }
 
 
@@ -374,12 +384,13 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
     entry = ht->table[i];
     
     if(entry.key == key || entry.key == 0){
+
       if(cas_128((volatile u128_t *)&ht->table[i], 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
 
 
-	if( ! entry.key ){
+	if( entry.key ){
 
 	  atomic_fetch_add(&ht->count, 1);
 
@@ -453,3 +464,7 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   return retval;
 }
   
+void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
+  fprintf(fp, "%s: max = %"PRIu32", count = %"PRIu32", tombstones = %"PRIu32"\n", name, ht->max, ht->count, ht->tombstoned);
+  fflush(fp);
+}

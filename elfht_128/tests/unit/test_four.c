@@ -66,8 +66,8 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  fprintf(stderr, "initial table size = %"PRIu32"\n", tbl.max);
-
+  lfht_stats(stderr, "initial table", &tbl);
+  
   for(i = 0; i < nthreads; i++){
     targs_t *targsp = &targs[i];
     targsp->id = i;
@@ -96,7 +96,7 @@ int main(int argc, char* argv[]){
     }
   }
   
-  fprintf(stderr, "final table size = %"PRIu32"\n", tbl.max);
+  lfht_stats(stderr, "final table", &tbl);
 
   assert(tbl.count == count);
   assert(tbl.tombstoned == 0);

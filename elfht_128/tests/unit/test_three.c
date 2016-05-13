@@ -26,7 +26,8 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  fprintf(stderr, "initial table size = %"PRIu32"\n", ht.max);
+
+  lfht_stats(stderr, "initial table", &ht);
 
   for(i = 1; i <= count; i++){
     if( ! lfht_insert(&ht, i, i) ){
@@ -36,9 +37,9 @@ int main(int argc, char* argv[]){
   }
 
 
-  fprintf(stderr, "final table size = %"PRIu32"\n", ht.max);
   assert(ht.count == count);
   assert(ht.tombstoned == 0);
+  lfht_stats(stderr, "final table", &ht);
   
 
   for(i = 1; i <= count; i++){

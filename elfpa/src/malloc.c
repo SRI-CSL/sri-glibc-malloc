@@ -36,11 +36,11 @@
 
 static sizeclass sizeclasses[MAX_BLOCK_SIZE / GRANULARITY];
 
-/* Currently the same size as SBSIZE */
-#define DESC_HTABLE_CAPACITY 16*4096
+/* Currently the same size as SBSIZE 16*4096 */
+#define DESC_HTABLE_CAPACITY 4096
 
-/* Currently pulled out of a hat with the rabbit  */
-#define MMAP_HTABLE_CAPACITY  128*4096
+/* Currently pulled out of a hat with the rabbit  128*4096*/
+#define MMAP_HTABLE_CAPACITY 4096
 
 static lfht_t desc_tbl;  // maps superblock ptr --> desc
 static lfht_t mmap_tbl;  // maps mmapped region --> size
@@ -879,6 +879,8 @@ void malloc_stats(void){
   fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
   fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
   fprintf(stderr, "active mmapped blocks: %lu\n", active_mmaps);
+  lfht_stats(stderr, "desc_tbl",  &desc_tbl);
+  lfht_stats(stderr, "mmap_tbl",  &mmap_tbl);
   fflush(stderr);
 }
 

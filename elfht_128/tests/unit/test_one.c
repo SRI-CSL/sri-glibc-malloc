@@ -36,6 +36,8 @@ int main(int argc, char* argv[]){
   
   assert(ht.count == count);
   assert(ht.tombstoned == 0);
+
+  lfht_stats(stderr, "midway table", &ht);
   
 
   for(i = 1; i <= count; i++){
@@ -49,7 +51,7 @@ int main(int argc, char* argv[]){
     }
   }
 
-
+  lfht_stats(stderr, "end table", &ht);
   
 
   success = delete_lfht(&ht);

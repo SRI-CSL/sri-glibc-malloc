@@ -88,6 +88,7 @@ extern bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val);
 extern bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val);
 
 extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
-  
+
+extern void lfht_stats(FILE* fp, const char* name, lfht_t *ht);
 
 #endif

@@ -82,7 +82,6 @@ void frolloc_unload(void)
 
 static atomic_ulong active_superblocks = 0;
 static atomic_ulong active_descriptor_blocks = 0;
-static atomic_ulong active_mmaps = 0;
 
 static void init_sizeclasses(void)
 {
@@ -592,8 +591,6 @@ static void* malloc_large_block(size_t sz)
       abort();
     }
 
-    atomic_increment(&active_mmaps);
-
     return addr;
   }
 }
@@ -643,8 +640,6 @@ static void free_large_block(void *ptr, size_t sz)
     fflush(stderr);
   }    
   munmap(ptr, sz);
-
-  atomic_decrement(&active_mmaps);
 
   return;
 }
@@ -878,11 +873,9 @@ void *realloc(void *object, size_t size)
 }
 
 void malloc_stats(void){
-  fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
-  fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
-  fprintf(stderr, "active mmapped blocks: %lu\n", active_mmaps);
   lfht_stats(stderr, "desc_tbl",  &desc_tbl);
   lfht_stats(stderr, "mmap_tbl",  &mmap_tbl);
+  fprintf(stderr, "superblocks: %lu, descriptor blocks: %lu\n", active_superblocks, active_descriptor_blocks);
   fflush(stderr);
 }
 

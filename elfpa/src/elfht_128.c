@@ -21,11 +21,13 @@ bool sanity_check(FILE* fp, lfht_t *ht){
     
     entry = ht->table[i];
     
-    if(entry.key != 0 && entry.val != TOMBSTONE){ count ++; }
-    
-    if(entry.key != 0 && entry.val == TOMBSTONE){ tombstoned ++; }
-    
-    if(entry.key == 0){ empty++; }
+    if(entry.key != 0 && entry.val != TOMBSTONE){
+      count ++;
+    } else if(entry.key != 0 && entry.val == TOMBSTONE){
+      tombstoned ++;
+    } else if(entry.key == 0){
+      empty++;
+    }
 
   }
   
@@ -41,8 +43,6 @@ bool sanity_check(FILE* fp, lfht_t *ht){
  * N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven   
  */
 static void _enter_(lfht_t *ht){
-
-
 
   // think about memory order
   const atomic_uint _version_ = atomic_load_explicit(&ht->version, memory_order_relaxed);

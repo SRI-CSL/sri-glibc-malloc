@@ -29,6 +29,8 @@ typedef struct lfht_entry_s {
 
 typedef struct lfht_s {
 
+  //<table growing acoutrements >
+  //
   // Version number of the hash table
   atomic_uint version;
   // flag to indicate we are in the process of growing the table
@@ -47,6 +49,8 @@ typedef struct lfht_s {
   pthread_cond_t grow_var;
   // Need lock for election winner
   pthread_mutex_t nominee_lock;
+  //
+  //</table growing acoutrements >
   
   //length of the table in units of lfht_entry_t's
   uint32_t max;

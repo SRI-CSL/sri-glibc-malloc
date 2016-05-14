@@ -93,7 +93,6 @@ int main(int argc, char* argv[]){
   }
   
   assert(tbl.count == count);
-  assert(tbl.tombstoned == 0);
   lfht_stats(stderr, "end table", &tbl);
   
   for(i = 0; i < nthreads; i++){

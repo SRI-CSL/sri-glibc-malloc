@@ -99,7 +99,6 @@ int main(int argc, char* argv[]){
   lfht_stats(stderr, "final table", &tbl);
 
   assert(tbl.count == count);
-  assert(tbl.tombstoned == 0);
 
   for(i = 0; i < nthreads; i++){
     total += targs[i].successes;

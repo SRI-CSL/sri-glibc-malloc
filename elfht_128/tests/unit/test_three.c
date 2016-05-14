@@ -38,7 +38,6 @@ int main(int argc, char* argv[]){
 
 
   assert(ht.count == count);
-  assert(ht.tombstoned == 0);
   lfht_stats(stderr, "final table", &ht);
   
 

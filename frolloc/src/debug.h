@@ -22,7 +22,7 @@
 
 #include <stdlib.h>
 
-#if defined(NDEBUG) || !defined(SRI_DEBUG)
+#if defined(NDEBUG) || !defined(SRI_MALLOC_LOG)
 #define log_init()
 #define log_malloc(V, S)
 #define log_realloc(V, O, S)

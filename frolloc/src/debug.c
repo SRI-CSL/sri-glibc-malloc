@@ -16,7 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#if !defined(NDEBUG) && defined(SRI_DEBUG)
+#if !defined(NDEBUG) && defined(SRI_MALLOC_LOG)
 
 #define _GNU_SOURCE
 

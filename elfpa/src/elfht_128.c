@@ -12,10 +12,35 @@
 
 static bool _grow_table(lfht_t *ht);
   
+bool sanity_check(lfht_t *ht){
+  uint32_t empty = 0, count = 0, tombstoned = 0;
+  uint32_t i;
+  lfht_entry_t entry;
+
+  for(i = 0; i < ht->max; i++){
+    
+    entry = ht->table[i];
+    
+    if(entry.key != 0 && entry.val != TOMBSTONE){ count ++; }
+    
+    if(entry.key != 0 && entry.val == TOMBSTONE){ tombstoned ++; }
+    
+    if(entry.key == 0){ empty++; }
+
+  }
+  
+  fprintf(stderr, "sanity check: empty = %"PRIu32", count = %"PRIu32", tombstoned = %"PRIu32"\n",
+	  empty, count, tombstoned);
+  
+  return (count + tombstoned == ht->count);
+}
+
 /* 
  * N.B we will start with a simplistic version (i.e. no barriers etc) and work our way up to heaven   
  */
 static void _enter_(lfht_t *ht){
+
+
 
   // think about memory order
   const atomic_uint _version_ = atomic_load_explicit(&ht->version, memory_order_relaxed);
@@ -42,7 +67,7 @@ static void _enter_(lfht_t *ht){
     /* release the lock */
     pthread_mutex_unlock(&ht->gate_lock);
  
-  } else if(ht->count + ht->tombstoned >= ht->threshold){
+  } else if(ht->count >= ht->threshold){
 
     /* not expanding; but need to expand */
 
@@ -83,6 +108,9 @@ static void _enter_(lfht_t *ht){
   
   atomic_fetch_add(&ht->threads_inside, 1);
   
+
+  /* assert(sanity_check(ht)); */
+
 }
 
 
@@ -107,8 +135,8 @@ static void _exit_(lfht_t *ht){
 
   // good place to make some general state invariant assertions 
   assert(ht->count <= ht->max);
-  assert(ht->tombstoned <= ht->max);
   
+  /* assert(sanity_check(ht)); */
   
 }
 
@@ -172,7 +200,6 @@ static bool _grow_table(lfht_t *ht){
   ht->threshold = (uint32_t)(new_n * RESIZE_RATIO);
   ht->sz = new_sz;
   atomic_store(&ht->count, new_count);
-  atomic_store(&ht->tombstoned, 0);
   ht->table = new_table;
 
   return true;
@@ -205,7 +232,6 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   ht->threshold = (uint32_t)(max * RESIZE_RATIO);
   ht->sz = sz;
   atomic_init(&ht->count, 0);
-  atomic_init(&ht->tombstoned, 0);
   ht->table = NULL;
   
   
@@ -329,12 +355,6 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       if(cas_128((volatile u128_t *)&ht->table[i], 
 		 *((u128_t *)&entry), 
 		 *((u128_t *)&desired))){
-
-	if( val == TOMBSTONE && entry.val != TOMBSTONE ){
-
-	  atomic_fetch_add(&ht->tombstoned, 1);
-
-	}
 	
 	retval = true;
 	break;
@@ -396,17 +416,12 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
 		 *((u128_t *)&desired))){
 
 
-	if( entry.key ){
+	if( ! entry.key ){
 
 	  atomic_fetch_add(&ht->count, 1);
-
-	  if( entry.val == TOMBSTONE ){
-
-	    atomic_fetch_sub(&ht->tombstoned, 1);
-
-	  }
-
+	  
 	}
+	
 	
 	retval = true;
 	break;
@@ -423,7 +438,12 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
     
     if( i == j ){ 
       fprintf(stderr, "lfht_insert_or_update giving up attempts = %d, fails = %d, i = %"PRIu32", j = %"PRIu32"\n", attempts, fails, i, j);
+      
+      lfht_stats(stderr, "abort zone", ht);
+      sanity_check(ht);
+      abort();
       break; 
+
     }
     
   }
@@ -477,6 +497,6 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
 }
   
 void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
-  fprintf(fp, "%s: version = %d, max = %"PRIu32", count = %"PRIu32", tombstones = %"PRIu32"\n", name, ht->version, ht->max, ht->count, ht->tombstoned);
+  fprintf(fp, "%s: version = %d, max = %"PRIu32", count = %"PRIu32"\n", name, ht->version, ht->max, ht->count);
   fflush(fp);
 }

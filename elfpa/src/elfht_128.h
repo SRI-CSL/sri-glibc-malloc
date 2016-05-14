@@ -29,7 +29,7 @@ typedef struct lfht_entry_s {
 
 typedef struct lfht_s {
 
-  //<table growing acoutrements >
+  //<table growing accoutrements >
   //
   // Version number of the hash table
   atomic_uint version;
@@ -50,7 +50,7 @@ typedef struct lfht_s {
   // Need lock for election winner
   pthread_mutex_t nominee_lock;
   //
-  //</table growing acoutrements >
+  //</table growing accoutrements >
   
   //length of the table in units of lfht_entry_t's
   uint32_t max;

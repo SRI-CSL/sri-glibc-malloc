@@ -12,7 +12,7 @@
 
 static bool _grow_table(lfht_t *ht);
   
-bool sanity_check(lfht_t *ht){
+bool sanity_check(FILE* fp, lfht_t *ht){
   uint32_t empty = 0, count = 0, tombstoned = 0;
   uint32_t i;
   lfht_entry_t entry;
@@ -29,8 +29,10 @@ bool sanity_check(lfht_t *ht){
 
   }
   
-  fprintf(stderr, "sanity check: empty = %"PRIu32", count = %"PRIu32", tombstoned = %"PRIu32"\n",
-	  empty, count, tombstoned);
+  if(fp != NULL){
+    fprintf(stderr, "sanity check: empty = %"PRIu32", count = %"PRIu32", tombstoned = %"PRIu32", total = %"PRIu32"\n",
+	    empty, count, tombstoned, count + tombstoned);
+  }
   
   return (count + tombstoned == ht->count);
 }
@@ -109,7 +111,7 @@ static void _enter_(lfht_t *ht){
   atomic_fetch_add(&ht->threads_inside, 1);
   
 
-  /* assert(sanity_check(ht)); */
+  /* assert(sanity_check(NULL, ht)); */
 
 }
 
@@ -136,7 +138,7 @@ static void _exit_(lfht_t *ht){
   // good place to make some general state invariant assertions 
   assert(ht->count <= ht->max);
   
-  /* assert(sanity_check(ht)); */
+  /* assert(sanity_check(NULL, ht)); */
   
 }
 
@@ -440,7 +442,7 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
       fprintf(stderr, "lfht_insert_or_update giving up attempts = %d, fails = %d, i = %"PRIu32", j = %"PRIu32"\n", attempts, fails, i, j);
       
       lfht_stats(stderr, "abort zone", ht);
-      sanity_check(ht);
+      sanity_check(stderr, ht);
       abort();
       break; 
 
@@ -498,5 +500,6 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   
 void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
   fprintf(fp, "%s: version = %d, max = %"PRIu32", count = %"PRIu32"\n", name, ht->version, ht->max, ht->count);
+  sanity_check(fp, ht);
   fflush(fp);
 }

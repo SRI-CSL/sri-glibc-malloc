@@ -384,7 +384,6 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t j, i;
   lfht_entry_t entry, desired;
   bool retval = false;
-  int fails = 0, attempts = 0;
 
   assert( val != TOMBSTONE );
   
@@ -406,12 +405,8 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
     
     entry = ht->table[i];
 
-    const uint64_t akey = read_64(&ht->table[i].key);
     
-    //    if(entry.key == key || entry.key == 0){
-    if(akey == key || akey == 0){
-
-      attempts++;
+    if(entry.key == key || entry.key == 0){
 
       if(cas_128((volatile u128_t *)&ht->table[i], 
 		 *((u128_t *)&entry), 
@@ -433,17 +428,11 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
 
     }
 
-    fails++;
 
     i ++;
     i &= mask;
     
     if( i == j ){ 
-      fprintf(stderr, "lfht_insert_or_update giving up attempts = %d, fails = %d, i = %"PRIu32", j = %"PRIu32"\n", attempts, fails, i, j);
-      
-      lfht_stats(stderr, "abort zone", ht);
-      sanity_check(stderr, ht);
-      abort();
       break; 
 
     }

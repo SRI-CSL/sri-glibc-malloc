@@ -37,6 +37,31 @@ void log_end(void);
 #endif
 
 
+/* 
+ *  Lifecyle of a Descriptor:
+ *
+ *  C : created (allocated) in MallocFromSB
+ *
+ *  R : retired/recycled; placed in the global linked list of descriptors  (several places)
+ *
+ *  Q : placed in the Partial queue in it's current sizeclass
+ *
+ *  A : installed as the active SB of the heap
+ *
+ *  P : installed as the partial SB of the heap
+ *
+ *  W : released into the wild
+ *
+ *
+ * So we record:  Stage  Descp  Heap Site  
+ *
+ * we could record size too, if that becomes needed.
+ *
+ */
+
+enum desc_stage { CREATED='C', RETIRED='R', QUEUED='Q', ACTIVE='A', PARTIAL='P', WILD='W' };
+
+void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site);
 
 
 

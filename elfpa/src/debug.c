@@ -148,30 +148,6 @@ void log_free(void* val)
 }
 
 
-/* 
- *  Lifecyle of a Descriptor:
- *
- *  C : created (allocated) in MallocFromSB
- *
- *  R : retired/recycled; placed in the global linked list of descriptors  (several places)
- *
- *  Q : placed in the Partial queue in it's current sizeclass
- *
- *  A : installed as the active SB of the heap
- *
- *  P : installed as the partial SB of the heap
- *
- *  W : released into the wild
- *
- *
- * So we record:  Stage  Descp  Heap Site  
- *
- * we could record size too, if that becomes needed.
- *
- */
-
-enum desc_stage { CREATED='C', RETIRED='R', QUEUED='Q', ACTIVE='A', PARTIAL='P', WILD='W' };
-
 #define DESC_LEN =  77
 
 #define DESC_ARGS = 4
@@ -216,9 +192,18 @@ static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t si
 }
 
 
+void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site){
+   _write_desc_logentry(stage, desc, heap, site);
+}
+  
+
+#else
+
+#include <stdint.h>
+
+void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site){
 
 
-
-
+}
 
 #endif

@@ -59,7 +59,12 @@ void log_end(void);
  *
  */
 
-enum desc_stage { CREATED='C', RETIRED='R', QUEUED='Q', ACTIVE='A', PARTIAL='P', WILD='W' };
+enum desc_stage { DESC_CREATED='C', 
+		  DESC_RETIRED='R', 
+		  DESC_QUEUED='Q', 
+		  DESC_ACTIVE='A', 
+		  DESC_PARTIAL='P',
+		  DESC_WILD='W' };
 
 void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site);
 

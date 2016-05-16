@@ -40,6 +40,8 @@ static const char hex[16] = "0123456789abcdef";
 static const char logfile[] = "/tmp/frolloc.log";
 
 
+enum mhook { MALLOC='m', FREE='f', REALLOC='r' }
+
 enum mhooklen { MALLOCLEN = 58, FREELEN = 39, REALLOCLEN = 77 };
 
 enum mhookargs { MALLOCARGS = 3, FREEARGS  = 2, REALLOCARGS = 4 };
@@ -77,30 +79,30 @@ void log_end(void){
   }
 }
 
-static void _writelogentry(char func, size_t size1, size_t size2, void *p, void *q, void *caller)
+static void _write_mem_logentry(char func, size_t size1, size_t size2, void *p, void *q, void *caller)
 {
-  char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', 
-		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+  char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 39
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 58
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 77
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 96
 		    '\n' };
   int sz = sizeof(buffer) - 1;
   int rcode;
   buffer[0] = func;
   switch (func) {
-  case 'm':
+  case MALLOC:
     storehexstring(&buffer[4],  (uintptr_t)p);
     storehexstring(&buffer[23], (uintptr_t)size1);
     storehexstring(&buffer[42], (uintptr_t)caller);
     sz = MALLOCLEN;
     break;
-  case 'f':
+  case FREE:
     storehexstring(&buffer[4],  (uintptr_t)p);
     storehexstring(&buffer[23], (uintptr_t)caller);
     sz = FREELEN;
     break;
-  case 'r':
+  case REALLOC:
     storehexstring(&buffer[4],  (uintptr_t)q);
     storehexstring(&buffer[23], (uintptr_t)p);
     storehexstring(&buffer[42], (uintptr_t)size1);
@@ -134,16 +136,89 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
 
 void log_malloc(void* val, size_t size)
 {
-  _writelogentry('m', size, 0, val, NULL, (void*)pthread_self());
+  _write_mem_logentry('m', size, 0, val, NULL, (void*)pthread_self());
 }
 void log_realloc(void* val, void* oval, size_t size)
 {
-  _writelogentry('r', size, 0, oval, val, (void*)pthread_self());
+  _write_mem_logentry('r', size, 0, oval, val, (void*)pthread_self());
 }
 void log_free(void* val)
 {
-  _writelogentry('f', 0, 0, val, NULL, (void*)pthread_self());
+  _write_mem_logentry('f', 0, 0, val, NULL, (void*)pthread_self());
 }
+
+
+/* 
+ *  Lifecyle of a Descriptor:
+ *
+ *  C : created (allocated) in MallocFromSB
+ *
+ *  R : retired/recycled; placed in the global linked list of descriptors  (several places)
+ *
+ *  Q : placed in the Partial queue in it's current sizeclass
+ *
+ *  A : installed as the active SB of the heap
+ *
+ *  P : installed as the partial SB of the heap
+ *
+ *  W : released into the wild
+ *
+ *
+ * So we record:  Stage  Descp  Heap Site  
+ *
+ * we could record size too, if that becomes needed.
+ *
+ */
+
+enum desc_stage { CREATED='C', RETIRED='R', QUEUED='Q', ACTIVE='A', PARTIAL='P', WILD='W' };
+
+#define DESC_LEN =  77
+
+#define DESC_ARGS = 4
+
+
+
+
+static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t site){
+{
+  char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 39
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 58
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 77
+		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 96
+		    '\n' };
+  int sz = sizeof(buffer) - 1;
+  int rcode;
+  buffer[0] = stage;
+  storehexstring(&buffer[4],  (uintptr_t)desc);
+  storehexstring(&buffer[23], (uintptr_t)heap);
+  storehexstring(&buffer[42], (uintptr_t)site);
+  sz = DESC_LEN;
+  buffer[sz] = '\n';
+  
+  if(logfd < 0){
+    return;
+  }
+  rcode = write(logfd, buffer, sz+1);
+  if(rcode != sz+1) {
+    if(rcode < 0){
+      if(errno == EINTR){
+	exit(3);
+      } else if(errno == EBADF){
+	exit(5);
+      } else {
+	exit(errno);
+      }
+    } else  {
+      exit(7);
+    }
+  }
+}
+
+
+
+
+
 
 
 #endif

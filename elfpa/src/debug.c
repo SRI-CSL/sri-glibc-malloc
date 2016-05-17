@@ -150,11 +150,6 @@ void log_free(void* val)
 
 #define DESC_LEN =  77
 
-#define DESC_ARGS = 4
-
-
-
-
 static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t site){
 {
   char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
@@ -192,18 +187,8 @@ static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t si
 }
 
 
-void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site){
+void log_desc_event(desc_stage_t stage, void* desc, void *heap, uint32_t site){
    _write_desc_logentry(stage, desc, heap, site);
 }
   
-
-#else
-
-#include <stdint.h>
-
-void log_descriptor_event(char stage, void* desc, void *heap, uint32_t site){
-
-
-}
-
 #endif

@@ -45,15 +45,15 @@
  */
 
 typedef enum desc_stage {
-  DESC_CREATED      = 'C', 
-  DESC_RETIRED      = 'R', 
-  DESC_QUEUED       = 'Q', 
-  DESC_POPPED       = 'O', 
-  DESC_ACTIVATED    = 'A',
-  DESC_DEACTIVATED  = 'D', 
-  DESC_PARTIAL      = 'P',
-  DESC_UNPARTIAL    = 'U',
-  DESC_WILD         = 'W'
+  DESC_CREATED      = 'C',   /* created in MallocFromNewSB desc is either new or popped from the global queue  */
+  DESC_RETIRED      = 'R',   /* it is no longer associated with a SB and placed in the  global queue           */
+  DESC_QUEUED       = 'Q',   /* it manages a partial SB, and has been put in the sizeclass queue for that size */
+  DESC_POPPED       = 'O',   /* it manages a partial SB, and has been popped off the sizeclass queue           */
+  DESC_ACTIVATED    = 'A',   /* it becomes the active SB for the heap                                          */
+  DESC_DEACTIVATED  = 'D',   /* it is removed as the active SB for the heap (it is about to be FULL)           */
+  DESC_PARTIAL      = 'P',   /* it becomes the partial SB for the heap                                         */
+  DESC_UNPARTIAL    = 'U',   /* it is removed as the partial SB for the heap                                   */
+  DESC_WILD         = 'W'    /* it is released into the wild                                                   */
 } desc_stage_t;
 
 

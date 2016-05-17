@@ -29,6 +29,8 @@ LF_QUEUE = lifo
 CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./src/${LF_QUEUE}
 #CFLAGS+= -DNDEBUG
 CFLAGS+= -DSRI_DEBUG 
+CFLAGS+= -DSRI_MALLOC_LOG
+
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

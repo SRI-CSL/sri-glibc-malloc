@@ -323,9 +323,19 @@ static void ListPutPartial(descriptor* desc)
 static void RemoveEmptyDesc(procheap* heap, descriptor* desc)
 {
   if (cas_64((volatile uint64_t *)&heap->Partial, (uint64_t)desc, 0)) {
+
+    log_desc_event(DESC_UNPARTIAL, desc, heap, REMOVEEMPTYDESC);
+
+    log_desc_event(DESC_RETIRED, desc, heap, REMOVEEMPTYDESC);
+
     DescRetire(desc);
+
   }
   else {
+
+    log_desc_event(DESC_WILD, desc, heap, REMOVEEMPTYDESC);
+
+    
     ListRemoveEmptyDesc(heap->sc);
   }
 }
@@ -335,12 +345,24 @@ static descriptor* HeapGetPartial(procheap* heap)
   descriptor* desc;
   
   do {
+
     desc = *((descriptor**)&heap->Partial); // casts away the volatile
+
     if (desc == NULL) {
-      return ListGetPartial(heap->sc);
+
+      desc = ListGetPartial(heap->sc);
+
+      if(desc != NULL){
+	log_desc_event(DESC_POPPED, desc, heap, HEAPGETPARTIAL);
+      }
+      
+      return desc;
+
     }
   } while (!cas_64((volatile uint64_t *)&heap->Partial, ( uint64_t)desc, 0));
 
+  log_desc_event(DESC_UNPARTIAL, desc, heap, HEAPGETPARTIAL);
+ 
   return desc;
 }
 
@@ -352,7 +374,13 @@ static void HeapPutPartial(descriptor* desc)
     prev = (descriptor*)desc->heap->Partial; // casts away volatile
   } while (!cas_64((volatile uint64_t *)&desc->heap->Partial, (uint64_t)prev, (uint64_t)desc));
 
+
+  log_desc_event(DESC_PARTIAL, desc, desc->heap, HEAPPUTPARTIAL);
+    
   if (prev) {
+
+    log_desc_event(DESC_QUEUED, prev, desc->heap, HEAPPUTPARTIAL);
+    
     ListPutPartial(prev); 
   }
 }
@@ -371,6 +399,9 @@ static void UpdateActive(procheap* heap, descriptor* desc, uint32_t morecredits)
   if (cas_64((volatile uint64_t *)&heap->Active,
 	      *((uint64_t*)&oldactive), 
 	      *((uint64_t*)&newactive))) {
+
+    log_desc_event(DESC_ACTIVATED, desc, heap, UPDATEACTIVE);
+    
     return;
   }
 
@@ -417,10 +448,16 @@ static void* MallocFromActive(procheap *heap)
   } while (!cas_64((volatile uint64_t*)&heap->Active, 
 		   *((uint64_t*)&oldactive), 
 		   *((uint64_t*)&newactive)));
+
+  
+  desc = mask_credits(oldactive);
+  
+  if(newactive.ptr == 0){
+    log_desc_event(DESC_DEACTIVATED, desc, heap, MALLOCFROMACTIVE);
+  }
   
 
   // Second step: pop block
-  desc = mask_credits(oldactive);
   do {
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
@@ -444,6 +481,8 @@ static void* MallocFromActive(procheap *heap)
 		   *((uint64_t*)&oldanchor), 
 		   *((uint64_t*)&newanchor)));
 
+  
+  
   if (oldactive.credits == 0 && oldanchor.count > 0) {
     UpdateActive(heap, desc, morecredits);
   }
@@ -469,7 +508,10 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
-      DescRetire(desc); 
+      DescRetire(desc);
+
+      log_desc_event(DESC_RETIRED, desc, heap, MALLOCFROMPARTIAL);
+      
       goto retry;
     }
 
@@ -529,6 +571,8 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   desc->Anchor.count = max(((int32_t)desc->maxcount - 1 ) - ((int32_t)newactive.credits + 1), 0); // max added by Scott
   desc->Anchor.state = ACTIVE;
 
+  log_desc_event(DESC_CREATED, desc, heap, MALLOCFROMNEWSB);
+  
   // memory fence.
   if (cas_64((volatile uint64_t*)&heap->Active, 
 	      *((uint64_t*)&oldactive), 
@@ -536,16 +580,21 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
     addr = desc->sb;
     // pass out the new descriptor
     *descp = desc;
-    return addr;
 
+    log_desc_event(DESC_ACTIVATED, desc, heap, MALLOCFROMNEWSB);
+ 
+    return addr;
   } 
   else {
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
     //iam suggests:
     desc->sb = NULL;
-    DescRetire(desc); 
+    DescRetire(desc);
     atomic_decrement(&active_superblocks);
+
+    log_desc_event(DESC_RETIRED, desc, heap, MALLOCFROMNEWSB);
+
     return NULL;
   }
 }
@@ -771,6 +820,9 @@ void free_from_sb(void* ptr, descriptor* desc){
   } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
 		   *((uint64_t*)&oldanchor), 
 		   *((uint64_t*)&newanchor)));
+
+
+  
   
   if (newanchor.state == EMPTY) {
     /* it is important to update the table prior to giving back the

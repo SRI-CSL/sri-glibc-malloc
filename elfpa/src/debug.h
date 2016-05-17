@@ -45,13 +45,29 @@
  */
 
 typedef enum desc_stage {
-  DESC_CREATED ='C', 
-  DESC_RETIRED ='R', 
-  DESC_QUEUED  ='Q', 
-  DESC_ACTIVE  ='A', 
-  DESC_PARTIAL ='P',
-  DESC_WILD    ='W'
+  DESC_CREATED      = 'C', 
+  DESC_RETIRED      = 'R', 
+  DESC_QUEUED       = 'Q', 
+  DESC_POPPED       = 'O', 
+  DESC_ACTIVATED    = 'A',
+  DESC_DEACTIVATED  = 'D', 
+  DESC_PARTIAL      = 'P',
+  DESC_UNPARTIAL    = 'U',
+  DESC_WILD         = 'W'
 } desc_stage_t;
+
+
+typedef enum desc_site {
+  MALLOCFROMACTIVE      = 0,
+  MALLOCFROMPARTIAL     = 1,
+  MALLOCFROMNEWSB       = 2,
+  UPDATEACTIVE          = 3,
+  HEAPPUTPARTIAL        = 4,
+  HEAPGETPARTIAL        = 5,
+  REMOVEEMPTYDESC       = 6
+} desc_site_t;
+
+
 
 
 #if defined(NDEBUG) || !defined(SRI_MALLOC_LOG)
@@ -71,24 +87,23 @@ typedef enum desc_stage {
 void log_init(void);
 void log_end(void);
 
-void log_desc_event(desc_stage_t stage, void* desc, void *heap, uint32_t site);
+void log_desc_event(desc_stage_t stage, void* desc, void *heap, desc_site_t site);
 
 
 #if 0
+
 void log_malloc(void* val, size_t size);
 void log_realloc(void* val, void* oval, size_t size);
 void log_free(void* val);
+
 #else
+
 #define log_malloc(V, S)
 #define log_realloc(V, O, S)
 #define log_free(V)
-#endif
-
 
 #endif
 
-
-
-
+#endif
 
 #endif

@@ -37,10 +37,10 @@ static int logfd = -1;
 
 static const char hex[16] = "0123456789abcdef";
 
-static const char logfile[] = "/tmp/frolloc.log";
+static const char logfile[] = "/tmp/elfpa.log";
 
 
-enum mhook { MALLOC='m', FREE='f', REALLOC='r' }
+enum mhook { MALLOC='m', FREE='f', REALLOC='r' };
 
 enum mhooklen { MALLOCLEN = 58, FREELEN = 39, REALLOCLEN = 77 };
 
@@ -78,6 +78,8 @@ void log_end(void){
     logfd = -1;
   }
 }
+
+#if 0
 
 static void _write_mem_logentry(char func, size_t size1, size_t size2, void *p, void *q, void *caller)
 {
@@ -133,25 +135,26 @@ static void _write_mem_logentry(char func, size_t size1, size_t size2, void *p, 
   }
 }
 
-
 void log_malloc(void* val, size_t size)
 {
   _write_mem_logentry('m', size, 0, val, NULL, (void*)pthread_self());
 }
+
 void log_realloc(void* val, void* oval, size_t size)
 {
   _write_mem_logentry('r', size, 0, oval, val, (void*)pthread_self());
 }
+
 void log_free(void* val)
 {
   _write_mem_logentry('f', 0, 0, val, NULL, (void*)pthread_self());
 }
+#endif
 
 
-#define DESC_LEN =  77
+#define DESC_LEN  77
 
 static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t site){
-{
   char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 39
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 58
@@ -164,6 +167,7 @@ static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t si
   storehexstring(&buffer[4],  (uintptr_t)desc);
   storehexstring(&buffer[23], (uintptr_t)heap);
   storehexstring(&buffer[42], (uintptr_t)site);
+  storehexstring(&buffer[61], (uintptr_t)pthread_self());
   sz = DESC_LEN;
   buffer[sz] = '\n';
   
@@ -187,8 +191,9 @@ static void _write_desc_logentry(char stage, void* desc, void *heap, uint32_t si
 }
 
 
-void log_desc_event(desc_stage_t stage, void* desc, void *heap, uint32_t site){
-   _write_desc_logentry(stage, desc, heap, site);
+void log_desc_event(desc_stage_t stage, void* desc, void *heap, desc_site_t site){
+  _write_desc_logentry(stage, desc, heap, site);
 }
+ 
   
 #endif

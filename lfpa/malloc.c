@@ -297,6 +297,7 @@ static void* MallocFromActive(procheap *heap)
   do {
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
+    assert(desc->sb != (void*)(uintptr_t)0xdeadbeef && desc->sb != (void*)(uintptr_t)0xcafebabe);
     addr = (void *)((unsigned long)desc->sb + oldanchor.avail * desc->sz);
     next = *(unsigned long *)addr;
     newanchor.avail = next; //sri: shenanigans?
@@ -355,7 +356,7 @@ static void* MallocFromPartial(procheap* heap)
     if (oldanchor.state == EMPTY) {
 
       //iam: added this in the hope that it is now true...
-      assert(desc->sb == NULL); 
+      //      assert(desc->sb == NULL); 
 
       DescRetire(desc); 
       goto retry;
@@ -431,6 +432,7 @@ static void* MallocFromNewSB(procheap* heap)
   // memory fence.
   if (compare_and_swap128((volatile aba_128_t*)&heap->Active, *((aba_128_t*)&oldactive), *((aba_128_t*)&newactive))) { 
     addr = desc->sb;
+    assert(desc->sb != (void*)(uintptr_t)0xdeadbeef && desc->sb != (void*)(uintptr_t)0xcafebabe);    
     *((char*)addr) = (char)SMALL;   //sri: not seeing a use of this
     addr += TYPE_SIZE;
     *((descriptor **)addr) = desc; 
@@ -440,7 +442,8 @@ static void* MallocFromNewSB(procheap* heap)
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //    desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xdeadbeef;
     DescRetire(desc); 
     return NULL;
   }
@@ -530,7 +533,6 @@ void* lfpa_malloc(size_t sz)
     }
     addr = MallocFromNewSB(heap);
 
-    
     if (addr) {
 #ifdef DEBUG
       fprintf(stderr, "malloc() return MallocFromNewSB %p\n", addr);
@@ -674,7 +676,8 @@ void lfpa_free(void* ptr)
 
     munmap(sb, heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //    desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xcafebabe;
     RemoveEmptyDesc(heap, desc);
   } 
   else if (oldanchor.state == FULL) {

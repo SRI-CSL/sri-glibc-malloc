@@ -64,7 +64,7 @@ static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 static volatile descriptor_queue queue_head __attribute__ ((aligned (16)));
 
 
-/* these remain for debigging and profiling purposes */
+/* these remain for debugging and profiling purposes */
 __attribute__ ((__constructor__)) 
 void frolloc_load(void) {
 
@@ -330,8 +330,7 @@ static void RemoveEmptyDesc(procheap* heap, descriptor* desc)
 
     DescRetire(desc);
 
-  }
-  else {
+  } else {
 
     log_desc_event(DESC_WILD, desc, heap, REMOVEEMPTYDESC);
 
@@ -461,6 +460,7 @@ static void* MallocFromActive(procheap *heap)
   do {
     // state may be ACTIVE, PARTIAL or FULL
     newanchor = oldanchor = desc->Anchor;
+    assert(desc->sb != (void*)(uintptr_t)0xdeadbeef && desc->sb != (void*)(uintptr_t)0xcafebabe);
     addr = ((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
     next = *(uint32_t *)addr;
     newanchor.avail = next; 
@@ -589,7 +589,8 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //    desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xdeadbeef;
     DescRetire(desc);
     atomic_decrement(&active_superblocks);
 
@@ -731,6 +732,7 @@ void* malloc(size_t sz)
     addr = MallocFromNewSB(heap, &desc);
 
     if(desc){
+      assert(desc->sb != (void*)(uintptr_t)0xdeadbeef && desc->sb != (void*)(uintptr_t)0xcafebabe);
       //note bene: we could be recycling a super block!
       bool success = lfht_insert_or_update(&desc_tbl, (uintptr_t)desc->sb, (uintptr_t)desc);
       if( ! success ){
@@ -811,6 +813,7 @@ void free_from_sb(void* ptr, descriptor* desc){
     if (oldanchor.count == desc->maxcount - 1) {
       heap = desc->heap;
       // instruction fence.
+      asm volatile("" ::: "memory");
       newanchor.state = EMPTY;
     } 
     else {
@@ -833,10 +836,15 @@ void free_from_sb(void* ptr, descriptor* desc){
     if( ! success ){
       fprintf(stderr, "free() desc table update failed\n");
       fflush(stderr);
-    }    
+    }
+
+    assert(heap == desc->heap);
+    assert(mask_credits(heap->Active) != desc);
+
     munmap(sb, heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //    desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xcafebabe;
     RemoveEmptyDesc(heap, desc);
     atomic_decrement(&active_superblocks);
   } 

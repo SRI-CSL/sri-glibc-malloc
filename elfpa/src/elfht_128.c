@@ -280,6 +280,8 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   bool retval = false;
 
   assert(val != TOMBSTONE);
+  assert(ht != NULL);
+  assert(key != 0);
   
   if(ht == NULL || key == 0){
     return retval;
@@ -334,6 +336,9 @@ bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   lfht_entry_t entry, desired;
   bool retval = false;
 
+  assert(ht != NULL);
+  assert(key != 0);
+
   if(ht == NULL || key == 0){
     return retval;
   }
@@ -386,6 +391,8 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   bool retval = false;
 
   assert( val != TOMBSTONE );
+  assert(ht != NULL);
+  assert(key != 0);
   
   if(ht == NULL || key == 0){
     return retval;
@@ -448,6 +455,10 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   uint32_t j, i;
   uint64_t kval;
   bool retval = false;
+
+  assert(ht != NULL);
+  assert(key != 0);
+  assert(valp != 0);
 
   if(ht == NULL || key == 0 || valp == NULL){
     return retval;

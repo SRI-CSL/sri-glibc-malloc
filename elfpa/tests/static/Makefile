@@ -12,16 +12,16 @@ all:
 	${CC} ${CFLAGS} stest0.c ${OBJS} -o  stest0
 	${CC} ${CFLAGS} stest1.c ${OBJS} -o  stest1
 	${CC} ${CFLAGS} stest2.c ${OBJS} -o  stest2
+	${CC} ${CFLAGS} main.c ${OBJS} -o  main -pthread
 
 
 check: all
 	./stest0
 	./stest1
 	./stest2
-
-
+	./main
 
 clean:
-	rm -f stest0 stest1 stest2
+	rm -f stest0 stest1 stest2 main
 	rm -rf *.dSYM
 

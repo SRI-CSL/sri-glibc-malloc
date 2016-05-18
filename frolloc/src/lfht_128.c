@@ -57,7 +57,10 @@ bool delete_lfht(lfht_t *ht){
 bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
-    
+
+  assert(key != 0);
+  assert(ht != NULL);
+   
   if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
@@ -97,7 +100,11 @@ bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val){
 bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
-  
+
+
+  assert(key != 0);
+  assert(ht != NULL);
+
   if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
@@ -137,6 +144,11 @@ bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val){
   uint32_t mask, j, i;
   lfht_entry_t entry, desired;
 
+
+  assert(key != 0);
+  assert(ht != NULL);
+
+
   if(ht != NULL  && key != 0){
     desired.key = key;
     desired.val = val;
@@ -170,6 +182,11 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   uint32_t mask, j, i;
   uint64_t kval;
     
+
+  assert(key != 0);
+  assert(ht != NULL);
+  assert(valp != NULL);
+
   mask = ht->max - 1;
   j = jenkins_hash_ptr((void *)key) & mask;
   i = j;

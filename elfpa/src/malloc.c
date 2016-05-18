@@ -167,6 +167,7 @@ static void* AllocNewSB(size_t size, size_t alignment)
 
   if (addr == NULL) {
     fprintf(stderr, "AllocNewSB() mmap of size %lu returned NULL\n", size);
+    malloc_stats();
     fflush(stderr);
     abort();
   }

@@ -13,6 +13,7 @@ all:
 	${CC} ${CFLAGS} stest1.c ${OBJS} -o  stest1
 	${CC} ${CFLAGS} stest2.c ${OBJS} -o  stest2
 	${CC} ${CFLAGS} main.c ${OBJS} -o  main -pthread
+	${CC} ${CFLAGS} loop.c ${OBJS} -o  loop -pthread
 
 
 check: all
@@ -20,6 +21,7 @@ check: all
 	./stest1
 	./stest2
 	./main
+	./loop
 
 clean:
 	rm -f stest0 stest1 stest2 main

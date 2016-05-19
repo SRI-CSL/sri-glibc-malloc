@@ -39,11 +39,8 @@ void* malloc_thread(void* arg){
       pthread_cond_wait(&free_condvar, &free_lock);
     }
     
+
     pthread_mutex_unlock(&free_lock);
-    
-    the_pointer = malloc(SZ);
-    fprintf(stderr, "malloced %p\n", the_pointer);
-    fflush(stderr);
     
   }
   

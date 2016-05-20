@@ -41,8 +41,11 @@ NOBUILTINS      =  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc 
 
 CC		= gcc
 
+CFLAGS = -Wall ${BITS} ${FPIC} -fno-strict-aliasing -I./include -I./arch/${ARCH}
+
+
 CLFLAGS		= -lpthread -lm
-CFLAGS		= -D$(ASM) -D_GNU_SOURCE -D_REENTRANT  #-DDEBUG $(NOBUILTINS) 
+CFLAGS		+= -D$(ASM) -D_GNU_SOURCE -D_REENTRANT  #-DDEBUG $(NOBUILTINS) 
 
 GCC_CFLAGS	= -Wall $(BITS) -fno-strict-aliasing $(FPIC)
 GCC_OPT		= -ggdb -O3 # -DDEBUG
@@ -68,6 +71,18 @@ SRC = $(sort $(wildcard $(SRC_GLOBS)))
 
 OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
 
+TARGETS = lib/${LIBLFPA} lib/${LIBCKLFPA}
+
+all:	${TARGETS}
+	@echo Done.
+
+
+lib/${LIBLFPA}: obj/malloc.o | lib
+		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) obj/malloc.o -o lib/${LIBLFPA} $(CLFLAGS) -shared
+
+lib/${LIBCKLFPA}: obj/lfpamalloc.o | lib 
+		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) obj/lfpamalloc.o -o lib/${LIBCKLFPA} $(CLFLAGS) -shared
+
 
 obj:
 	mkdir -p obj
@@ -75,27 +90,38 @@ obj:
 obj/%.o: src/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 
-obj/%.o: src/${LF_QUEUE}/%.c | obj
-	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+obj/lfpamalloc.o: include/malloc.h src/malloc.c arch/$(ASM)/atomic.h arch/$(ASM)/queue.h
+	$(CC) $(CFLAGS) -DUSE_LFPA_PREFIX $(OPT) -Iarch/$(ASM) -c src/malloc.c -o obj/lfpamalloc.o
 
 
 lib:
 	mkdir -p lib
 
-all:	${LIBLFPA} ${LIBCKLFPA}
+
+tests: all
+	make -C tests/static
+	make -C tests/replay
+	make -C tests/unit ASM=${ASM}
+
+check: tests
+	make -C tests/static check
+	make -C tests/replay check
+	make -C tests/unit check
+
+
+
+
+
 
 clean:
-	rm -f *.o   ${LIBLFPA} ${LIBCKLFPA}
+	rm -f *~ *.o 
+	rm -rf obj lib
+	make -C tests/static clean
+	make -C tests/replay clean
+	make -C tests/unit clean
 
 malloc.o:	malloc.h malloc.c arch/$(ASM)/atomic.h arch/$(ASM)/queue.h
 		$(CC) $(CFLAGS) $(OPT) -Iarch/$(ASM) -c malloc.c
 
-lfpamalloc.o:	malloc.h malloc.c arch/$(ASM)/atomic.h arch/$(ASM)/queue.h
-		$(CC) $(CFLAGS) -DUSE_LFPA_PREFIX $(OPT) -Iarch/$(ASM) -c malloc.c -o lfpamalloc.o
 
-${LIBLFPA}:	malloc.o
-		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) malloc.o -o ${LIBLFPA} $(CLFLAGS) -shared
-
-${LIBCKLFPA}:	lfpamalloc.o
-		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) lfpamalloc.o -o ${LIBCKLFPA} $(CLFLAGS) -shared
 

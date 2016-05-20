@@ -21,7 +21,6 @@ check: all
 	./stest1
 	./stest2
 	./main
-	./loop
 
 clean:
 	rm -f stest0 stest1 stest2 main

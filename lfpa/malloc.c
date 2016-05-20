@@ -673,7 +673,8 @@ void lfpa_free(void* ptr)
     fprintf(stderr, "Freeing superblock %p with desc %p (count %hu)\n", sb, desc, desc->Anchor.count);
     fflush(stderr);
 #endif
-
+    
+    assert(false && "Freeing a sb");
     munmap(sb, heap->sc->sbsize);
     //iam suggests:
     //    desc->sb = NULL;

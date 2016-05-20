@@ -451,7 +451,7 @@ static void* MallocFromActive(procheap *heap)
 
   
   desc = mask_credits(oldactive);
-  
+
   if(newactive.ptr == 0){
     log_desc_event(DESC_DEACTIVATED, desc, heap, MALLOCFROMACTIVE);
   }
@@ -459,7 +459,7 @@ static void* MallocFromActive(procheap *heap)
 
   // Second step: pop block
   do {
-    // state may be ACTIVE, PARTIAL or FULL
+    // state may be ACTIVE, PARTIAL or FULL (or EMPTY too!)
     newanchor = oldanchor = desc->Anchor;
     assert(desc->sb != (void*)(uintptr_t)0xdeadbeef && desc->sb != (void*)(uintptr_t)0xcafebabe);
     addr = ((uint8_t *)desc->sb + oldanchor.avail * desc->sz);
@@ -569,7 +569,15 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   newactive.ptr = (uintptr_t)desc;
   newactive.credits = min(desc->maxcount - 1, MAXCREDITS) - 1;
 
-  desc->Anchor.count = max(((int32_t)desc->maxcount - 1 ) - ((int32_t)newactive.credits + 1), 0); // max added by Scott
+  //  desc->Anchor.count = max(((int32_t)desc->maxcount - 1 ) - ((int32_t)newactive.credits + 1), 0); // max added by Scott
+
+  const int32_t ncount = ((int32_t)desc->maxcount -1) - ((int32_t)newactive.credits + 1); // max and -1 removed by Bruno. 
+  desc->Anchor.count = ncount;
+
+  assert(ncount >= 0); // insisted on by Drew
+  
+
+
   desc->Anchor.state = ACTIVE;
 
   log_desc_event(DESC_CREATED, desc, heap, MALLOCFROMNEWSB);
@@ -815,7 +823,12 @@ void free_from_sb(void* ptr, descriptor* desc){
       heap = desc->heap;
       // instruction fence.
       asm volatile("" ::: "memory");
-      newanchor.state = EMPTY;
+      if (true || mask_credits(heap->Active) != desc) {
+	// Consensus (after long argument) is that we can't delete the block
+	// if it's the current Active block in the heap. That's our second
+	// attempt.
+	newanchor.state = EMPTY;
+      }
     } 
     else {
       ++newanchor.count;
@@ -826,8 +839,8 @@ void free_from_sb(void* ptr, descriptor* desc){
 		   *((uint64_t*)&newanchor)));
 
 
-  
-  
+
+
   if (newanchor.state == EMPTY) {
     /* it is important to update the table prior to giving back the
        memory to the operating system. since it can be very quick
@@ -840,7 +853,7 @@ void free_from_sb(void* ptr, descriptor* desc){
     }
 
     assert(heap == desc->heap);
-    assert(mask_credits(heap->Active) != desc);
+    //    assert(mask_credits(heap->Active) != desc);
 
     munmap(sb, heap->sc->sbsize);
     //iam suggests:

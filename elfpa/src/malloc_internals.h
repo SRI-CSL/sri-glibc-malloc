@@ -26,7 +26,7 @@ typedef struct Procheap procheap;
 #define PARTIAL         2
 #define EMPTY           3
 
-#define MAXCREDITS      64    // 2^(bits for credits in active)
+#define MAXCREDITS      64    // 2^(bits for credits in active) - 1??????
 #define GRANULARITY     16    // sri: for x86_64 alignment we require 16 NOT 8
 
 // sri: bigger than this we mmap. 

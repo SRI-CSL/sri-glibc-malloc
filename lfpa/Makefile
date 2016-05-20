@@ -52,28 +52,46 @@ CLANG_OPT	= -O3 -ggdb #-DDEBUG
 
 ifeq ($(CC), gcc)
 	OPT = $(GCC_OPT)
-	CFLAGS += $(GCC_CFLAGS)  -Iinclude-$(ASM)
+	CFLAGS += $(GCC_CFLAGS)  -Iarch/$(ASM)
 	CFLAGS+= -DNDEBUG
 endif
 
 ifeq ($(CC), clang)
 	OPT = $(CLANG_OPT)
-	CFLAGS += $(CLANG_CFLAGS)  -Iinclude-$(ASM)
+	CFLAGS += $(CLANG_CFLAGS)  -Iarch/$(ASM)
 	CFLAGS+= -DNDEBUG
 endif
 
-# Rules
 
-all:	${LIBLFPA} ${LIBCKLFPA} replay mtreplay test128 
+SRC_GLOBS = $(addsuffix /*.c,src)
+SRC = $(sort $(wildcard $(SRC_GLOBS)))
+
+OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
+
+
+obj:
+	mkdir -p obj
+
+obj/%.o: src/%.c | obj
+	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+
+obj/%.o: src/${LF_QUEUE}/%.c | obj
+	${CC} ${CFLAGS} ${OPT} $< -c -o $@
+
+
+lib:
+	mkdir -p lib
+
+all:	${LIBLFPA} ${LIBCKLFPA}
 
 clean:
-	rm -f *.o   ${LIBLFPA} ${LIBCKLFPA} replay mtreplay test128 
+	rm -f *.o   ${LIBLFPA} ${LIBCKLFPA}
 
-malloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
-		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) -c malloc.c
+malloc.o:	malloc.h malloc.c arch/$(ASM)/atomic.h arch/$(ASM)/queue.h
+		$(CC) $(CFLAGS) $(OPT) -Iarch/$(ASM) -c malloc.c
 
-lfpamalloc.o:	malloc.h malloc.c include-$(ASM)/atomic.h include-$(ASM)/queue.h
-		$(CC) $(CFLAGS) -DUSE_LFPA_PREFIX $(OPT) -Iinclude-$(ASM) -c malloc.c -o lfpamalloc.o
+lfpamalloc.o:	malloc.h malloc.c arch/$(ASM)/atomic.h arch/$(ASM)/queue.h
+		$(CC) $(CFLAGS) -DUSE_LFPA_PREFIX $(OPT) -Iarch/$(ASM) -c malloc.c -o lfpamalloc.o
 
 ${LIBLFPA}:	malloc.o
 		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) malloc.o -o ${LIBLFPA} $(CLFLAGS) -shared
@@ -81,55 +99,3 @@ ${LIBLFPA}:	malloc.o
 ${LIBCKLFPA}:	lfpamalloc.o
 		$(CC) $(CFLAGS) ${LIBFLAGS} $(OPT) lfpamalloc.o -o ${LIBCKLFPA} $(CLFLAGS) -shared
 
-test128:	include-$(ASM)/atomic.h  test128.c
-		$(CC) $(CFLAGS) $(OPT) -Iinclude-$(ASM) test128.c -o test128 -lpthread
-
-
-# Replay stuff
-MALLOCOBJ = malloc.o
-
-lphash.o: ../lphash/lphash.c
-	$(CC) $(CFLAGS) $(OPT) -I../lphash ../lphash/lphash.c -c
-
-replaylib.o:  replaylib.c
-	$(CC) $(CFLAGS) $(OPT) -I../lphash -I../mhooks replaylib.c -c
-
-replay: replay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) $(OPT) -I../lphash  replay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
-
-mtreplay: mtreplay.c $(MALLOCOBJ) lphash.o replaylib.o 
-	$(CC) $(CFLAGS) $(OPT) -I../lphash  mtreplay.c $(MALLOCOBJ)  lphash.o replaylib.o -lpthread  -o  $@
-
-SMT2 = 2668e3c6 d6c91c1f da2ad2d3
-
-testreplay: replay
-	for smt in $(SMT2) ; do \
-	    echo "running $$smt" ; \
-	    echo "./replay ../../analysis/data/yices_smt2_$$smt.txt" ; \
-	    ./replay ../../analysis/data/yices_smt2_$$smt.txt ; \
-	done
-
-mtestreplay: mtreplay
-	./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt
-
-INTERVAL = `seq 1 10`
-
-mstress: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      ./mtreplay 2 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done
-
-#for shaman
-mstress8: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      ./mtreplay 8 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done
-
-#for pascali
-mstress16: mtreplay
-	for number in ${INTERVAL} ; do \
-	      echo "Run $$number" ; \
-	      ./mtreplay 16 ../../analysis/data/yices_smt2_2668e3c6.txt ;  \
-	done

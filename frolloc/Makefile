@@ -57,9 +57,6 @@ obj:
 obj/%.o: src/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 
-obj/%.o: src/%.c | obj
-	${CC} ${CFLAGS} ${OPT} $< -c -o $@
-
 obj/%.o: src/${LF_QUEUE}/%.c | obj
 	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 

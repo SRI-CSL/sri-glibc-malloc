@@ -27,7 +27,6 @@ static __thread procheap* heaps[MAX_BLOCK_SIZE / GRANULARITY] =  { };
 
 static volatile descriptor_queue queue_head;
 
-
 static void* AllocNewSB(size_t size, unsigned long alignment)
 {
   void* addr;

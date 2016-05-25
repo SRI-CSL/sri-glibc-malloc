@@ -1,10 +1,29 @@
 
-Bugs in lfpa and family.
+Bugs in lfpa and family. 
+
+Have the bugs now been demoted to leaks?
 
 Then debug glibc with arena number? 
 
 Then build a glibc with the elfht rather than the metadata ...
 
 Nice metadata free malloc.
+
+
+
+
+
+LFPA and Family
+
+Conjectures:
+
+If a descriptor  is in the Partial queue of a sizeclass, then it is not the Partial superblock
+of any heap.
+
+If a descriptor is the Active superblock of a heap, then freeing from the descriptor will
+never make it EMPTY.
+
+Thus either the removal of a FULL active descriptor or the act of freeing the first block from it
+must refudge the counts, so that it can beocome EMOTY.
 
 

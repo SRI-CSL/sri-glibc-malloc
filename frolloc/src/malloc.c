@@ -83,6 +83,7 @@ void frolloc_unload(void)
 static atomic_ulong active_superblocks = 0;
 static atomic_ulong active_descriptor_blocks = 0;
 static atomic_ulong active_mmaps = 0;
+static atomic_ulong wilderness_descriptors = 0;
 
 static void init_sizeclasses(void)
 {
@@ -330,6 +331,7 @@ static void RemoveEmptyDesc(procheap* heap, descriptor* desc)
     DescRetire(desc);
   }
   else {
+    atomic_increment(&wilderness_descriptors);
     ListRemoveEmptyDesc(heap->sc);
   }
 }
@@ -476,12 +478,13 @@ static void* MallocFromPartial(procheap* heap)
     if (oldanchor.state == EMPTY) {
       
       //iam: it would be nice to put an assert sb == NULL here.
+      //
       // there is a race here, if the "freer" thread that set it to EMPTY
       // has not yet done the freeing, we could put this on the 
       // global queue and have it back in use before the freer
       // thread releases. we see such a race happen in MallocFromNewSB.
       //
-      //DescRetire(desc); 
+      // DescRetire(desc); 
       //
       // We are now probably leeking this descriptor, but that is better
       // that crashing. maybe free could do something less frantic, and
@@ -795,8 +798,8 @@ void free_from_sb(void* ptr, descriptor* desc){
 		   *((uint64_t*)&oldanchor), 
 		   *((uint64_t*)&newanchor)));
 
-  //the gap of hell: by marking it EMPTY we run the risk of a MallocFromPartial 
-  //putting it back into play...
+  // the gap of hell: by marking it EMPTY we run the risk of a MallocFromPartial 
+  // putting it back into play, before we get down to do the freeing!
 
   if (newanchor.state == EMPTY) {
     /* it is important to update the table prior to giving back the
@@ -903,9 +906,7 @@ void *realloc(void *object, size_t size)
 }
 
 void malloc_stats(void){
-  fprintf(stderr, "active superblocks: %lu\n", active_superblocks);
-  fprintf(stderr, "active descriptor blocks: %lu\n", active_descriptor_blocks);
-  fprintf(stderr, "active mmapped blocks: %lu\n", active_mmaps);
+  fprintf(stderr, "superblocks: %lu, descriptor blocks: %lu wilderness descriptors: %lu\n", active_superblocks, active_descriptor_blocks, wilderness_descriptors);
   fflush(stderr);
 }
 

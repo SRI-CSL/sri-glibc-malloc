@@ -8,6 +8,11 @@ typedef struct u128_s {
   uint64_t dos;
 } u128_t;
 
+//#define MEMORY_FENCE __sync_synchronize()
+
+#define MEMORY_FENCE  asm volatile("mfence" ::: "memory")
+
+#define INSTRUCTION_FENCE  asm volatile("" ::: "memory")
 
 #define LOCK_PREFIX	"lock ; "
 

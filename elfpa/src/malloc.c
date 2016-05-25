@@ -82,6 +82,7 @@ void frolloc_unload(void)
 
 static atomic_ulong active_superblocks = 0;
 static atomic_ulong active_descriptor_blocks = 0;
+static atomic_ulong wilderness_descriptors = 0;
 
 static void init_sizeclasses(void)
 {
@@ -252,6 +253,9 @@ static descriptor* DescAlloc()
       new_queue.DescAvail = (uintptr_t)desc->Next;
       
       new_queue.tag = old_queue.tag + 1;
+
+      MEMORY_FENCE;
+
       if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
         break;
       }
@@ -279,6 +283,7 @@ void DescRetire(descriptor* desc)
     new_queue.tag = old_queue.tag + 1;
 
     /* maged michael has a memory fence here; and no ABA tag */
+    MEMORY_FENCE;
     
   } while (!cas_64((volatile uint64_t*)&queue_head, 
 		   *((uint64_t*)&old_queue), 
@@ -335,6 +340,7 @@ static void RemoveEmptyDesc(procheap* heap, descriptor* desc)
 
     log_desc_event(DESC_WILD, desc, heap, REMOVEEMPTYDESC);
 
+    atomic_increment(&wilderness_descriptors);
     
     ListRemoveEmptyDesc(heap->sc);
   }
@@ -509,10 +515,18 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
-      DescRetire(desc);
-
-      log_desc_event(DESC_RETIRED, desc, heap, MALLOCFROMPARTIAL);
-      
+      //iam: it would be nice to put an assert sb == NULL here.
+      // there is a race here, if the "freer" thread that set it to EMPTY
+      // has not yet done the freeing, we could put this on the 
+      // global queue and have it back in use before the freer
+      // thread releases. we see such a race happen in MallocFromNewSB.
+      //
+      //DescRetire(desc); 
+      //
+      // We are now probably leeking this descriptor, but that is better
+      // that crashing. maybe free could do something less frantic, and
+      // hazard pointery.
+      //
       goto retry;
     }
 
@@ -580,9 +594,10 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
 
   desc->Anchor.state = ACTIVE;
 
+  MEMORY_FENCE;
+
   log_desc_event(DESC_CREATED, desc, heap, MALLOCFROMNEWSB);
   
-  // memory fence.
   if (cas_64((volatile uint64_t*)&heap->Active, 
 	      *((uint64_t*)&oldactive), 
 	      *((uint64_t*)&newactive))) { 
@@ -821,23 +836,19 @@ void free_from_sb(void* ptr, descriptor* desc){
     
     if (oldanchor.count == desc->maxcount - 1) {
       heap = desc->heap;
-      // instruction fence.
-      asm volatile("" ::: "memory");
-      if (true || mask_credits(heap->Active) != desc) {
-	// Consensus (after long argument) is that we can't delete the block
-	// if it's the current Active block in the heap. That's our second
-	// attempt.
+      INSTRUCTION_FENCE;
 	newanchor.state = EMPTY;
       }
-    } 
     else {
       ++newanchor.count;
     }
-    // memory fence.
+    MEMORY_FENCE;
   } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
 		   *((uint64_t*)&oldanchor), 
 		   *((uint64_t*)&newanchor)));
 
+  //the gap of hell: by marking it EMPTY we run the risk of a MallocFromPartial 
+  //putting it back into play...
 
 
 
@@ -859,6 +870,9 @@ void free_from_sb(void* ptr, descriptor* desc){
     //iam suggests:
     //    desc->sb = NULL;
     desc->sb = (void*)(uintptr_t)0xcafebabe;
+
+    MEMORY_FENCE;
+
     RemoveEmptyDesc(heap, desc);
     atomic_decrement(&active_superblocks);
   } 
@@ -949,7 +963,7 @@ void *realloc(void *object, size_t size)
 void malloc_stats(void){
   lfht_stats(stderr, "desc_tbl",  &desc_tbl);
   lfht_stats(stderr, "mmap_tbl",  &mmap_tbl);
-  fprintf(stderr, "superblocks: %lu, descriptor blocks: %lu\n", active_superblocks, active_descriptor_blocks);
+  fprintf(stderr, "superblocks: %lu, descriptor blocks: %lu wilderness descriptors: %lu\n", active_superblocks, active_descriptor_blocks, wilderness_descriptors);
   fflush(stderr);
 }
 

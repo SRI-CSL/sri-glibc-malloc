@@ -164,6 +164,8 @@ static void* AllocNewSB(size_t size, size_t alignment)
   
   addr = aligned_mmap(size, alignment);
 
+  if(addr == (void*)0xcafebabe){ abort(); }
+
   assert( alignment == 0 || ((uintptr_t)addr & ((uintptr_t)alignment - 1 )) == 0);
 
   if (addr == NULL) {
@@ -213,12 +215,9 @@ static descriptor* DescAlloc()
   descriptor* desc;
   
   while(true) {
-
     old_queue = queue_head;
-
     
     if (old_queue.DescAvail) {
-
       //there is a descriptor in the queue; try and grab it.
       
       new_queue.DescAvail = (uintptr_t)(((descriptor *)(uintptr_t)old_queue.DescAvail)->Next);
@@ -252,6 +251,9 @@ static descriptor* DescAlloc()
       new_queue.DescAvail = (uintptr_t)desc->Next;
       
       new_queue.tag = old_queue.tag + 1;
+
+      MEMORY_FENCE;
+
       if (cas_64((volatile uint64_t*)&queue_head, *((uint64_t*)&old_queue), *((uint64_t*)&new_queue))) {
         break;
       }
@@ -279,6 +281,7 @@ void DescRetire(descriptor* desc)
     new_queue.tag = old_queue.tag + 1;
 
     /* maged michael has a memory fence here; and no ABA tag */
+    MEMORY_FENCE;
     
   } while (!cas_64((volatile uint64_t*)&queue_head, 
 		   *((uint64_t*)&old_queue), 
@@ -406,6 +409,7 @@ static void* MallocFromActive(procheap *heap)
   do { 
     newactive = oldactive = heap->Active;
     if (oldactive.ptr == 0 && oldactive.credits == 0) {   
+    //    if (oldactive.ptr == 0) {   
       return NULL;
     }
     if (oldactive.credits == 0) {
@@ -470,7 +474,19 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
-      DescRetire(desc); 
+      
+      //iam: it would be nice to put an assert sb == NULL here.
+      // there is a race here, if the "freer" thread that set it to EMPTY
+      // has not yet done the freeing, we could put this on the 
+      // global queue and have it back in use before the freer
+      // thread releases. we see such a race happen in MallocFromNewSB.
+      //
+      //DescRetire(desc); 
+      //
+      // We are now probably leeking this descriptor, but that is better
+      // that crashing. maybe free could do something less frantic, and
+      // hazard pointery.
+      //
       goto retry;
     }
 
@@ -506,15 +522,12 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   descriptor* desc;
   void* addr;
   active newactive, oldactive;
-
   assert(descp != NULL);
-
   oldactive.ptr = 0;
   oldactive.credits = 0;
-  
   desc = DescAlloc();
   desc->sb = AllocNewSB(heap->sc->sbsize, SBSIZE);
-
+  if(desc->sb == (void *)0xcafebabe){ abort(); }
   desc->heap = heap;
   desc->Anchor.avail = 1;
   desc->sz = heap->sc->sz;
@@ -530,7 +543,8 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
   desc->Anchor.count = max(((int32_t)desc->maxcount - 1 ) - ((int32_t)newactive.credits + 1), 0); // max added by Scott
   desc->Anchor.state = ACTIVE;
 
-  // memory fence.
+  MEMORY_FENCE;
+
   if (cas_64((volatile uint64_t*)&heap->Active, 
 	      *((uint64_t*)&oldactive), 
 	      *((uint64_t*)&newactive))) { 
@@ -544,7 +558,8 @@ static void* MallocFromNewSB(procheap* heap, descriptor** descp)
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //    desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xdeadbeef;
     DescRetire(desc); 
     atomic_decrement(&active_superblocks);
     return NULL;
@@ -648,6 +663,8 @@ static void free_large_block(void *ptr, size_t sz)
   return;
 }
 
+//#define RETURN_ADDR  return addr
+#define RETURN_ADDR  if(addr == (void*)0xcafebabe){ abort(); } else { return addr; }
 
 void* malloc(size_t sz)
 { 
@@ -669,20 +686,23 @@ void* malloc(size_t sz)
     // Large block (sri: unless the mmap fails)
     addr = malloc_large_block(sz);
     log_malloc(addr, sz);
-    return addr;
+    RETURN_ADDR;
   }
 
   while(1) { 
+
     addr = MallocFromActive(heap);
     if (addr) {
       log_malloc(addr, sz);
-      return addr;
+      RETURN_ADDR;
     }
+
     addr = MallocFromPartial(heap);
     if (addr) {
       log_malloc(addr, sz);
-      return addr;
+      RETURN_ADDR;
     }
+
     addr = MallocFromNewSB(heap, &desc);
 
     if(desc){
@@ -697,10 +717,10 @@ void* malloc(size_t sz)
 
     if (addr) {
       log_malloc(addr, sz);
-      return addr;
+      RETURN_ADDR;
     }
   }
-  
+
 }
 
 void *calloc(size_t nmemb, size_t size)
@@ -764,17 +784,20 @@ void free_from_sb(void* ptr, descriptor* desc){
     
     if (oldanchor.count == desc->maxcount - 1) {
       heap = desc->heap;
-      // instruction fence.
+      INSTRUCTION_FENCE;
       newanchor.state = EMPTY;
     } 
     else {
       ++newanchor.count;
     }
-    // memory fence.
+    MEMORY_FENCE;
   } while (!cas_64((volatile uint64_t*)&desc->Anchor, 
 		   *((uint64_t*)&oldanchor), 
 		   *((uint64_t*)&newanchor)));
-  
+
+  //the gap of hell: by marking it EMPTY we run the risk of a MallocFromPartial 
+  //putting it back into play...
+
   if (newanchor.state == EMPTY) {
     /* it is important to update the table prior to giving back the
        memory to the operating system. since it can be very quick
@@ -787,7 +810,11 @@ void free_from_sb(void* ptr, descriptor* desc){
     }    
     munmap(sb, heap->sc->sbsize);
     //iam suggests:
-    desc->sb = NULL;
+    //desc->sb = NULL;
+    desc->sb = (void*)(uintptr_t)0xcafebabe;
+
+    MEMORY_FENCE;
+
     RemoveEmptyDesc(heap, desc);
     atomic_decrement(&active_superblocks);
   } 

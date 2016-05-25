@@ -9,6 +9,13 @@ typedef struct u128_s {
 } u128_t;
 
 
+//#define MEMORY_FENCE __sync_synchronize()
+
+#define MEMORY_FENCE  asm volatile("mfence" ::: "memory")
+
+#define INSTRUCTION_FENCE  asm volatile("" ::: "memory")
+
+
 #define LOCK_PREFIX	"lock ; "
 
 static inline uint64_t read_64(volatile uint64_t *address){

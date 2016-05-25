@@ -1,3 +1,10 @@
 
-Bugs in lfpa.
+Bugs in lfpa and family.
+
+Then debug glibc with arena number? 
+
+Then build a glibc with the elfht rather than the metadata ...
+
+Nice metadata free malloc.
+
 

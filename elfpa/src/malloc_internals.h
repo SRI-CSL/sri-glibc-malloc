@@ -59,7 +59,7 @@ typedef struct {
 /* Superblock descriptor structure. We bumped avail and count 
  * to 24 bits to support larger superblock sizes. */
 typedef struct {
-  uint64_t      avail:24,count:24, state:2, tag:14;
+  uint64_t      avail:24, count:24, state:2, tag:14;
 } anchor;
 
 /*

@@ -338,7 +338,7 @@ static void RemoveEmptyDesc(procheap* heap, descriptor* desc)
   } else {
 
     log_desc_event(DESC_WILD, desc, heap, REMOVEEMPTYDESC);
-    atomic_increment(&wilderness_descriptors);
+    //atomic_increment(&wilderness_descriptors);
     
     ListRemoveEmptyDesc(heap->sc);
   }
@@ -519,7 +519,9 @@ static void* MallocFromPartial(procheap* heap)
       // global queue and have it back in use before the freer
       // thread releases. we see such a race happen in MallocFromNewSB.
       //
-      // DescRetire(desc); 
+      
+      DescRetire(desc); 
+
       //
       // We are now probably leeking this descriptor, but that is better
       // that crashing. maybe free could do something less frantic, and
@@ -873,8 +875,8 @@ void free_from_sb(void* ptr, descriptor* desc){
 
     munmap(sb, heap->sc->sbsize);
     //iam suggests:
-    //    desc->sb = NULL;
-    desc->sb = (void*)(uintptr_t)0xcafebabe;
+    //  desc->sb = NULL;
+    //  desc->sb = (void*)(uintptr_t)0xcafebabe;  <========= BIG MISTAKE!! This causes the race condition.
 
     MEMORY_FENCE;
 

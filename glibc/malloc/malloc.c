@@ -2029,11 +2029,15 @@ static inline chunkinfoptr initial_md_top(mstate av)
   return _md_top;
 }
 
+#include "debug.h"
+
 static void
 malloc_init_state (mstate av, bool is_main_arena)
 {
   int i;
   mbinptr bin;
+
+  log_init();
 
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i)
@@ -6046,7 +6050,7 @@ __malloc_info (int options, FILE *fp)
       } sizes[NFASTBINS + NBINS - 1];
 #define nsizes (sizeof (sizes) / sizeof (sizes[0]))
 
-      LOCK_ARENA(ar_ptr, MALLOC_INFO);
+      LOCK_ARENA(ar_ptr, MALLOC_INFO_SITE);
 
       for (size_t i = 0; i < NFASTBINS; ++i)
         {
@@ -6105,7 +6109,7 @@ __malloc_info (int options, FILE *fp)
           avail += sizes[NFASTBINS - 1 + i].total;
         }
 
-      UNLOCK_ARENA(ar_ptr, MALLOC_INFO);
+      UNLOCK_ARENA(ar_ptr, MALLOC_INFO_SITE);
 
       total_nfastblocks += nfastblocks;
       total_fastavail += fastavail;

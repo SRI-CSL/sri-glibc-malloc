@@ -291,7 +291,7 @@ ptmalloc_lock_all (void)
     }
   for (ar_ptr = &main_arena;; )
     {
-      (void) mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, ARENA_SITE);
       ar_ptr = ar_ptr->next;
       if (ar_ptr == &main_arena)
         break;
@@ -329,7 +329,7 @@ ptmalloc_unlock_all (void)
   __free_hook = save_free_hook;
   for (ar_ptr = &main_arena;; )
     {
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, ARENA_SITE);
       ar_ptr = ar_ptr->next;
       if (ar_ptr == &main_arena)
         break;
@@ -923,7 +923,7 @@ _int_new_arena (size_t size)
   mstate replaced_arena = thread_arena;
   thread_arena = a;
   mutex_init (&a->mutex);
-  (void) mutex_lock (&a->mutex);
+  //  (void) mutex_lock (&a->mutex);
 
   (void) mutex_lock (&list_lock);
 
@@ -943,6 +943,7 @@ _int_new_arena (size_t size)
   /* update the index of the new arena */
   a->arena_index = arena_count;
   set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
+  LOCK_ARENA(a, ARENA_SITE);
 
   (void) mutex_unlock (&list_lock);
 
@@ -975,7 +976,7 @@ get_free_list (void)
       if (result != NULL)
         {
           LIBC_PROBE (memory_arena_reuse_free_list, 1, result);
-          (void) mutex_lock (&result->mutex);
+	  LOCK_ARENA(result, ARENA_SITE);
 	  thread_arena = result;
         }
     }
@@ -1025,7 +1026,7 @@ reused_arena (mstate avoid_arena)
 
   /* No arena available without contention.  Wait for the next in line.  */
   LIBC_PROBE (memory_arena_reuse_wait, 3, &result->mutex, result, avoid_arena);
-  (void) mutex_lock (&result->mutex);
+  LOCK_ARENA(result, ARENA_SITE);
 
 out:
   {
@@ -1104,7 +1105,7 @@ arena_get_retry (mstate ar_ptr, size_t bytes, int site)
   LIBC_PROBE (memory_arena_retry, 2, bytes, ar_ptr);
   if (ar_ptr != &main_arena)
     {
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, site);
       /* Don't touch the main arena if it is corrupt.  */
       if (arena_is_corrupt (&main_arena))
 	return NULL;

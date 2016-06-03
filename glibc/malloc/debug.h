@@ -39,7 +39,10 @@ typedef enum lock_site {
   TRIM_SITE             = 6,
   MUSABLE_SITE          = 7,
   MALLINFO_SITE         = 8,
-  MALLOPT               = 9,
+  MALLOPT_SITE          = 9,
+  MALLOC_STATS_SITE     = 10,
+  MALLOC_INFO_SITE      = 11,
+  ARENA_SITE            = 12,
 } lock_site_t;
 
 
@@ -50,7 +53,7 @@ typedef enum lock_site {
 #define log_init()
 #define log_end()
 
-#define log_lock_event(S, A, I, X)
+#define log_lock_event(S, A, I, X, T)
 
 
 #define log_malloc(V, S)
@@ -62,7 +65,7 @@ typedef enum lock_site {
 void log_init(void);
 void log_end(void);
 
-void log_lock_event(lock_action_t stage, void* av, int index, lock_site_t site);
+void log_lock_event(lock_action_t stage, void* av, int index, lock_site_t site, int tid);
 
 
 #if 0

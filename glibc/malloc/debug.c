@@ -29,7 +29,6 @@
 
 //#include <pthread.h>
 //#include <sys/types.h>
-#include <atomic.h>
 
 /* a quick 'n dirty version of mhook */
 
@@ -153,13 +152,9 @@ void log_free(void* val)
 }
 #endif
 
-static int tid_counter = 0;
-static __thread  int tid = -1;
-
-
 #define LOCK_EVENT_LEN  77
 
-static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t site){
+static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t site, int tid){
   char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 39
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 58
@@ -169,9 +164,6 @@ static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t
   int sz = sizeof(buffer) - 1;
   int rcode;
 
-  if(tid == -1){
-    tid = catomic_exchange_and_add (&tid_counter, 1);
-  }
 
   buffer[0] = stage;
   storehexstring(&buffer[4],  (uintptr_t)av);
@@ -200,8 +192,8 @@ static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t
   }
 }
 
-void log_lock_event(lock_action_t stage, void* av, int index, lock_site_t site){
-  _write_lock_event_logentry(stage, av, index, site);
+void log_lock_event(lock_action_t stage, void* av, int index, lock_site_t site, int tid){
+  _write_lock_event_logentry(stage, av, index, site, tid);
 }
  
   

@@ -18,8 +18,8 @@ static inline void LOCK_ARENA(mstate av, int site){
   self = tid;
 
   (void)mutex_lock(&(av->mutex));
-  
-  assert(owners[av->arena_index] == 0);
+  //allow for recursive locking
+  assert((owners[av->arena_index] == 0) || (owners[av->arena_index] == self));
   owners[av->arena_index] = self;
   
   //log_lock_event(LOCK_ACTION, av, av->arena_index, site, tid);
@@ -30,7 +30,8 @@ static inline void UNLOCK_ARENA(mstate av, int site){
   int self;
 
   self = tid;
-  assert(owners[av->arena_index] == self);
+  //allow for recursive locking
+  assert((owners[av->arena_index] == 0) || (owners[av->arena_index] == self)); 
   owners[av->arena_index] = 0;
   (void)mutex_unlock(&(av->mutex));
 

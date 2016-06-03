@@ -2860,19 +2860,19 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       if (av  != &main_arena) {
 	/* if we are already in the main arena we should, by design, have enough metadata */
 	if(av != NULL){
-	  (void)mutex_unlock(&av->mutex);
+	  UNLOCK_ARENA(av, SYSMALLOC_SITE);
 	}
-	(void)mutex_lock(&main_arena.mutex);
+	LOCK_ARENA(&main_arena, SYSMALLOC_SITE);
 	
 	have_switched_lock = true;
 	
 	if(main_arena.metadata_cache_count == 0){
-	  (void)mutex_unlock(&main_arena.mutex);
+	  UNLOCK_ARENA(&main_arena, SYSMALLOC_SITE);
 
 	  have_switched_lock = false;
 	  
 	  if(av != NULL){
-	    (void)mutex_lock(&av->mutex);
+	    LOCK_ARENA(av, SYSMALLOC_SITE);
 	  }
 
 	  return NULL;
@@ -2954,13 +2954,13 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               check_chunk (av, p, _md_p);
 	      
 	      /* restore the state of the locks */
-	      (void)mutex_unlock(&main_arena.mutex);
+	      UNLOCK_ARENA(&main_arena, SYSMALLOC_SITE);
 
 	      have_switched_lock = false;
 
 
 	      if(av != NULL){
-		(void)mutex_lock(&av->mutex);
+		LOCK_ARENA(av, SYSMALLOC_SITE);
 	      }
               return _md_p;
             }
@@ -2973,13 +2973,13 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   if( have_switched_lock){
 
     /* restore the state of the locks */
-    (void)mutex_unlock(&main_arena.mutex);
+    UNLOCK_ARENA(&main_arena, SYSMALLOC_SITE);
     
     have_switched_lock = false;
     
     
     if(av != NULL){
-      (void)mutex_lock(&av->mutex);
+      LOCK_ARENA(av, SYSMALLOC_SITE);
     }
     	
   }
@@ -3562,7 +3562,7 @@ __libc_malloc (size_t bytes)
   if (__builtin_expect (hook != NULL, 0))
     return (*hook)(bytes, RETURN_ADDRESS (0));
 
-  arena_get (ar_ptr, bytes);
+  arena_get (ar_ptr, bytes, MALLOC_SITE);
 
   _md_victim = _int_malloc (ar_ptr, bytes);
   /* Retry with another arena only if we were able to find a usable arena
@@ -3570,7 +3570,7 @@ __libc_malloc (size_t bytes)
   if (!_md_victim && ar_ptr != NULL)
     {
       LIBC_PROBE (memory_malloc_retry, 1, bytes);
-      ar_ptr = arena_get_retry (ar_ptr, bytes);
+      ar_ptr = arena_get_retry (ar_ptr, bytes, MALLOC_SITE);
       _md_victim = _int_malloc (ar_ptr, bytes);
     }
 
@@ -3622,7 +3622,7 @@ __libc_free (void *mem)
   
   if (chunk_is_mmapped (p))                       /* release mmapped memory. */
     {
-      (void)mutex_lock(&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, FREE_SITE);
       
       _md_p = lookup_chunk(ar_ptr, p);  
   
@@ -3703,12 +3703,12 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   ar_ptr = arena_from_chunk (oldp);
 
-  (void) mutex_lock (&ar_ptr->mutex);
+  LOCK_ARENA(ar_ptr, REALLOC_SITE);
 
   _md_oldp = lookup_chunk(ar_ptr, oldp);
   if (_md_oldp == NULL) { 
     missing_metadata(ar_ptr, oldp); 
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
     return 0;
   }
 
@@ -3716,7 +3716,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
     return 0;
   }   
 
@@ -3733,12 +3733,12 @@ __libc_realloc (void *oldmem, size_t bytes)
     {
       malloc_printerr (check_action, "realloc(): invalid pointer", oldmem,
                        ar_ptr);
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
       return 0;
     }
 
   if ( !checked_request2size (bytes, &nb) ) {
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
     return 0;
   }
 
@@ -3747,37 +3747,37 @@ __libc_realloc (void *oldmem, size_t bytes)
       void *newmem;
 #if HAVE_MREMAP
       if(ar_ptr != &main_arena){
-	(void) mutex_unlock (&ar_ptr->mutex);
-	(void) mutex_lock (&main_arena.mutex);
+	UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
+	LOCK_ARENA(&main_arena, REALLOC_SITE);
       }
       newp = mremap_chunk (&main_arena, _md_oldp, nb);
       if (newp) {
 	if(ar_ptr == &main_arena){
-	  (void) mutex_unlock (&main_arena.mutex);
+	  UNLOCK_ARENA(&main_arena, REALLOC_SITE);
 	}
         return chunk2mem (newp);
       }
       if(ar_ptr != &main_arena){
-	(void) mutex_unlock (&main_arena.mutex);
-	(void) mutex_lock (&ar_ptr->mutex);
+	UNLOCK_ARENA(&main_arena, REALLOC_SITE);
+	LOCK_ARENA(ar_ptr, REALLOC_SITE);
       }
 #endif
       /* Note the extra SIZE_SZ overhead. */
       if (oldsize - SIZE_SZ >= nb){
-	(void) mutex_unlock (&ar_ptr->mutex);
+	UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
         return oldmem;                         /* do nothing */
       }
       /* Must alloc, copy, free. */
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
       newmem = __libc_malloc (bytes);
       if (newmem == 0){
         return 0;              /* propagate failure */
       }
       memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
       munmap_chunk (_md_oldp);
-      (void) mutex_lock (&main_arena.mutex);
+      LOCK_ARENA(&main_arena, REALLOC_SITE);
       unregister_chunk(&main_arena, oldp, false);
-      (void) mutex_unlock (&main_arena.mutex);
+      UNLOCK_ARENA(&main_arena, REALLOC_SITE);
       return newmem;
     }
 
@@ -3786,7 +3786,7 @@ __libc_realloc (void *oldmem, size_t bytes)
   newp = chunkinfo2chunk(_md_newp);
   mem = chunkinfo2mem(_md_newp);
 
-  (void) mutex_unlock (&ar_ptr->mutex);
+  UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
 
   assert (!mem || chunk_is_mmapped (newp) ||
           ar_ptr == arena_for_chunk (newp));
@@ -3862,7 +3862,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
       alignment = a;
     }
 
-  arena_get (ar_ptr, bytes + alignment + MINSIZE);
+  arena_get (ar_ptr, bytes + alignment + MINSIZE, MEMALIGN_SITE);
 
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
@@ -3875,7 +3875,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
   if (!_md_p && ar_ptr != NULL)
     {
       LIBC_PROBE (memory_memalign_retry, 2, bytes, alignment);
-      ar_ptr = arena_get_retry (ar_ptr, bytes);
+      ar_ptr = arena_get_retry (ar_ptr, bytes, MEMALIGN_SITE);
       _md_p = _int_memalign (ar_ptr, alignment, bytes);
     }
 
@@ -3966,7 +3966,7 @@ __libc_calloc (size_t n, size_t elem_size)
 
   sz = bytes;
 
-  arena_get (av, sz);
+  arena_get (av, sz, CALLOC_SITE);
 
 
   /* gracefully fail is we do not have enough memory to 
@@ -4015,7 +4015,7 @@ __libc_calloc (size_t n, size_t elem_size)
   if (mem == 0 && av != NULL)
     {
       LIBC_PROBE (memory_calloc_retry, 1, sz);
-      av = arena_get_retry (av, sz);
+      av = arena_get_retry (av, sz, CALLOC_SITE);
       _md_victim = _int_malloc (av, sz);
       victim = chunkinfo2chunk(_md_victim);
       mem = chunkinfo2mem(_md_victim);
@@ -4685,7 +4685,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   /* SRI: we are forced to do this upfront because of the need to examine 'size' */
 
   if (!have_lock) {
-    (void) mutex_lock (&av->mutex);
+    LOCK_ARENA(av, FREE_SITE);
   }
 
   if (_md_p == NULL) {
@@ -4936,12 +4936,12 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 	(void)mutex_unlock(&av->mutex);
     }
 
-    (void)mutex_lock(&main_arena.mutex);
+    LOCK_ARENA(&main_arena, FREE_SITE);
     
     munmap_chunk (_md_p);
     unregister_chunk(&main_arena, p, false);
     
-    (void)mutex_unlock(&main_arena.mutex);
+    UNLOCK_ARENA(&main_arena, FREE_SITE);
   }
 
 }
@@ -5369,11 +5369,11 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 	    if(av != NULL){
 	      (void)mutex_unlock(&av->mutex);
 	    }
-	    (void)mutex_lock(&main_arena.mutex);
+	    LOCK_ARENA(&main_arena, MEMALIGN_SITE);
 	    if(main_arena.metadata_cache_count == 0){
-	      (void)mutex_unlock(&main_arena.mutex);
+	      UNLOCK_ARENA(&main_arena, MEMALIGN_SITE);
 	      if(av != NULL){
-		(void)mutex_lock(&av->mutex);
+		 LOCK_ARENA(av, MEMALIGN_SITE);
 	      }
 	      return NULL;
 	    }
@@ -5383,9 +5383,9 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           _md_newp->prev_size = _md_p->prev_size + leadsize;
           set_head (_md_newp, newsize);
 
-	  (void)mutex_unlock(&main_arena.mutex);
+	  UNLOCK_ARENA(&main_arena, MEMALIGN_SITE);
 	  if(av != NULL){
-	    (void)mutex_lock(&av->mutex);
+	    LOCK_ARENA(av, MEMALIGN_SITE);
 	  }
 
           return _md_newp;
@@ -5501,9 +5501,9 @@ __malloc_trim (size_t s)
   mstate ar_ptr = &main_arena;
   do
     {
-      (void) mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, TRIM_SITE);
       result |= mtrim (ar_ptr, s);
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, TRIM_SITE);
 
       ar_ptr = ar_ptr->next;
     }

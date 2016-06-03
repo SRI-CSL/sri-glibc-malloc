@@ -18,7 +18,7 @@
 
 #if !defined(NDEBUG) && defined(SRI_MALLOC_LOG)
 
-#define _GNU_SOURCE
+//#define _GNU_SOURCE
 
 #include <fcntl.h>
 #include <stdint.h>
@@ -26,8 +26,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <pthread.h>
 
+//#include <pthread.h>
+//#include <sys/types.h>
+#include <atomic.h>
 
 /* a quick 'n dirty version of mhook */
 
@@ -151,6 +153,9 @@ void log_free(void* val)
 }
 #endif
 
+static int tid_counter = 0;
+static __thread  int tid = -1;
+
 
 #define LOCK_EVENT_LEN  77
 
@@ -163,12 +168,17 @@ static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t
 		    '\n' };
   int sz = sizeof(buffer) - 1;
   int rcode;
+
+  if(tid == -1){
+    tid = catomic_exchange_and_add (&tid_counter, 1);
+  }
+
   buffer[0] = stage;
   storehexstring(&buffer[4],  (uintptr_t)av);
   storehexstring(&buffer[23], (uintptr_t)index);
   storehexstring(&buffer[42], (uintptr_t)site);
-  storehexstring(&buffer[61], (uintptr_t)pthread_self());
-  sz =  LOCK_EVENT_LEN
+  storehexstring(&buffer[61], tid); //gettid()); //(uintptr_t)pthread_self()); Groan. Nothing is easy inside glibc...
+  sz =  LOCK_EVENT_LEN;
   buffer[sz] = '\n';
   
   if(logfd < 0){

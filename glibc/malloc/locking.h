@@ -1,4 +1,4 @@
-#ifdef SRI_MALLOC_LOG
+#if SRI_MALLOC_LOG
 #include "debug.h"
 
 static inline void LOCK_ARENA(mstate av, int site){

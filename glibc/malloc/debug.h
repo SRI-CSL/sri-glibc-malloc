@@ -30,10 +30,15 @@ typedef enum lock_action {
 
 
 typedef enum lock_site {
-  MALLOC                = 0,
-  REALLOC               = 1,
-  CALLOC                = 2,
-  FREE                  = 3,
+  MALLOC_SITE           = 0,
+  REALLOC_SITE          = 1,
+  CALLOC_SITE           = 2,
+  FREE_SITE             = 3,
+  MEMALIGN_SITE         = 4,
+  SYSMALLOC_SITE        = 5,
+  TRIM_SITE             = 6,
+  MUSABLE_SITE          = 7,
+  MALLINFO_SITE         = 8,
 } lock_site_t;
 
 

@@ -111,14 +111,14 @@ static size_t arena_count = 1;
    is just a hint as to how much memory will be required immediately
    in the new arena. */
 
-#define arena_get(ptr, size) do { \
+#define arena_get(ptr, size, site) do {					\
       ptr = thread_arena;						      \
-      arena_lock (ptr, size);						      \
+      arena_lock (ptr, size, site);						\
   } while (0)
 
-#define arena_lock(ptr, size) do {					      \
+#define arena_lock(ptr, size, site) do {					\
       if (ptr && !arena_is_corrupt (ptr))				      \
-        (void) mutex_lock (&ptr->mutex);				      \
+        LOCK_ARENA(ptr, site);						\
       else								      \
         ptr = arena_get2 ((size), NULL);				      \
   } while (0)
@@ -1099,7 +1099,7 @@ arena_get2 (size_t size, mstate avoid_arena)
    Otherwise, it is likely that sbrk() has failed and there is still a chance
    to mmap(), so try one of the other arenas.  */
 static mstate
-arena_get_retry (mstate ar_ptr, size_t bytes)
+arena_get_retry (mstate ar_ptr, size_t bytes, int site)
 {
   LIBC_PROBE (memory_arena_retry, 2, bytes, ar_ptr);
   if (ar_ptr != &main_arena)

@@ -2336,6 +2336,10 @@ free_perturb (char *p, size_t n)
 /* used in arena.c as well as here in malloc.c */
 static void do_check_top(mstate av, const char* file, int lineno);
 
+/* lock logging macros */
+
+#include "locking.h"
+
 #include "arena.c"
 
 /*

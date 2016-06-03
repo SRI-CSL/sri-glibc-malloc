@@ -116,6 +116,7 @@ include ../Rules
 CFLAGS-mcheck-init.c = $(PIC-ccflag)
 CFLAGS-obstack.c = $(uses-callbacks)
 
+# can also use SRI_POOL_DEBUG to debug pool
 #FIXME: get this to work from the Makefile in src/glibc
 #SRI hack to compile our version of malloc without optimizations.
 #you will need to make sure that you have commented out line 4 

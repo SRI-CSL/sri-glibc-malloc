@@ -2985,6 +2985,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     return 0;
   }
 
+  check_malloc_state (av);
+
   /* Record incoming configuration of top */
 
   _md_old_top = av->_md_top;

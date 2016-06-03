@@ -6,6 +6,9 @@
 #include "memcxt.h"
 #include "utils.h"
 
+#ifndef SRI_POOL_DEBUG
+#define SRI_POOL_DEBUG 0
+#endif
 
 #define BITS_IN_MASK  64
 
@@ -162,9 +165,7 @@ void dump_memcxt(FILE* fp, memcxt_t* memcxt){
 
 
 
-#ifndef NDEBUG
 static bool sane_bucket_pool(bucket_pool_t* bpool);
-#endif
 
 /* for now we do not assume that the underlying memory has been mmapped (i.e zeroed) */
 static void init_bucket_pool(bucket_pool_t* bp){
@@ -266,8 +267,8 @@ static void* new_buckets(void){
   return bptr;
 }
 
-#ifndef NDEBUG
 static bool sane_bucket_pool(bucket_pool_t* bpool){
+#if  SRI_POOL_DEBUG
   size_t free_count;
   size_t bit_free_count;
   size_t scale;
@@ -301,10 +302,9 @@ static bool sane_bucket_pool(bucket_pool_t* bpool){
 	      bpool->pool[bindex].bucket_pool_ptr, bpool);
     }
   }
-
+#endif
   return true;
 }
-#endif
 
 
 

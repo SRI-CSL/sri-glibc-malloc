@@ -39,6 +39,7 @@ typedef enum lock_site {
   TRIM_SITE             = 6,
   MUSABLE_SITE          = 7,
   MALLINFO_SITE         = 8,
+  MALLOPT               = 9,
 } lock_site_t;
 
 

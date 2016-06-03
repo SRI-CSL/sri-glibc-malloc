@@ -1110,11 +1110,11 @@ arena_get_retry (mstate ar_ptr, size_t bytes, int site)
 	return NULL;
 
       ar_ptr = &main_arena;
-      (void) mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, site);
     }
   else
     {
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, site);
       ar_ptr = arena_get2 (bytes, ar_ptr);
     }
 

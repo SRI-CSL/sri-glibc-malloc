@@ -3575,7 +3575,7 @@ __libc_malloc (size_t bytes)
     }
 
   if (ar_ptr != NULL)
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, MALLOC_SITE);
 
   mem = chunkinfo2mem(_md_victim);
 
@@ -5535,7 +5535,7 @@ musable (void *mem)
 
       
 
-      (void)mutex_lock(&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, MUSABLE_SITE);
 
       _md_p = lookup_chunk(ar_ptr, p);
 
@@ -5553,7 +5553,7 @@ musable (void *mem)
 	retval = chunksize(_md_p) - SIZE_SZ; 
       }
       
-      (void)mutex_unlock(&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, MUSABLE_SITE);
       
     }
   return retval;
@@ -5650,9 +5650,9 @@ __libc_mallinfo (void)
   ar_ptr = &main_arena;
   do
     {
-      (void) mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, MALLINFO_SITE);
       int_mallinfo (ar_ptr, &m);
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, MALLINFO_SITE);
 
       ar_ptr = ar_ptr->next;
     }
@@ -5682,7 +5682,7 @@ __malloc_stats (void)
       struct mallinfo mi;
 
       memset (&mi, 0, sizeof (mi));
-      (void) mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, MALLOC_STATS_SITE);
       int_mallinfo (ar_ptr, &mi);
       fprintf (stderr, "Arena %zu:\n", ar_ptr->arena_index);
       fprintf (stderr, "system bytes     = %10u\n", (unsigned int) mi.arena);
@@ -5693,7 +5693,7 @@ __malloc_stats (void)
 #endif
       system_b += mi.arena;
       in_use_b += mi.uordblks;
-      (void) mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, MALLOC_STATS_SITE);
       ar_ptr = ar_ptr->next;
       if (ar_ptr == &main_arena)
         break;
@@ -5721,7 +5721,7 @@ __libc_mallopt (int param_number, int value)
 
   if (__malloc_initialized < 0)
     ptmalloc_init ();
-  (void) mutex_lock (&av->mutex);
+  LOCK_ARENA(av, MALLOPT_SITE);
   /* Ensure initialization/consolidation */
   malloc_consolidate (av);
 
@@ -5799,7 +5799,7 @@ __libc_mallopt (int param_number, int value)
         }
       break;
     }
-  (void) mutex_unlock (&av->mutex);
+  UNLOCK_ARENA(av, MALLOPT_SITE);
   return res;
 }
 libc_hidden_def (__libc_mallopt)
@@ -6046,7 +6046,7 @@ __malloc_info (int options, FILE *fp)
       } sizes[NFASTBINS + NBINS - 1];
 #define nsizes (sizeof (sizes) / sizeof (sizes[0]))
 
-      mutex_lock (&ar_ptr->mutex);
+      LOCK_ARENA(ar_ptr, MALLOC_INFO);
 
       for (size_t i = 0; i < NFASTBINS; ++i)
         {
@@ -6105,7 +6105,7 @@ __malloc_info (int options, FILE *fp)
           avail += sizes[NFASTBINS - 1 + i].total;
         }
 
-      mutex_unlock (&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, MALLOC_INFO);
 
       total_nfastblocks += nfastblocks;
       total_fastavail += fastavail;

@@ -923,7 +923,8 @@ _int_new_arena (size_t size)
   mstate replaced_arena = thread_arena;
   thread_arena = a;
   mutex_init (&a->mutex);
-  //  (void) mutex_lock (&a->mutex);
+  //BD moved this so we could call the LOCK_ARENA below.
+  //(void) mutex_lock (&a->mutex);
 
   (void) mutex_lock (&list_lock);
 

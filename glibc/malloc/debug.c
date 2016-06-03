@@ -154,7 +154,7 @@ void log_free(void* val)
 
 #define LOCK_EVENT_LEN  77
 
-static void _write_desc_logentry(char stage, void* av, int index, uint32_t site){
+static void _write_lock_event_logentry(char stage, void* av, int index, uint32_t site){
   char buffer[] = { ' ', ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 20 
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 39
 		         ' ', '0', 'x', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',    // 58
@@ -191,7 +191,7 @@ static void _write_desc_logentry(char stage, void* av, int index, uint32_t site)
 }
 
 void log_lock_event(lock_action_t stage, void* av, int index, lock_site_t site){
-  _write_desc_logentry(stage, av, index, site);
+  _write_lock_event_logentry(stage, av, index, site);
 }
  
   

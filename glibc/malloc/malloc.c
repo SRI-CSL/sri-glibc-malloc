@@ -3651,7 +3651,7 @@ __libc_free (void *mem)
 
       unregister_chunk(ar_ptr, p, false);
 
-      (void)mutex_unlock(&ar_ptr->mutex);
+      UNLOCK_ARENA(ar_ptr, FREE_SITE);
       return;
     }
 
@@ -3871,7 +3871,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
   if (ar_ptr != NULL && !replenish_metadata_cache(ar_ptr)) {
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, MEMALIGN_SITE);
     return 0;
   }  
 
@@ -3884,7 +3884,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
     }
 
   if (ar_ptr != NULL)
-    (void) mutex_unlock (&ar_ptr->mutex);
+    UNLOCK_ARENA(ar_ptr, MEMALIGN_SITE);
 
   p = chunkinfo2mem(_md_p);
 
@@ -3976,7 +3976,7 @@ __libc_calloc (size_t n, size_t elem_size)
   /* gracefully fail is we do not have enough memory to 
      replenish our metadata cache */
   if (av != NULL && !replenish_metadata_cache(av)) {
-    (void) mutex_unlock (&av->mutex);
+    UNLOCK_ARENA(av, CALLOC_SITE);
     return 0;
   }  
 
@@ -4026,7 +4026,7 @@ __libc_calloc (size_t n, size_t elem_size)
     }
 
   if (av != NULL)
-    (void) mutex_unlock (&av->mutex);
+    UNLOCK_ARENA(av, FREE_SITE);
 
   /* Allocation failed even after a retry.  */
   if (mem == 0)
@@ -4711,7 +4711,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     {
       errstr = "free(): invalid pointer";
     errout:
-      (void) mutex_unlock (&av->mutex);
+      UNLOCK_ARENA(av, FREE_SITE);
       malloc_printerr (check_action, errstr, chunk2mem (p), av);
       return;
     }
@@ -4788,7 +4788,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
         goto errout;
       }
 
-    (void)mutex_unlock(&av->mutex);
+    UNLOCK_ARENA(av, FREE_SITE);
   }
 
   /*
@@ -4927,7 +4927,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       }
     }
 
-    (void)mutex_unlock(&av->mutex);
+    UNLOCK_ARENA(av, FREE_SITE);
 
   }
   /*
@@ -4937,7 +4937,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   else {
 
     if(av != &main_arena){
-	(void)mutex_unlock(&av->mutex);
+      UNLOCK_ARENA(av, FREE_SITE);
     }
 
     LOCK_ARENA(&main_arena, FREE_SITE);
@@ -5371,7 +5371,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 	  if (av != &main_arena) {
 	    /* if we are already in the main arena we should, by design, have enough metadata */
 	    if(av != NULL){
-	      (void)mutex_unlock(&av->mutex);
+	      UNLOCK_ARENA(av, MEMALIGN_SITE);
 	    }
 	    LOCK_ARENA(&main_arena, MEMALIGN_SITE);
 	    if(main_arena.metadata_cache_count == 0){

@@ -1,6 +1,7 @@
 #include <features.h>
 #include <stddef.h>
 #include <stdio.h>
+#include "debug.h"
 
 #ifdef NDEBUG
 # define assert(expr) ((void) 0)
@@ -16,6 +17,7 @@ static void
 __malloc_assert (const char *assertion, const char *file, unsigned int line,
 		 const char *function)
 {
+  log_end();
   (void) __fxprintf (NULL, "%s%s%s:%u: %s%sAssertion `%s' failed.\n",
 		     __progname, __progname[0] ? ": " : "",
 		     file, line,

@@ -253,6 +253,9 @@
 /* SRI's  metatdata header */
 #include "metadata.h"
 
+#ifdef SRI_VALGRIND
+#include <valgrind/helgrind.h>
+#endif
 
 /*
   Debugging:
@@ -2038,6 +2041,12 @@ malloc_init_state (mstate av, bool is_main_arena)
   mbinptr bin;
 
   log_init();
+
+#ifdef SRI_VALGRIND
+  if(is_main_arena)
+    VALGRIND_HG_MUTEX_INIT_POST(&main_arena.mutex, 0);
+#endif
+
 
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i)

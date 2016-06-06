@@ -1,4 +1,4 @@
-#if SRI_MALLOC_LOG
+#ifdef SRI_MALLOC_LOG
 #include "debug.h"
 
 #ifdef SRI_VALGRIND

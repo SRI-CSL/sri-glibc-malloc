@@ -1,5 +1,6 @@
 #if SRI_MALLOC_LOG
 #include "debug.h"
+#include "valgrind/helgrind.h"
 
 #include <atomic.h>
 
@@ -15,7 +16,10 @@ static inline void LOCK_ARENA(mstate av, int site){
     tid = catomic_exchange_and_add (&tid_counter, 1);
   }
   self = tid;
+  
+  VALGRIND_HG_MUTEX_LOCK_PRE(&(av->mutex), 0);
   (void)mutex_lock(&(av->mutex));
+  VALGRIND_HG_MUTEX_LOCK_POST(&(av->mutex));
   //allow for recursive locking
   //assert((owners[av->arena_index] == 0) || (owners[av->arena_index] == self));
   owners[av->arena_index] = self;
@@ -29,8 +33,9 @@ static inline void UNLOCK_ARENA(mstate av, int site){
   //allow for recursive locking
   //assert((owners[av->arena_index] == 0) || (owners[av->arena_index] == self)); 
   owners[av->arena_index] = 0;
+  VALGRIND_HG_MUTEX_UNLOCK_PRE(&(av->mutex));
   (void)mutex_unlock(&(av->mutex));
-
+  VALGRIND_HG_MUTEX_UNLOCK_POST(&(av->mutex));
 
   //log_lock_event(UNLOCK_ACTION, av, av->arena_index, site, tid);
 }

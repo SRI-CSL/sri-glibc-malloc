@@ -62,8 +62,11 @@ static inline void UNLOCK_ARENA(mstate av, int site){
 
 #else
 
-#define LOCK_ARENA(AV, S)   ((void)mutex_lock(&(AV->mutex)))
-
-#define UNLOCK_ARENA(AV, S) ((void)mutex_unlock(&(AV->mutex)))
+static inline void LOCK_ARENA(mstate av, int site){
+  (void)mutex_lock(&(av->mutex));
+}
+static inline void UNLOCK_ARENA(mstate av, int site){
+  (void)mutex_unlock(&(av->mutex));
+}
 
 #endif

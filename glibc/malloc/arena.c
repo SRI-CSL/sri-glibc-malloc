@@ -231,9 +231,20 @@ malloc_atfork (size_t sz, const void *caller)
       /* Suspend the thread until the `atfork' handlers have completed.
          By that time, the hooks will have been reset as well, so that
          mALLOc() can be used again. */
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock,0);
+#endif
       (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+      VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
       (void) mutex_unlock (&list_lock);
-      return __libc_malloc (sz);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
+
+     return __libc_malloc (sz);
     }
 }
 
@@ -275,11 +286,19 @@ static void
 ptmalloc_lock_all (void)
 {
   mstate ar_ptr;
+  int success;
 
   if (__malloc_initialized < 1)
     return;
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 1);
+#endif
+  success = mutex_trylock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
 
-  if (mutex_trylock (&list_lock))
+  if (success)
     {
       if (thread_arena == ATFORK_ARENA_PTR)
         /* This is the same thread which already locks the global list.
@@ -287,7 +306,13 @@ ptmalloc_lock_all (void)
         goto out;
 
       /* This thread has to wait its turn.  */
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 0);
+#endif
       (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
     }
   for (ar_ptr = &main_arena;; )
     {
@@ -334,7 +359,13 @@ ptmalloc_unlock_all (void)
       if (ar_ptr == &main_arena)
         break;
     }
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
   (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
 }
 
 # ifdef __linux__
@@ -364,6 +395,9 @@ ptmalloc_unlock_all2 (void)
   for (ar_ptr = &main_arena;; )
     {
       mutex_init (&ar_ptr->mutex);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_INIT_POST(&ar_ptr->mutex, 0);
+#endif
       if (ar_ptr != save_arena)
         {
 	  /* This arena is no longer attached to any thread.  */
@@ -376,6 +410,9 @@ ptmalloc_unlock_all2 (void)
         break;
     }
   mutex_init (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_INIT_POST(&list_lock, 0);
+#endif
   atfork_recursive_cntr = 0;
 }
 
@@ -437,6 +474,9 @@ ptmalloc_init (void)
 {
   if (__malloc_initialized >= 0)
     return;
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_INIT_POST(&list_lock, 0);
+#endif
 
   __malloc_initialized = 0;
 
@@ -923,10 +963,19 @@ _int_new_arena (size_t size)
   mstate replaced_arena = thread_arena;
   thread_arena = a;
   mutex_init (&a->mutex);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_INIT_POST(&a->mutex, 0);
+#endif
   //BD moved this so we could call the LOCK_ARENA below.
   //(void) mutex_lock (&a->mutex);
 
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 0);
+#endif
   (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
 
   detach_arena (replaced_arena);
 
@@ -946,7 +995,13 @@ _int_new_arena (size_t size)
   set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
   LOCK_ARENA(a, ARENA_SITE);
 
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
   (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
 
   return a;
 }
@@ -959,7 +1014,13 @@ get_free_list (void)
   mstate result = free_list;
   if (result != NULL)
     {
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 0);
+#endif
       (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
       result = free_list;
       if (result != NULL)
 	{
@@ -972,7 +1033,14 @@ get_free_list (void)
 
 	  detach_arena (replaced_arena);
 	}
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
       (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
+
 
       if (result != NULL)
         {
@@ -993,15 +1061,26 @@ reused_arena (mstate avoid_arena)
 {
   mstate result;
   static mstate next_to_use;
+
+  int success;
+
   if (next_to_use == NULL)
     next_to_use = &main_arena;
 
   result = next_to_use;
   do
     {
-      if (!arena_is_corrupt (result) && !mutex_trylock (&result->mutex))
-        goto out;
-
+      if (!arena_is_corrupt (result))
+#ifdef SRI_VALGRIND
+	VALGRIND_HG_MUTEX_LOCK_PRE(&result->mutex,1);
+#endif
+	  success = mutex_trylock (&result->mutex);
+#ifdef SRI_VALGRIND
+	    VALGRIND_HG_MUTEX_LOCK_POST(&result->mutex);
+#endif
+	  if (!success) {
+	    goto out;
+	  }
       result = result->next;
     }
   while (result != next_to_use);
@@ -1032,10 +1111,22 @@ reused_arena (mstate avoid_arena)
 out:
   {
     mstate replaced_arena = thread_arena;
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 0);
+#endif
     (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
     detach_arena (replaced_arena);
     ++result->attached_threads;
-    (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
+  (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+  VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
   }
 
   LIBC_PROBE (memory_arena_reuse, 2, result, avoid_arena);
@@ -1131,7 +1222,14 @@ arena_thread_freeres (void)
 
   if (a != NULL)
     {
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_PRE(&list_lock, 0);
+#endif
       (void) mutex_lock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_LOCK_POST(&list_lock);
+#endif
+
       /* If this was the last attached thread for this arena, put the
 	 arena on the free list.  */
       assert (a->attached_threads > 0);
@@ -1140,7 +1238,14 @@ arena_thread_freeres (void)
 	  a->next_free = free_list;
 	  free_list = a;
 	}
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_UNLOCK_PRE(&list_lock);
+#endif
       (void) mutex_unlock (&list_lock);
+#ifdef SRI_VALGRIND
+      VALGRIND_HG_MUTEX_UNLOCK_POST(&list_lock);
+#endif
+
     }
 }
 text_set_element (__libc_thread_subfreeres, arena_thread_freeres);

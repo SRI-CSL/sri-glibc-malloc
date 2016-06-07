@@ -123,7 +123,14 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #you will need to make sure that you have commented out line 4 
 # of config.h in the glibc-build directory.
 #ifeq ($(SRI_DEBUG),1)
-CFLAGS-malloc.c =  -O0 -DMALLOC_DEBUG=1 -DSRI_DEBUG=1 -DSRI_MALLOC_LOG=1
+# Ian's
+#CFLAGS-malloc.c =  -O0 -DMALLOC_DEBUG=1 -DSRI_DEBUG=1 -DSRI_MALLOC_LOG=1
+#CFLAGS-debug.c =  -O0 -DSRI_MALLOC_LOG=1
+#CFLAGS-utils.c =  -O0
+#CFLAGS-memcxt.c =  -O0
+#CFLAGS-metadata.c =  -O0
+#Drew's
+CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1 -DSRI_VALGRIND=1 -DSRI_MALLOC_LOG=1
 CFLAGS-debug.c =  -O0 -DSRI_MALLOC_LOG=1
 CFLAGS-utils.c =  -O0
 CFLAGS-memcxt.c =  -O0

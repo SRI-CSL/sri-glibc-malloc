@@ -253,6 +253,9 @@
 /* SRI's  metatdata header */
 #include "metadata.h"
 
+#ifdef SRI_VALGRIND
+#include <valgrind/helgrind.h>
+#endif
 
 /*
   Debugging:
@@ -2038,6 +2041,12 @@ malloc_init_state (mstate av, bool is_main_arena)
   mbinptr bin;
 
   log_init();
+
+#ifdef SRI_VALGRIND
+  if(is_main_arena)
+    VALGRIND_HG_MUTEX_INIT_POST(&main_arena.mutex, 0);
+#endif
+
 
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i)
@@ -4660,6 +4669,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   chunkinfoptr _md_top;        /* metadata of the top chunk */
   mchunkptr topchunk;          /* the top chunk */
 
+  
   const char *errstr = NULL;
 
   if(av == NULL){
@@ -4711,7 +4721,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     {
       errstr = "free(): invalid pointer";
     errout:
-      UNLOCK_ARENA(av, FREE_SITE);
+      if(!have_lock){
+	UNLOCK_ARENA(av, FREE_SITE);
+      }
       malloc_printerr (check_action, errstr, chunk2mem (p), av);
       return;
     }
@@ -4788,7 +4800,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
         goto errout;
       }
 
-    UNLOCK_ARENA(av, FREE_SITE);
+    if(!have_lock){
+      UNLOCK_ARENA(av, FREE_SITE);
+    }
   }
 
   /*
@@ -4926,8 +4940,10 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
         heap_trim(heap, mp_.top_pad);
       }
     }
-
-    UNLOCK_ARENA(av, FREE_SITE);
+    
+    if(!have_lock){
+      UNLOCK_ARENA(av, FREE_SITE);
+    }
 
   }
   /*
@@ -4937,15 +4953,25 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   else {
 
     if(av != &main_arena){
-      UNLOCK_ARENA(av, FREE_SITE);
-    }
+      if(!have_lock){
+	UNLOCK_ARENA(av, FREE_SITE);
+      }
+      LOCK_ARENA(&main_arena, FREE_SITE);
+    
+      munmap_chunk (_md_p);
+      unregister_chunk(&main_arena, p, false);
+    
+      UNLOCK_ARENA(&main_arena, FREE_SITE);
+    } else {
 
-    LOCK_ARENA(&main_arena, FREE_SITE);
-    
-    munmap_chunk (_md_p);
-    unregister_chunk(&main_arena, p, false);
-    
-    UNLOCK_ARENA(&main_arena, FREE_SITE);
+      munmap_chunk (_md_p);
+      unregister_chunk(&main_arena, p, false);
+      
+      if(!have_lock){
+	UNLOCK_ARENA(&main_arena, FREE_SITE);
+      }
+
+    }
   }
 
 }

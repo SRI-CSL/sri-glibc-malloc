@@ -26,7 +26,7 @@ typedef struct chunkinfo {
   void*             chunk;           /* the actual client memory           used in malloc.[ch]    */
 
   struct chunkinfo* next_bucket;     /* next bucket in the bin             used in metadata.[ch]  */
-  bucket_pool_t*    bucket_pool_ptr; /* pointer to my bucket pool.     used in metadata.[ch]  */
+  bucket_pool_t*    bucket_pool_ptr; /* pointer to my bucket pool.         used in metadata.[ch]  */
 } bucket_t;
 
 typedef bucket_t* chunkinfoptr;

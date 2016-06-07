@@ -2157,9 +2157,10 @@ static chunkinfoptr new_chunkinfoptr(mstate av)
   
   /*
     SRI: if we want to push the "replenish" down to _int_malloc, then we 
+
     need to handle the mremap path in libc_realloc. the easiest way to
     do this is to relegate the cache to a last line of defense mechanism
-    and first just try the get the metadata with  allocate_chunkinfoptr.
+    and first just try the get the metadata with allocate_chunkinfoptr.
     if that fails, then we use the cache.
   */
   
@@ -2249,7 +2250,10 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 }
 
 
-/* Splits victim into a chunk of size 'desiderata' and returns the configured metadata of the remainder  */
+/* Splits victim into a chunk of size 'desiderata' and returns the
+   configured metadata of the remainder.  Called in the situation
+   where victim is top.
+*/
 static chunkinfoptr split_chunk(mstate av, 
                                 chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, 
                                 INTERNAL_SIZE_T desiderata)

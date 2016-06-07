@@ -21,16 +21,16 @@ LDFLAGS = -lpthread
 CFLAGS = -DLINUX
 endif
 
-#OPT= -O3 -ggdb
-OPT=  -ggdb
+OPT= -O3 -ggdb
+#OPT=  -ggdb
 
 #choice of lifo or fifo (fifo has not been tested yet).
 LF_QUEUE = lifo
 
 CFLAGS+= -Wall -m64 -fno-strict-aliasing -fPIC -I./include -I./arch/${ARCH} -I./src/${LF_QUEUE}
-#CFLAGS+= -DNDEBUG
+CFLAGS+= -DNDEBUG
 #CFLAGS+= -DSRI_MALLOC_LOG (used to log ***all** memory calls)
-CFLAGS+= -DSRI_DEBUG 
+#CFLAGS+= -DSRI_DEBUG 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))
 

@@ -27,7 +27,7 @@ the chunks no longer intersect.
 
 11[X]. hooks.  NEEDS TESTING!!
 
-12. cache.
+12. cache. NEEDS TESTING!!
 
 13. issue #5. memory pool optimization.
 
@@ -61,6 +61,17 @@ Say as part of the arena.
 chunkinfoptr  md_pool[4];
 
 
+=========
 
+Other Ideas.
+
+The pool allocator for the metadata could be a trimmed down maged michael
+version, since there are only two sizes. Might have to think this through
+carefully, since our pool allocator is designed with Larsen's hashtable 
+in mind...
+
+
+Need to write a fair bit of commentary in the code, especially in the 
+metadata code.
 
 

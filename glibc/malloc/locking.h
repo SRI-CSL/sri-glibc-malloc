@@ -7,15 +7,12 @@
 
 #include <atomic.h>
 
-static volatile int owners[16];
-
 static volatile int tid_counter = 0;
 static __thread  int tid = -1;
 
 
 static inline void LOCK_ARENA(mstate av, int site){
   int self;
-  //int index;
   if(tid == -1){
     tid = catomic_exchange_and_add (&tid_counter, 1);
   }
@@ -31,21 +28,12 @@ static inline void LOCK_ARENA(mstate av, int site){
 #ifdef SRI_VALGRIND
   VALGRIND_HG_MUTEX_LOCK_POST(&(av->mutex));
 #endif
-  //index = owners[av->arena_index];
-  //allow for recursive locking
-  //assert((index == 0) || (index == self));
-  owners[av->arena_index] = self;
-  
 
 }
 
 
 static inline void UNLOCK_ARENA(mstate av, int site){
-  //int self = tid;
-  //int index = owners[av->arena_index];
-  //allow for recursive locking
-  //assert((index == 0) || (index == self)); 
-  owners[av->arena_index] = 0;
+
 #ifdef SRI_VALGRIND
   VALGRIND_HG_MUTEX_UNLOCK_PRE(&(av->mutex));
 #endif

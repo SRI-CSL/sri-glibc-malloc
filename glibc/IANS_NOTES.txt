@@ -48,9 +48,6 @@ To push this upstream we need to eliminate prev_size with pointers
 to the next_md and prev_md.
 
 
-
-
-
 Memory Exhaustion Design
 
 We need to improve the psmalloc2 design so that we can recover

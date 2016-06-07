@@ -130,8 +130,8 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #CFLAGS-memcxt.c =  -O0
 #CFLAGS-metadata.c =  -O0
 #Drew's
-CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1 -DSRI_VALGRIND=1 -DSRI_MALLOC_LOG=1
-CFLAGS-debug.c =  -O0 -DSRI_MALLOC_LOG=1
+CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1 -DSRI_VALGRIND=1
+CFLAGS-debug.c =  -O0 
 CFLAGS-utils.c =  -O0
 CFLAGS-memcxt.c =  -O0
 CFLAGS-metadata.c =  -O0

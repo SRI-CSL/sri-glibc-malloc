@@ -25,6 +25,8 @@ implementations.
 
 -  `glibc_tests` are our tests statically linked against our glibc version.
 
+-  `hlibc` the version after glibc, with a front end *H*ashtable to get arena_indexes.
+
 -  `lfpa`  Maged Michael's lock free pool allocator.
 
 -  `musl` the malloc from musl libc (extracted from musl's libc)

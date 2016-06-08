@@ -19,23 +19,7 @@
 
 #include <stdbool.h>
 
-/* Compile-time constants.  */
-
-#define HEAP_MIN_SIZE (32 * 1024)
-#ifndef HEAP_MAX_SIZE
-# ifdef DEFAULT_MMAP_THRESHOLD_MAX
-#  define HEAP_MAX_SIZE (2 * DEFAULT_MMAP_THRESHOLD_MAX)
-# else
-#  define HEAP_MAX_SIZE (1024 * 1024) /* must be a power of two */
-# endif
-#endif
-
-/* HEAP_MIN_SIZE and HEAP_MAX_SIZE limit the size of mmap()ed heaps
-   that are dynamically created for multi-threaded programs.  The
-   maximum size must be a power of two, for fast determination of
-   which heap belongs to a chunk.  It should be much larger than the
-   mmap threshold, so that requests with a size just below that
-   threshold can be fulfilled without creating too many heaps.  */
+#include "lookup.h"
 
 /***************************************************************************/
 
@@ -126,7 +110,7 @@ static size_t arena_count = 1;
 /* find the heap and corresponding arena for a given ptr */
 
 #define heap_for_ptr(ptr) \
-  ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
+  ((heap_info *)((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
 #define arena_for_chunk(ptr) \
   (chunk_non_main_arena (ptr) ? heap_for_ptr (ptr)->ar_ptr : &main_arena)
 

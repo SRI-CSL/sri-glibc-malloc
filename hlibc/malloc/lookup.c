@@ -100,3 +100,29 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
 }
 
+
+bool lookup_set_sbrk_lo(void* ptr){
+  sbrk_lo = (uintptr_t) ptr;
+  return true;
+}
+
+bool lookup_set_sbrk_hi(void* ptr){
+  sbrk_hi = (uintptr_t) ptr;
+  return true;
+}
+
+bool lookup_add_heap(void* ptr, size_t index){
+  return lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+}
+
+bool lookup_delete_heap(void* ptr){
+  return lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+}
+
+bool lookup_add_mmap(void* ptr, size_t sz){
+  return lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+}
+
+bool lookup_delete_mmap(void* ptr){
+  return lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+}

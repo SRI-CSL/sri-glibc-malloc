@@ -62,11 +62,16 @@ void lookup_delete(void);
   Returns false otherwise.
 
 */
-
 bool lookup_arena_index(void* ptr, size_t* arena_indexp);
 
+bool lookup_set_sbrk_lo(void* ptr);
+bool lookup_set_sbrk_hi(void* ptr);
 
+bool lookup_add_heap(void* ptr, size_t index);
+bool lookup_delete_heap(void* ptr);
 
+bool lookup_add_mmap(void* ptr, size_t sz);
+bool lookup_delete_mmap(void* ptr);
 
 
 #endif

@@ -252,6 +252,7 @@
 
 /* SRI's  metatdata header */
 #include "metadata.h"
+#include "lookup.h"
 
 /*
   Debugging:
@@ -2038,6 +2039,8 @@ malloc_init_state (mstate av, bool is_main_arena)
 
   log_init();
 
+  lookup_init();
+
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i)
     {
@@ -2948,8 +2951,12 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                 {
                   set_head (_md_p, size);
                 }
+	      
+	      lookup_add_mmap(p, size);
 
-		/* update statistics */
+	      
+	      
+	      /* update statistics */
 
               int new = atomic_exchange_and_add (&mp_.n_mmaps, 1) + 1;
               atomic_max (&mp_.max_n_mmaps, new);
@@ -3044,6 +3051,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           heap->ar_ptr = av;
           heap->prev = old_heap;
           av->system_mem += heap->size;
+	  lookup_add_heap(heap, av->arena_index);
           arena_mem += heap->size;
           /* Set up the new top.  */
           topchunk = chunk_at_offset (heap, sizeof (*heap));
@@ -3170,9 +3178,14 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
       if (brk != (char *) (MORECORE_FAILURE))
         {
-          if (mp_.sbrk_base == 0)
+          if (mp_.sbrk_base == 0){
             mp_.sbrk_base = brk;
+	    lookup_set_sbrk_lo( brk );
+	  }
+	  
           av->system_mem += size;
+
+	  lookup_incr_sbrk_hi( size );
 
           /*
             If MORECORE extends previous space, we can likewise extend top size.
@@ -3316,6 +3329,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
                   av->system_mem += correction;
 
+		  lookup_incr_sbrk_hi(correction);
+
                   /*
                     If not the first time through, we either have a
                     gap due to foreign sbrk or a non-contiguous region.  Insert a
@@ -3454,6 +3469,9 @@ systrim (size_t pad, mstate av)
               av->system_mem -= released;
               set_head (av->_md_top, (top_size - released) | PREV_INUSE);
               check_malloc_state (av);
+
+	      lookup_decr_sbrk_hi(released);
+
               return 1;
             }
         }
@@ -3486,6 +3504,8 @@ munmap_chunk (chunkinfoptr _md_p)
 
   atomic_decrement (&mp_.n_mmaps);
   atomic_add (&mp_.mmapped_mem, -total_size);
+
+  lookup_delete_mmap(p);
 
   /* If munmap failed the process virtual memory address space is in a
      bad shape.  Just leave the block hanging around, the process will

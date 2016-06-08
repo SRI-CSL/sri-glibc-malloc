@@ -106,8 +106,16 @@ bool lookup_set_sbrk_lo(void* ptr){
   return true;
 }
 
-bool lookup_set_sbrk_hi(void* ptr){
-  sbrk_hi = (uintptr_t) ptr;
+bool lookup_incr_sbrk_hi(size_t sz){
+  if(sbrk_hi == 0){
+    sbrk_hi = sbrk_lo;
+  }
+  sbrk_hi += sz;
+  return true;
+}
+
+bool lookup_decr_sbrk_hi(size_t sz){
+  sbrk_hi -= sz;
   return true;
 }
 

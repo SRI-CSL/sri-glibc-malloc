@@ -65,7 +65,8 @@ void lookup_delete(void);
 bool lookup_arena_index(void* ptr, size_t* arena_indexp);
 
 bool lookup_set_sbrk_lo(void* ptr);
-bool lookup_set_sbrk_hi(void* ptr);
+bool lookup_incr_sbrk_hi(size_t incr);
+bool lookup_decr_sbrk_hi(size_t incr);
 
 bool lookup_add_heap(void* ptr, size_t index);
 bool lookup_delete_heap(void* ptr);

@@ -794,6 +794,7 @@ heap_trim (heap_info *heap, size_t pad)
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
       delete_heap (heap);
+      lookup_delete_heap(heap);
       heap = prev_heap;
 
       if (!prev_inuse(_md_p, p)) /* consolidate backward; SRI: size already done above */
@@ -928,6 +929,9 @@ _int_new_arena (size_t size)
 
   /* update the index of the new arena */
   a->arena_index = arena_count;
+
+  lookup_add_heap(h, a->arena_index);
+
   set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
   LOCK_ARENA(a, ARENA_SITE);
 

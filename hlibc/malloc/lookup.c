@@ -56,7 +56,6 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
  */
 
 
-
 void lookup_init(void){
   if( ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
       ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
@@ -72,25 +71,26 @@ void lookup_delete(void){
 
 
 bool lookup_arena_index(void* ptr, size_t *arena_indexp){
-  uintptr_t val;
+  uintptr_t val = 0;
   bool success;
   
   if(arena_indexp == NULL){
     return false;
   }
 
-  if( sbrk_lo <= (uintptr_t)ptr && (uintptr_t)ptr <= sbrk_hi ){ 
+  if( sbrk_lo <= (uintptr_t)ptr && (uintptr_t)ptr < sbrk_hi ){ 
     *arena_indexp = 1;
     return true;
   }
 
   success = lfht_find(&mmap_tbl, (uintptr_t)ptr, &val);
-
+  //fprintf(stderr, "lfht_find(&mmap_tbl, %p) = %d (val = %d)\n", ptr, success, (int)val);
   if(success && val != TOMBSTONE){
     *arena_indexp = 0;
     return true;
   }
 
+  /* Compare with heap_for_ptr in arena.c */
   uintptr_t heap = ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1));
 
   success =  lfht_find(&heap_tbl, heap, &val);
@@ -107,6 +107,7 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
 bool lookup_set_sbrk_lo(void* ptr){
   sbrk_lo = (uintptr_t) ptr;
+  //fprintf(stderr, "sbrk_lo = %p\n", (void*)sbrk_lo);
   return true;
 }
 
@@ -115,41 +116,49 @@ bool lookup_incr_sbrk_hi(size_t sz){
     sbrk_hi = sbrk_lo;
   }
   sbrk_hi += sz;
+  //fprintf(stderr, "sbrk_hi = %p (delta = %zu)\n", (void*)sbrk_hi, sz);
   return true;
 }
 
 bool lookup_decr_sbrk_hi(size_t sz){
   sbrk_hi -= sz;
+  //fprintf(stderr, "sbrk_hi = %p (delta = -%zu)\n", (void*)sbrk_hi, sz);
   return true;
 }
 
 bool lookup_add_heap(void* ptr, size_t index){
   bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+  //fprintf(stderr, "lookup_add_heap(%p, %zu) = %d\n", ptr, index, retval);
   assert(retval);
   return retval;
 }
 
 bool lookup_delete_heap(void* ptr){
-  bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  //fprintf(stderr, "lookup_delete_heap(%p) = %d\n", ptr, retval);
   assert(retval);
   return retval;
 }
 
 bool lookup_add_mmap(void* ptr, size_t sz){
   bool retval = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
-  //fprintf(stderr, "lookup_add_mmap(%p, %zu)\n", ptr, sz);
+  //fprintf(stderr, "lookup_add_mmap(%p, %zu) = %d\n", ptr, sz, retval);
+  //lookup_dump(stderr);
   assert(retval);
   return retval;
 }
 
 bool lookup_delete_mmap(void* ptr){
   bool retval = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  //fprintf(stderr, "lookup_delete_mmap(%p) = %d\n", ptr, retval);
+  //lookup_dump(stderr);
   assert(retval);
   return retval;
 }
 
 void lookup_dump(FILE* fp){
-  fprintf(fp, "lookup:\n\tsbrk_lo = %p\n\tsbrk_hi = %p\n", (void*)sbrk_lo, (void*)sbrk_hi);
+  fprintf(fp, "lookup:\nsbrk_lo = %p\tsbrk_hi = %p\n", (void*)sbrk_lo, (void*)sbrk_hi);
   lfht_stats(fp, "mmap_table", &mmap_tbl, TOMBSTONE);
   lfht_stats(fp, "heap_table", &heap_tbl, TOMBSTONE);
+  fflush(fp);
 }

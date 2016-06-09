@@ -2037,9 +2037,10 @@ malloc_init_state (mstate av, bool is_main_arena)
   int i;
   mbinptr bin;
 
-  log_init();
-
-  lookup_init();
+  if(is_main_arena){
+    log_init();
+    lookup_init();
+  }
 
   /* Establish circular links for normal bins */
   for (i = 1; i < NBINS; ++i)
@@ -3180,12 +3181,16 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         {
           if (mp_.sbrk_base == 0){
             mp_.sbrk_base = brk;
-	    lookup_set_sbrk_lo( brk );
+	    if(av == &main_arena){
+	      lookup_set_sbrk_lo( brk );
+	    }
 	  }
 	  
           av->system_mem += size;
 
-	  lookup_incr_sbrk_hi( size );
+	  if(av == &main_arena){
+	    lookup_incr_sbrk_hi( size );
+	  }
 
           /*
             If MORECORE extends previous space, we can likewise extend top size.
@@ -3328,8 +3333,10 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   check_top(av);
 
                   av->system_mem += correction;
-
-		  lookup_incr_sbrk_hi(correction);
+		  
+		  if(av == &main_arena){
+		    lookup_incr_sbrk_hi(correction);
+		  }
 
                   /*
                     If not the first time through, we either have a
@@ -3470,7 +3477,9 @@ systrim (size_t pad, mstate av)
               set_head (av->_md_top, (top_size - released) | PREV_INUSE);
               check_malloc_state (av);
 
-	      lookup_decr_sbrk_hi(released);
+	      if(av == &main_arena){
+		lookup_decr_sbrk_hi(released);
+	      }
 
               return 1;
             }

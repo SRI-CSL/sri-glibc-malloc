@@ -189,6 +189,7 @@ void lfht_stats(FILE* fp, const char* name, lfht_t *ht, uintptr_t tombstone){
   for(index = 0; index < ht->max; index++){
     entry = ht->table[index];
     if(entry.key != 0){
+      //fprintf(fp, "[%d]: %p => %"PRIuPTR"\n", index, (void*)entry.key, entry.val);
       if(entry.val != tombstone){  
 	count++; 
       } else {

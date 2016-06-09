@@ -3557,7 +3557,11 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   if (p != op) {
     /* remove the old one */
-    unregister_chunk(av, op, false); 
+    unregister_chunk(av, op, false);
+
+    lookup_delete_mmap(op);
+    lookup_add_mmap(p, new_size);
+
     _md_p = register_chunk(av, p, true, 9);
     _md_p->prev_size = offset;
   }

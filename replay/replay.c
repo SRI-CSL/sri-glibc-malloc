@@ -34,7 +34,7 @@ int main(int argc, char* argv[]){
 
   code = process_file(argv[1], verbose);
   
-  if (verbose) {
+  if (true || verbose) {
     malloc_stats();
   }
 

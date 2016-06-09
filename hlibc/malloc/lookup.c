@@ -137,6 +137,7 @@ bool lookup_delete_heap(void* ptr){
 
 bool lookup_add_mmap(void* ptr, size_t sz){
   bool retval = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+  //fprintf(stderr, "lookup_add_mmap(%p, %zu)\n", ptr, sz);
   assert(retval);
   return retval;
 }

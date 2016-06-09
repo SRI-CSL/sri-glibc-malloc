@@ -93,7 +93,7 @@ int main(int argc, char* argv[]){
    
   }
   
-  if (verbose) {
+  if (true || verbose) {
     malloc_stats();
   }
   

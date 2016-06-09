@@ -68,7 +68,7 @@ extern bool lookup_arena_index(void* ptr, size_t* arena_indexp);
 extern bool lookup_set_sbrk_lo(void* ptr);
 extern bool lookup_incr_sbrk_hi(size_t incr);
 extern bool lookup_decr_sbrk_hi(size_t incr);
-
+extern bool lookup_add_sbrk_region(void* lo, void* hi);
 extern bool lookup_add_heap(void* ptr, size_t index);
 extern bool lookup_delete_heap(void* ptr);
 

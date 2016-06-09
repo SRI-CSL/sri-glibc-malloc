@@ -29,11 +29,25 @@
  * only the main_arena futzes with these, and when it
  * does it has the main_arena lock. So we do not need
  * to do anything ourselves.
+ *
+ * Note Bene: this is simplistic, since glibc can extend sbrked mem
+ * using mmap, so we will need arrays here. Need to grok more.
+ *
  */
+typedef struct sbrk_region_s {
+  uintptr_t lo;
+  uintptr_t hi;
+  uintptr_t max;
+} sbrk_region_t;
+
+static int32_t sbrk_region_count = 0;
+static sbrk_region_t sbrk_regions[1024];
 
 static uintptr_t sbrk_lo;
 
 static uintptr_t sbrk_hi;
+
+static uintptr_t sbrk_max;
 
 
 /* 
@@ -104,6 +118,15 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
 }
 
+bool lookup_add_sbrk_region(void* lo, void* hi){
+  sbrk_region_count++;
+  assert(sbrk_region_count < 1024);
+
+  sbrk_regions[sbrk_region_count].lo = (uintptr_t)lo;
+  sbrk_regions[sbrk_region_count].hi = (uintptr_t)hi;
+
+  return true;
+}
 
 bool lookup_set_sbrk_lo(void* ptr){
   sbrk_lo = (uintptr_t) ptr;
@@ -116,6 +139,9 @@ bool lookup_incr_sbrk_hi(size_t sz){
     sbrk_hi = sbrk_lo;
   }
   sbrk_hi += sz;
+
+  if(sbrk_max <  sbrk_hi){ sbrk_max = sbrk_hi; }
+
   //fprintf(stderr, "sbrk_hi = %p (delta = %zu)\n", (void*)sbrk_hi, sz);
   return true;
 }
@@ -130,6 +156,7 @@ bool lookup_add_heap(void* ptr, size_t index){
   bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
   //fprintf(stderr, "lookup_add_heap(%p, %zu) = %d\n", ptr, index, retval);
   assert(retval);
+  if(!retval){ abort(); }
   return retval;
 }
 
@@ -137,6 +164,7 @@ bool lookup_delete_heap(void* ptr){
   bool retval = lfht_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
   //fprintf(stderr, "lookup_delete_heap(%p) = %d\n", ptr, retval);
   assert(retval);
+  if(!retval){ abort(); }
   return retval;
 }
 
@@ -145,6 +173,7 @@ bool lookup_add_mmap(void* ptr, size_t sz){
   //fprintf(stderr, "lookup_add_mmap(%p, %zu) = %d\n", ptr, sz, retval);
   //lookup_dump(stderr);
   assert(retval);
+  if(!retval){ abort(); }
   return retval;
 }
 
@@ -153,11 +182,14 @@ bool lookup_delete_mmap(void* ptr){
   //fprintf(stderr, "lookup_delete_mmap(%p) = %d\n", ptr, retval);
   //lookup_dump(stderr);
   assert(retval);
+  if(!retval){ abort(); }
   return retval;
 }
 
 void lookup_dump(FILE* fp){
-  fprintf(fp, "lookup:\nsbrk_lo = %p\tsbrk_hi = %p\n", (void*)sbrk_lo, (void*)sbrk_hi);
+  fprintf(fp, 
+	  "lookup:\nsbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
+	  (void*)sbrk_lo, (void*)sbrk_hi, (void*)sbrk_max);
   lfht_stats(fp, "mmap_table", &mmap_tbl, TOMBSTONE);
   lfht_stats(fp, "heap_table", &heap_tbl, TOMBSTONE);
   fflush(fp);

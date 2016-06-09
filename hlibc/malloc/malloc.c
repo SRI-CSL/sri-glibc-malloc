@@ -2828,6 +2828,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   long correction;                /* arg to 2nd MORECORE call */
   char *snd_brk;                  /* 2nd return val */
 
+  char *mbrk;                     /* start of the mmapped extension to sbrked memory */
+
   INTERNAL_SIZE_T front_misalign; /* unusable bytes at front of new space */
   INTERNAL_SIZE_T end_misalign;   /* partial page left at end of new space */
   char *aligned_brk;              /* aligned offset into brk */
@@ -3014,6 +3016,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   old_end = (char *) (chunk_at_offset (old_top, old_size));
 
   brk = snd_brk = (char *) (MORECORE_FAILURE);
+  mbrk = NULL;
 
   /*
     If not the first time through, we require old_size to be
@@ -3092,10 +3095,10 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         /* We can at least try to use to mmap memory.  */
         goto try_mmap;
     }
-  else     /* av == main_arena */
+  else     
+    { /* av == main_arena */
 
-
-    { /* Request enough space for nb + pad + overhead */
+      /* Request enough space for nb + pad + overhead */
       size = nb + mp_.top_pad + MINSIZE;
 
       /*
@@ -3158,7 +3161,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           /* Don't try if size wraps around 0 */
           if ((unsigned long) (size) > (unsigned long) (nb))
             {
-              char *mbrk = (char *) (sys_MMAP (0, size, PROT_READ | PROT_WRITE, 0));
+              
+	      mbrk = (char *) (sys_MMAP (0, size, PROT_READ | PROT_WRITE, 0));
 
               if (mbrk != MAP_FAILED)
                 {
@@ -3181,16 +3185,16 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         {
           if (mp_.sbrk_base == 0){
             mp_.sbrk_base = brk;
-	    if(av == &main_arena){
-	      lookup_set_sbrk_lo( brk );
-	    }
+	    lookup_set_sbrk_lo( brk );
 	  }
 	  
+	  //FIXME: if mbrk != NULL we are creating a new sbrk segment that lookup
+	  //has to know about. Then we also need to check how systrim works with
+	  //regards to these multiple "sbrk"-ed regions.
+
           av->system_mem += size;
 
-	  if(av == &main_arena){
-	    lookup_incr_sbrk_hi( size );
-	  }
+	  lookup_incr_sbrk_hi( size );
 
           /*
             If MORECORE extends previous space, we can likewise extend top size.
@@ -3334,7 +3338,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
                   av->system_mem += correction;
 		  
-		  if(av == &main_arena){
+		  if(correction > 0){
 		    lookup_incr_sbrk_hi(correction);
 		  }
 
@@ -3379,7 +3383,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                 }
             }
         }
-    } /* if (av !=  &main_arena) */
+    } /* (av ==  &main_arena) */
 
   if ((unsigned long) av->system_mem > (unsigned long) (av->max_system_mem))
     av->max_system_mem = av->system_mem;

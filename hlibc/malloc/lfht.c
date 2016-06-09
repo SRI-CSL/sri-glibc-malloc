@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 
 #include "lfht.h"
@@ -180,3 +181,23 @@ bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp){
   return false;
 }
   
+
+
+void lfht_stats(FILE* fp, const char* name, lfht_t *ht, uintptr_t tombstone){
+  uint32_t index, count = 0, tombstoned = 0;
+  lfht_entry_t entry;
+  for(index = 0; index < ht->max; index++){
+    entry = ht->table[index];
+    if(entry.key != 0){
+      if(entry.val != tombstone){  
+	count++; 
+      } else {
+	tombstoned++;
+      }
+    }
+  }
+  fprintf(fp, 
+	  "%s: max = %"PRIu32", count = %"PRIu32" tombstoned = %"PRIu32" total = %"PRIu32"\n",
+	  name, ht->max, count, tombstoned, count + tombstoned);
+  fflush(fp);
+}

@@ -3323,6 +3323,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               if (snd_brk != (char *) (MORECORE_FAILURE))
                 {
                   topchunk = (mchunkptr) aligned_brk;
+		  fprintf(stderr, "topchunk = %p\n", aligned_brk);
                   av->_md_top = register_chunk(av, topchunk, false, 6);
                   set_head (av->_md_top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
                   check_top(av);
@@ -3646,6 +3647,16 @@ __libc_free (void *mem)
   }
 
   ar_ptr = arena_from_chunk (p);
+
+  size_t index = 0;
+  bool success = lookup_arena_index(p, &index);
+  if(!success){
+    fprintf(stderr, 
+	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
+	    p, ar_ptr->arena_index, p->arena_index);
+    lookup_dump(stderr);
+  }
+  assert(success);
   
   if (chunk_is_mmapped (p))                       /* release mmapped memory. */
     {
@@ -3729,6 +3740,16 @@ __libc_realloc (void *oldmem, size_t bytes)
   }
 
   ar_ptr = arena_from_chunk (oldp);
+
+  size_t index = 0;
+  bool success = lookup_arena_index(oldp, &index);
+  if(!success){
+    fprintf(stderr, 
+	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
+	    oldp, ar_ptr->arena_index, oldp->arena_index);
+    lookup_dump(stderr);
+  }
+  assert(success);
 
   LOCK_ARENA(ar_ptr, REALLOC_SITE);
 
@@ -5748,6 +5769,7 @@ __malloc_stats (void)
   fprintf (stderr, "max mmap regions = %10u\n", (unsigned int) mp_.max_n_mmaps);
   fprintf (stderr, "max mmap bytes   = %10lu\n",
            (unsigned long) mp_.max_mmapped_mem);
+  lookup_dump(stderr);
   ((_IO_FILE *) stderr)->_flags2 |= old_flags2;
   _IO_funlockfile (stderr);
 }

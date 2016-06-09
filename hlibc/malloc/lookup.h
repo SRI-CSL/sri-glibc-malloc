@@ -22,6 +22,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 
 /* Compile-time constants.  (once lived in arena.c) */
@@ -46,9 +47,9 @@
 
 
 
-void lookup_init(void);
+extern void lookup_init(void);
 
-void lookup_delete(void);
+extern void lookup_delete(void);
 
 /*
   Returns true if it figures out the arena the ptr belongs to,
@@ -62,17 +63,18 @@ void lookup_delete(void);
   Returns false otherwise.
 
 */
-bool lookup_arena_index(void* ptr, size_t* arena_indexp);
+extern bool lookup_arena_index(void* ptr, size_t* arena_indexp);
 
-bool lookup_set_sbrk_lo(void* ptr);
-bool lookup_incr_sbrk_hi(size_t incr);
-bool lookup_decr_sbrk_hi(size_t incr);
+extern bool lookup_set_sbrk_lo(void* ptr);
+extern bool lookup_incr_sbrk_hi(size_t incr);
+extern bool lookup_decr_sbrk_hi(size_t incr);
 
-bool lookup_add_heap(void* ptr, size_t index);
-bool lookup_delete_heap(void* ptr);
+extern bool lookup_add_heap(void* ptr, size_t index);
+extern bool lookup_delete_heap(void* ptr);
 
-bool lookup_add_mmap(void* ptr, size_t sz);
-bool lookup_delete_mmap(void* ptr);
+extern bool lookup_add_mmap(void* ptr, size_t sz);
+extern bool lookup_delete_mmap(void* ptr);
 
+extern void lookup_dump(FILE*);
 
 #endif

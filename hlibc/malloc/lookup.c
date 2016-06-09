@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "gassert.h"
 #include "lookup.h"
 #include "lfht.h"
 
@@ -79,13 +80,15 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
   }
 
   if( sbrk_lo <= (uintptr_t)ptr && (uintptr_t)ptr <= sbrk_hi ){ 
-    return 1;
+    *arena_indexp = 1;
+    return true;
   }
 
   success = lfht_find(&mmap_tbl, (uintptr_t)ptr, &val);
 
   if(success && val != TOMBSTONE){
-    return 0;
+    *arena_indexp = 0;
+    return true;
   }
 
   uintptr_t heap = ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1));
@@ -93,7 +96,8 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
   success =  lfht_find(&heap_tbl, heap, &val);
   
   if(success && val != TOMBSTONE){
-    return val;
+    *arena_indexp = (size_t)val;
+    return true;
   }
   
   return 0;
@@ -120,17 +124,31 @@ bool lookup_decr_sbrk_hi(size_t sz){
 }
 
 bool lookup_add_heap(void* ptr, size_t index){
-  return lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+  bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+  assert(retval);
+  return retval;
 }
 
 bool lookup_delete_heap(void* ptr){
-  return lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  assert(retval);
+  return retval;
 }
 
 bool lookup_add_mmap(void* ptr, size_t sz){
-  return lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+  bool retval = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+  assert(retval);
+  return retval;
 }
 
 bool lookup_delete_mmap(void* ptr){
-  return lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  assert(retval);
+  return retval;
+}
+
+void lookup_dump(FILE* fp){
+  fprintf(fp, "lookup:\n\tsbrk_lo = %p\n\tsbrk_hi = %p\n", (void*)sbrk_lo, (void*)sbrk_hi);
+  lfht_stats(fp, "mmap_table", &mmap_tbl, TOMBSTONE);
+  lfht_stats(fp, "heap_table", &heap_tbl, TOMBSTONE);
 }

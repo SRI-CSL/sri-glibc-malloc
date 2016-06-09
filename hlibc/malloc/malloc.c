@@ -3323,7 +3323,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               if (snd_brk != (char *) (MORECORE_FAILURE))
                 {
                   topchunk = (mchunkptr) aligned_brk;
-		  fprintf(stderr, "topchunk = %p\n", aligned_brk);
                   av->_md_top = register_chunk(av, topchunk, false, 6);
                   set_head (av->_md_top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
                   check_top(av);

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include "debug.h"
+#include "lookup.h"
 
 #ifdef NDEBUG
 # define assert(expr) ((void) 0)
@@ -23,6 +24,7 @@ __malloc_assert (const char *assertion, const char *file, unsigned int line,
 		     file, line,
 		     function ? function : "", function ? ": " : "",
 		     assertion);
+  lookup_dump(stderr);
   fflush (stderr);
   abort ();
 }

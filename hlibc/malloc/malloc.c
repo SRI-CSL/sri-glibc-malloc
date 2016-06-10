@@ -3183,18 +3183,30 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
       if (brk != (char *) (MORECORE_FAILURE))
         {
-          if (mp_.sbrk_base == 0){
-            mp_.sbrk_base = brk;
-	    lookup_set_sbrk_lo( brk );
-	  }
-	  
 	  //FIXME: if mbrk != NULL we are creating a new sbrk segment that lookup
 	  //has to know about. Then we also need to check how systrim works with
 	  //regards to these multiple "sbrk"-ed regions.
+	  
+	  if(mbrk != NULL){
+
+	    lookup_add_sbrk_region(brk, snd_brk);
+
+	  } else {
+
+	    if(mp_.sbrk_base == 0){
+	      lookup_set_sbrk_lo( brk );
+	    }
+
+	    lookup_incr_sbrk_hi( size );
+
+	  }
+
+          if (mp_.sbrk_base == 0){
+            mp_.sbrk_base = brk;
+	  }
+	  
 
           av->system_mem += size;
-
-	  lookup_incr_sbrk_hi( size );
 
           /*
             If MORECORE extends previous space, we can likewise extend top size.

@@ -25,13 +25,11 @@
 #include "lfht.h"
 
 /* 
- * The lo and hi addresses of sbrk mem. Note that
- * only the main_arena futzes with these, and when it
- * does it has the main_arena lock. So we do not need
- * to do anything ourselves.
+ * The sbrked regions of the main_arena.
  *
- * Note Bene: this is simplistic, since glibc can extend sbrked mem
- * using mmap, so we will need arrays here. Need to grok more.
+ * Note that only the main_arena futzes with these, and when it does
+ * it has the main_arena lock. So we do not need to do anything
+ * ourselves.
  *
  */
 typedef struct sbrk_region_s {
@@ -42,13 +40,6 @@ typedef struct sbrk_region_s {
 
 static int32_t sbrk_region_count = 0;
 static sbrk_region_t sbrk_regions[1024];
-
-static uintptr_t sbrk_lo;
-
-static uintptr_t sbrk_hi;
-
-static uintptr_t sbrk_max;
-
 
 /* 
  *  Just a placeholder to mark where we *really* should be using
@@ -87,16 +78,20 @@ void lookup_delete(void){
 bool lookup_arena_index(void* ptr, size_t *arena_indexp){
   uintptr_t val = 0;
   bool success;
-  
+  uint32_t i;
+
   if(arena_indexp == NULL){
     return false;
   }
 
-  if( sbrk_lo <= (uintptr_t)ptr && (uintptr_t)ptr < sbrk_hi ){ 
-    *arena_indexp = 1;
-    return true;
+  for(i = 0; i <= sbrk_region_count; i++){
+    if( sbrk_regions[i].lo <= (uintptr_t)ptr && 
+	(uintptr_t)ptr < sbrk_regions[i].hi ){ 
+      *arena_indexp = 1;
+      return true;
+    }
   }
-
+  
   success = lfht_find(&mmap_tbl, (uintptr_t)ptr, &val);
   //fprintf(stderr, "lfht_find(&mmap_tbl, %p) = %d (val = %d)\n", ptr, success, (int)val);
   if(success && val != TOMBSTONE){
@@ -120,34 +115,39 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
 bool lookup_add_sbrk_region(void* lo, void* hi){
   sbrk_region_count++;
+  //FIXME!!
   assert(sbrk_region_count < 1024);
 
   sbrk_regions[sbrk_region_count].lo = (uintptr_t)lo;
   sbrk_regions[sbrk_region_count].hi = (uintptr_t)hi;
+  sbrk_regions[sbrk_region_count].max = (uintptr_t)hi;
 
   return true;
 }
 
 bool lookup_set_sbrk_lo(void* ptr){
-  sbrk_lo = (uintptr_t) ptr;
+  assert(sbrk_region_count == 0);
+  sbrk_regions[sbrk_region_count].lo = (uintptr_t) ptr;
   //fprintf(stderr, "sbrk_lo = %p\n", (void*)sbrk_lo);
   return true;
 }
 
 bool lookup_incr_sbrk_hi(size_t sz){
-  if(sbrk_hi == 0){
-    sbrk_hi = sbrk_lo;
+  if(sbrk_regions[sbrk_region_count].hi == 0){
+    sbrk_regions[sbrk_region_count].hi = sbrk_regions[sbrk_region_count].lo;
   }
-  sbrk_hi += sz;
-
-  if(sbrk_max <  sbrk_hi){ sbrk_max = sbrk_hi; }
-
+  sbrk_regions[sbrk_region_count].hi += sz;
+  
+  if(sbrk_regions[sbrk_region_count].max <  sbrk_regions[sbrk_region_count].hi){
+    sbrk_regions[sbrk_region_count].max =  sbrk_regions[sbrk_region_count].hi;
+  }
+  
   //fprintf(stderr, "sbrk_hi = %p (delta = %zu)\n", (void*)sbrk_hi, sz);
   return true;
 }
 
 bool lookup_decr_sbrk_hi(size_t sz){
-  sbrk_hi -= sz;
+  sbrk_regions[sbrk_region_count].hi -= sz;
   //fprintf(stderr, "sbrk_hi = %p (delta = -%zu)\n", (void*)sbrk_hi, sz);
   return true;
 }
@@ -187,10 +187,17 @@ bool lookup_delete_mmap(void* ptr){
 }
 
 void lookup_dump(FILE* fp){
-  fprintf(fp, 
-	  "lookup:\nsbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
-	  (void*)sbrk_lo, (void*)sbrk_hi, (void*)sbrk_max);
-  lfht_stats(fp, "mmap_table", &mmap_tbl, TOMBSTONE);
-  lfht_stats(fp, "heap_table", &heap_tbl, TOMBSTONE);
+  uint32_t i;
+  fprintf(fp, "lookup:\n");
+  for(i = 0; i <= sbrk_region_count; i++){
+    fprintf(fp, 
+	    " sbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
+	    i, 
+	    (void*)sbrk_regions[i].lo, 
+	    (void*)sbrk_regions[i].hi, 
+	    (void*)sbrk_regions[i].max);
+  }
+  lfht_stats(fp, " mmap_table", &mmap_tbl, TOMBSTONE);
+  lfht_stats(fp, " heap_table", &heap_tbl, TOMBSTONE);
   fflush(fp);
 }

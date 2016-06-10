@@ -146,8 +146,9 @@ bool lookup_incr_sbrk_hi(size_t sz){
   return true;
 }
 
+/* looks to be a bug in glibc. never do we trim mmapped sbrk mem */
 bool lookup_decr_sbrk_hi(size_t sz){
-  sbrk_regions[sbrk_region_count].hi -= sz;
+  sbrk_regions[0].hi -= sz;
   //fprintf(stderr, "sbrk_hi = %p (delta = -%zu)\n", (void*)sbrk_hi, sz);
   return true;
 }

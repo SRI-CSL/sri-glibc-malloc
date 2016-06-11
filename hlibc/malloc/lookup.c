@@ -29,7 +29,8 @@
  *
  * Note that only the main_arena futzes with these, and when it does
  * it has the main_arena lock. So we do not need to do anything
- * ourselves.
+ * ourselves. Though lots of threads might be reading them, so
+ * we may need to make them atomic(ish)
  *
  */
 
@@ -117,13 +118,16 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 }
 
 bool lookup_add_sbrk_region(void* lo, void* hi){
-  sbrk_region_count++;
-  //FIXME!!
-  assert(sbrk_region_count < SBRK_MAX_SEGMENTS);
+  int nregion = sbrk_region_count + 1;
 
-  sbrk_regions[sbrk_region_count].lo = (uintptr_t)lo;
-  sbrk_regions[sbrk_region_count].hi = (uintptr_t)hi;
-  sbrk_regions[sbrk_region_count].max = (uintptr_t)hi;
+  //FIXME!!
+  assert(nregion < SBRK_MAX_SEGMENTS);
+
+  sbrk_regions[nregion].lo = (uintptr_t)lo;
+  sbrk_regions[nregion].hi = (uintptr_t)hi;
+  sbrk_regions[nregion].max = (uintptr_t)hi;
+
+  sbrk_region_count = nregion;
 
   return true;
 }

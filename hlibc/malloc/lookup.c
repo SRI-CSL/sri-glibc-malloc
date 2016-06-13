@@ -32,6 +32,14 @@
  * ourselves. Though lots of threads might be reading them, so
  * we may need to make them atomic(ish)
  *
+ * To eliminate racish things we probably want to:
+ * 
+ * split out the actual sbrk region sbrk_regions[0] from the mmapped
+ * ones (which do not grow so do not need a max) and make them atomic.
+ *
+ * if we are careful with the array of mmapped ones we probably only need
+ * to make the count atomic.
+ *
  */
 
 /* FIXME: make this dynamic I suppose. */

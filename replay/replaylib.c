@@ -192,6 +192,9 @@ static bool replayline(lphash_t* htbl, replay_stats_t* statsp, const uchar* buff
     retval = replay_realloc(htbl, statsp, buffer, buffersz); 
     break;
   }
+  case 'i', 'e':
+    retval = true; 
+    break;
   default : retval = false;
   }
   

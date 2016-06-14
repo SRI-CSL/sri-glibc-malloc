@@ -45,19 +45,20 @@
 /* FIXME: make this dynamic I suppose. */
 #define SBRK_MAX_SEGMENTS 1024
 
+/* Max is just for curiosity. */
 typedef struct sbrk_region_s {
   uintptr_t lo;
   uintptr_t hi;
   uintptr_t max;
 } sbrk_region_t;
 
+
 static int32_t sbrk_region_count = 0;
 static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
 
 /* 
- *  Just a placeholder to mark where we *really* should be using
- *  lfht_delete if we had it. Note that in our world 0 is an invalid
- *  value for either a heap index or the size of a mmapped region.
+ *  Note that in our world 0 is an invalid value for either a heap
+ *  index or the size of a mmapped region.
  */
 #define TOMBSTONE 0
 
@@ -70,7 +71,7 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
 
 /*
  * N.B. We could eliminate the need for a mmapped arena 
- * if we also stored the offset of the region, but ...
+ * if we also stored the offset of the region, somehow ...
  */
 
 

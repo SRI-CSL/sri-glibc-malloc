@@ -79,6 +79,12 @@ static void _writelogentry(char func, size_t size1, size_t size2, void *p, void 
     storehexstring(&buffer[61], (uintptr_t)caller);
     sz = REALLOCLEN;
     break;
+  case 'e': // 'e' for exit() as 'f' is already taken
+    sz = FINILEN;
+    break;
+  case 'i': // 'i' for init, as 'e' already taken, could also be 's'
+    sz = INITLEN;
+    break;
   default:
     sz = 5;
   }
@@ -215,6 +221,7 @@ void *realloc(void *ptr, size_t size)
 /* Instead of __attribute ((constructor)), setup to run in init.
    This way we run earlier, and can capture more that happens during startup.
    Unfortunately, we can't run in preinit as part of a DSO.
+   We write an initialization entry to mark the top.
  */
 
 static void mhook_init (void)
@@ -227,6 +234,7 @@ static void mhook_init (void)
     if (fd > 0) {
       logfd = fd;
       ourfd = true;
+      _writelogentry('i', 0, 0, (void *)0, (void *)0, (void *)0);
     }
   }
 }
@@ -252,6 +260,12 @@ static void mhook_fini (void)
     logfd = 2;
   }
 #endif
+  /* Regardless of the comment above, to support SPECcpu2006 where a single benchmark
+   can run on multiple inputs, we want to mark an exit call */
+
+  if(ourfd > 0) {
+    _writelogentry('e', 0, 0, (void *)0, (void *)0, (void *)0);
+  }
 }
 
 __attribute__((section(".fini_array"))) typeof(mhook_fini) *__fini = mhook_fini;

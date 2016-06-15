@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <time.h>
+#include <linux/limits.h>
 
 #include "replaylib.h"
 
@@ -23,6 +24,8 @@ const bool deviation_warnings = false;
 const bool track_allocations = false;
 
 const size_t BUFFERSZ = 1024;
+
+#define BZCAT "bzcat"
 
 typedef unsigned char uchar;
 
@@ -76,7 +79,8 @@ int process_file(const char *filename, bool verbose){
   lphash_t htbl;
   replay_stats_t stats;
   int code;
-  
+  bool compressed = false;
+  char pathbuf[PATH_MAX+sizeof(BZCAT)+2] = {0}; // "bzcat " - with terminating NULL
   code = 0;
   linecount = 0;
   fp = NULL;
@@ -89,7 +93,13 @@ int process_file(const char *filename, bool verbose){
     return 1;
   }
 
-  fp = fopen(filename, "r");
+  if(!strncmp(".bz2", filename + strlen(filename) - 4, 4)) {
+    compressed = true;
+    snprintf(pathbuf, sizeof(pathbuf), "%s %s", BZCAT, filename);
+    fp = popen(pathbuf, "r");
+  } else {
+    fp = fopen(filename, "r");
+  }
   if (fp == NULL) {
     fprintf(stderr, "Could not open %s: %s\n", filename, strerror(errno));
     code = 1;
@@ -114,7 +124,13 @@ int process_file(const char *filename, bool verbose){
 
  exit:
 
-  if (fp != NULL) { fclose(fp); }
+  if (fp != NULL) { 
+    if(compressed) {
+      pclose(fp);
+    } else {
+      fclose(fp);
+    }
+  }
 
 
   fprintf(stderr, "Replayed %zu lines from  %s\n", linecount, filename);
@@ -192,7 +208,8 @@ static bool replayline(lphash_t* htbl, replay_stats_t* statsp, const uchar* buff
     retval = replay_realloc(htbl, statsp, buffer, buffersz); 
     break;
   }
-  case 'i', 'e':
+  case 'i':
+  case 'e':
     retval = true; 
     break;
   default : retval = false;

@@ -37,6 +37,7 @@ make install
 Now in the `${HEAPMETADATA}/src/hlibc` directory do:
 
 ```
+make init
 make update
 ```
 This copies our malloc sources over to the glibc sources in the
@@ -52,7 +53,7 @@ make build
 
 ## 5. Developing
 
-When developing 3. and 4. can be combined by doing:
+After doing 3 once you can combine the rest when developing by doing:
 
 ```
 make

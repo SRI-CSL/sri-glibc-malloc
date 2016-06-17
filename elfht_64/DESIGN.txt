@@ -1,0 +1,4 @@
+Note that in our use case will not have contention in assigning multiple
+values to single keys. We will have many reads and sparse writes.
+
+

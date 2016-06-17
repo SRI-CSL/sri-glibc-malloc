@@ -17,7 +17,7 @@ typedef struct lfht_entry_s {
 
 
 typedef struct lfht_tbl_hdr_s {
-  // flag to indicate if this table contains relevant ke/value pairs
+  // flag to indicate if this table contains relevant key/value pairs
   atomic_bool assimilated;
   //length of the table in units of lfht_entry_t's
   uint32_t max;

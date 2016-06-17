@@ -1,4 +1,43 @@
+Thinking out loud.
+
 Note that in our use case will not have contention in assigning multiple
 values to single keys. We will have many reads and sparse writes.
 
+
+The main idea in growing a table will be to maintain a linked list of
+tables, old and new.
+
+handle  ->  new table -> old table -> older table -> ... -> oldest table
+
+we will not stress about reclaiming old tables.
+drew's idea is that when a thread inserts/updates into the new table
+it must move at least three key/vals from the old table to the new table.
+thus(?) maintaining  the invariant that a table fills only *after*  it
+has completely *assimiliated* the table that it replaces.
+
+
+
+so a table can be in one of three states:
+
+0. the current table is the only table.
+
+1. there is more than one table, the current table is new, and it's predecessor still contains key-value pairs
+that have not yet been assimilated into the new table.
+
+2. there is more than one table, the current table is new, and it's predecessor table contains no key-value pairs
+that have not yet been assimilated into the new table.
+
+
+we should be able to distinguish these three states easily.
+
+
+
+we should only ever insert into the front table.
+
+should a "finding" thread do any work?
+
+
+we can mark key/value pairs in the old table as assimilated by a single low order bit in
+the key (since keys are going to have pretty big alignment properties (being regions not
+individual pointers).
 

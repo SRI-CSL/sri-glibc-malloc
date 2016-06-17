@@ -1,5 +1,6 @@
 /* From: http://dbp-consulting.com/tutorials/debugging/linuxProgramStartup.html */
 #include <stdio.h>
+#include <stdlib.h>
 
 void preinit(int argc, char **argv, char **envp) {
  printf("%s\n", __FUNCTION__);

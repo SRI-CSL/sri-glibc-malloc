@@ -6,15 +6,9 @@
 #include "utils.h"
 #include "sri_atomic.h"
 
-#include <pthread.h>
-
-static pthread_cond_t gate;
-
 bool init_lfht(lfht_t *ht, uint32_t max){
   uint64_t sz;
   void *addr;
-
-  pthread_cond_init(&gate, NULL);
 
   if(ht != NULL && max != 0){
     sz = max * sizeof(lfht_entry_t);

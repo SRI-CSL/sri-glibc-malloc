@@ -48,12 +48,6 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
-/* for sanity checking */
-#ifndef NDEBUG
-static bool is_power_of_two(uint32_t n) {
-  return (n & (n - 1)) == 0;
-}
-#endif
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
 static inline size_t mod_power_of_two(size_t x, size_t y){

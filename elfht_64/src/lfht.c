@@ -6,6 +6,7 @@
 #include "atomic.h"
 
 
+#define MIGRATIONS_PER_ACCESS   3
 
 /* 
  *
@@ -118,7 +119,7 @@ bool _grow_table(lfht_t *ht){
       nhdr->next = ohdr;
 
       if(cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
-	assert(ht->state == INITIAL || ht->state == EXPANDED);
+	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
 	atomic_store(&ht->state, EXPANDING);
 	return true;
       } else {
@@ -131,21 +132,42 @@ bool _grow_table(lfht_t *ht){
   return false;
 }
 
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *to_hdr, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count);
+
+static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash){
+  unsigned int table_state = atomic_load(&ht->state);
+
+  if(table_state == EXPANDING){
+    /* gotta pitch in and do some migrating */
+    
+    uint32_t moved = assimilate(ht, hdr, hdr->next, hash,  MIGRATIONS_PER_ACCESS);
+    if(moved != MIGRATIONS_PER_ACCESS){
+      /* the move has finished! */
+      atomic_store(&hdr->next->assimilated, true);
+      atomic_store(&ht->state, EXPANDED);
+    }
+  }
+}
+
 
 bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
-  uint32_t mask, j, i;
+  uint32_t hash, mask, j, i;
+  lfht_tbl_hdr_t *hdr;
   lfht_entry_t*  table;
-  lfht_entry_t entry, desired;
-
+  lfht_entry_t entry;
+  
   assert( ! is_assimilated(key) );
   assert(val != TOMBSTONE);
 
   if(ht != NULL  && ht->table_hdr != NULL  && key != 0  && val != TOMBSTONE){
-    table = ht->table_hdr->table;
-    desired.key = key;
-    desired.val = val;
-    mask = ht->table_hdr->max - 1;
-    j = jenkins_hash_ptr((void *)key) & mask;
+    hdr = ht->table_hdr;
+    table = hdr->table;
+    mask = hdr->max - 1;
+    hash = jenkins_hash_ptr((void *)key);
+
+    _migrate_table(ht, hdr, hash);
+
+    j = hash & mask;
     i = j;
 
     while (true) {
@@ -153,13 +175,13 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
       entry = table[i];
 
       if(entry.key == 0){
-	if(cas_64((volatile uint64_t *)&(table[i].key), entry.key, desired.key)){
+	if(cas_64((volatile uint64_t *)&(table[i].key), entry.key, key)){
 	  //iam: discuss
 	  table[i].val = val;
 
-	  const uint_least32_t count = atomic_fetch_add(&ht->table_hdr->count, 1);
+	  const uint_least32_t count = atomic_fetch_add(&hdr->count, 1);
 
-	  if(count + 1 > ht->table_hdr->threshold){
+	  if(count + 1 > hdr->threshold){
 	    _grow_table(ht);
 	  }
 	  
@@ -171,7 +193,7 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
       }
       
       if(entry.key == key){
-	if(cas_64((volatile uint64_t *)&(table[i].val), entry.val, desired.val)){
+	if(cas_64((volatile uint64_t *)&(table[i].val), entry.val, val)){
 	  return true;
 	} else {
 	  continue;
@@ -189,25 +211,30 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
 }
 
 bool lfht_remove(lfht_t *ht, uint64_t key){
-  uint32_t mask, j, i;
+  uint32_t hash, mask, j, i;
+  lfht_tbl_hdr_t *hdr;
   lfht_entry_t*  table;
-  lfht_entry_t entry, desired;
+  lfht_entry_t entry;
   
   if(ht != NULL  && ht->table_hdr != NULL  && key != 0){
-    table = ht->table_hdr->table;
-    mask = ht->table_hdr->max - 1;
-    desired.key = key;
-    desired.val = TOMBSTONE;
 
-    j = jenkins_hash_ptr((void *)key) & mask;
+    hdr = ht->table_hdr;
+    table = hdr->table;
+    mask = hdr->max - 1;
+    hash = jenkins_hash_ptr((void *)key);
+
+    _migrate_table(ht, hdr, hash);
+
+    j = hash & mask;
     i = j;
 
+    
     while (true) {
 
       entry = table[i];
 
       if(entry.key == key){
-	if(cas_64((volatile uint64_t *)&(table[i].val), entry.val, desired.val)){
+	if(cas_64((volatile uint64_t *)&(table[i].val), entry.val, TOMBSTONE)){
 	  return true;
 	} else {
 	  continue;
@@ -231,14 +258,21 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
 
 bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
-  uint32_t mask, j, i;
+  uint32_t hash, mask, j, i;
   uint64_t kval;
+  lfht_tbl_hdr_t *hdr;
   lfht_entry_t*  table;
     
   if(ht != NULL  && ht->table_hdr != NULL  && key != 0 && valp != NULL){
-    table = ht->table_hdr->table;
-    mask = ht->table_hdr->max - 1;
-    j = jenkins_hash_ptr((void *)key) & mask;
+
+    hdr = ht->table_hdr;
+    table = hdr->table;
+    mask = hdr->max - 1;
+    hash = jenkins_hash_ptr((void *)key);
+
+    _migrate_table(ht, hdr, hash);
+
+    j = hash & mask;
     i = j;
   
 
@@ -269,8 +303,8 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
 
 
-uint32_t assimilate(lfht_tbl_hdr_t *to_hdr, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *to_hdr, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
 
 
-  return 0;
+  return count;
 }

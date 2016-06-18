@@ -152,7 +152,7 @@ static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash
 }
 
 
-static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool internal){
+static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   uint32_t hash, mask, j, i;
   lfht_tbl_hdr_t *hdr;
   lfht_entry_t*  table;
@@ -168,7 +168,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool internal){
     hash = jenkins_hash_ptr((void *)key);
 
     /* only external calls pay the migration tax */
-    if( ! internal ){ _migrate_table(ht, hdr, hash); }
+    if( external ){ _migrate_table(ht, hdr, hash); }
 
     j = hash & mask;
     i = j;
@@ -215,7 +215,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool internal){
 
 
 bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
-  return _lfht_add(ht, key, val, false);
+  return _lfht_add(ht, key, val, true);
 }
 
 
@@ -309,8 +309,14 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   return false;
 }
   
-
-
+/*
+ * The migration tax. Attempts to move count key-value pairs from the old table (from_hdr)
+ * to the new table (ht->table_hdr). It starts the job where the key of interest may lie. It might
+ * make sense for it to also handle the actual key of interest is one way or another.
+ *
+ * Discuss.
+ *
+ */
 
 static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
   uint32_t retval, mask, j, i;
@@ -337,7 +343,7 @@ static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash, 
     if( ! is_assimilated(entry.key) ){
       akey = set_assimilated(entry.key);
       if(cas_64((volatile uint64_t *)&(table[i].key), akey, entry.key)){
-	_lfht_add(ht, entry.key, entry.val, true);
+	_lfht_add(ht, entry.key, entry.val, false);
 	retval ++;
       }
     }

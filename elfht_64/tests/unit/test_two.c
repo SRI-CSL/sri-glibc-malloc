@@ -27,7 +27,7 @@ void* thread_main(void* targ){
   int i;
 
   for(i = 1; i <= targsp->count; i++){
-    if( lfht_insert(&tbl, i, i) ){
+    if( lfht_add(&tbl, i, i) ){
       targsp->successes ++;
     }
   }
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]){
 
   if( !success ) exit(EXIT_FAILURE);
 
-  if( total != count ){
+  if( total != count * nthreads){
     fprintf(stderr, "%d successes out of %d attempts\n", total, count * nthreads);
     exit(EXIT_FAILURE);
   }

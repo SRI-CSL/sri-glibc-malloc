@@ -8,14 +8,21 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
+enum tombstone { TOMBSTONE = 0 };
+
 #define RESIZE_RATIO 0.6
 
-enum lfht_state_t { INITIAL, EXPANDING, EXPANDED, DELETED };
+
+//(1 << 31) or 2^31
+#define MAX_TABLE_SIZE ((uint32_t)0x80000000u)
+
+
+enum lfht_state { INITIAL, EXPANDING, EXPANDED, DELETED };
 
 
 typedef struct lfht_entry_s {
-  uintptr_t  key;
-  uintptr_t  val;
+  uint64_t  key;
+  uint64_t  val;
 } lfht_entry_t;
 
 
@@ -31,9 +38,9 @@ typedef struct lfht_tbl_hdr_s {
   //the number of non-zero keys in the table
   atomic_uint_least32_t count;
   //pointer to the immediate predecessor table
-  struct lfht_tbl_hdr_s* next;
+  struct lfht_tbl_hdr_s *next;
   //the actual table
-  lfht_entry_t*  table;
+  lfht_entry_t *table;
 } lfht_tbl_hdr_t;
 
 
@@ -41,7 +48,7 @@ typedef struct lfht_tbl_hdr_s {
 typedef struct lfht_s {
   //the lfht_state_t of the table
   atomic_uint state;
-  lfht_tbl_hdr_t* table_hdr;
+  lfht_tbl_hdr_t *table_hdr;
 } lfht_t;
 
 /* 
@@ -63,13 +70,19 @@ extern bool init_lfht(lfht_t *ht, uint32_t max);
 
 extern bool delete_lfht(lfht_t *ht);
 
-extern bool lfht_insert(lfht_t *ht, uintptr_t key, uintptr_t val);
+/*
+ * Insert or update the value of key in the table to val. 
+ * val *must* not be TOMBSTONE.
+ */
+extern bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val);
 
-extern bool lfht_update(lfht_t *ht, uintptr_t key, uintptr_t val);
+/*
+ * Remove the value of key in the table, i.e. set it to TOMBSTONE. 
+ */
+extern bool lfht_remove(lfht_t *ht, uint64_t key);
 
-extern bool lfht_insert_or_update(lfht_t *ht, uintptr_t key, uintptr_t val);
 
-extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
+extern bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp);
   
 
 #endif

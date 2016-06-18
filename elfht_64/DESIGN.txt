@@ -10,7 +10,7 @@ tables, old and new.
 handle  ->  new table -> old table -> older table -> ... -> oldest table
 
 we will not stress about reclaiming old tables.
-drew's idea is that when a thread inserts/updates into the new table
+drew's idea is that when a thread inserts/updates/finds into the new table
 it must move at least three key/vals from the old table to the new table.
 thus(?) maintaining  the invariant that a table fills only *after*  it
 has completely *assimiliated* the table that it replaces.
@@ -36,3 +36,10 @@ the key (since keys are going to have pretty big alignment properties (being reg
 individual pointers)).
 
 should we assimilate tombstoned key-value pairs?
+
+need to be especially wary of very slow threads ...
+
+
+
+
+

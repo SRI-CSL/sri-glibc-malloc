@@ -12,21 +12,17 @@ uint32_t count = 8 * 4096;
 static lfht_t ht;
 
 
-extern bool lfht_find(lfht_t *ht, uintptr_t key, uintptr_t *valp);
-  
-
-
 int main(int argc, char* argv[]){
   uint32_t i;
   bool success;
-  uintptr_t val;
+  uint64_t val;
 
   success = init_lfht(&ht, max);
 
   if( !success ) exit(EXIT_FAILURE);
 
   for(i = 1; i <= count; i++){
-    if( ! lfht_insert(&ht, i, i) ){
+    if( ! lfht_add(&ht, i, i) ){
       fprintf(stderr, "%s insert failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }

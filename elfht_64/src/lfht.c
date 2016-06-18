@@ -31,9 +31,11 @@ static inline uint64_t set_assimilated(uint64_t key){
   return (key | ASSIMILATED);
 }
 
+/*
 static inline uint64_t clear_assimilated(uint64_t key){
   return (key & ~ASSIMILATED);
 }
+*/
 
 bool free_lfht_hdr(lfht_tbl_hdr_t *hdr){
   if(hdr != NULL){
@@ -132,7 +134,7 @@ bool _grow_table(lfht_t *ht){
   return false;
 }
 
-static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *to_hdr, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count);
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count);
 
 static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash){
   unsigned int table_state = atomic_load(&ht->state);
@@ -140,7 +142,7 @@ static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash
   if(table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
     
-    uint32_t moved = assimilate(ht, hdr, hdr->next, hash,  MIGRATIONS_PER_ACCESS);
+    uint32_t moved = assimilate(ht, hdr->next, hash,  MIGRATIONS_PER_ACCESS);
     if(moved != MIGRATIONS_PER_ACCESS){
       /* the move has finished! */
       atomic_store(&hdr->next->assimilated, true);
@@ -150,7 +152,7 @@ static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash
 }
 
 
-bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
+static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool internal){
   uint32_t hash, mask, j, i;
   lfht_tbl_hdr_t *hdr;
   lfht_entry_t*  table;
@@ -165,7 +167,8 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
     mask = hdr->max - 1;
     hash = jenkins_hash_ptr((void *)key);
 
-    _migrate_table(ht, hdr, hash);
+    /* only external calls pay the migration tax */
+    if( ! internal ){ _migrate_table(ht, hdr, hash); }
 
     j = hash & mask;
     i = j;
@@ -209,6 +212,12 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
   }
   return false;
 }
+
+
+bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
+  return _lfht_add(ht, key, val, false);
+}
+
 
 bool lfht_remove(lfht_t *ht, uint64_t key){
   uint32_t hash, mask, j, i;
@@ -303,8 +312,44 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
 
 
-static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *to_hdr, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
+  uint32_t retval, mask, j, i;
+  lfht_entry_t entry;
+  uint64_t akey;
+  lfht_entry_t*  table;
 
+  retval = 0;
+  mask = from_hdr->max - 1;
+  table = from_hdr->table;
+  
+  if(atomic_load(&from_hdr->assimilated)){
+    return retval;
+  }
 
+  j = hash & mask;
+  i = j;
+  
+
+  while (retval < count) {
+
+    entry = table[i];
+
+    if( ! is_assimilated(entry.key) ){
+      akey = set_assimilated(entry.key);
+      if(cas_64((volatile uint64_t *)&(table[i].key), akey, entry.key)){
+	_lfht_add(ht, entry.key, entry.val, true);
+	retval ++;
+      }
+    }
+
+    
+    i++;
+    i &= mask;
+    
+    if( i == j ){ break; }
+    
+    
+  }
+  
   return count;
 }

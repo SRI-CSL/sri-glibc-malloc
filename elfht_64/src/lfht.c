@@ -6,6 +6,34 @@
 #include "atomic.h"
 
 
+
+/* 
+ *
+ * A key is marked as assimilated to indicate that
+ * the key-value pair has been moved from the table it is in,
+ * to the current active table. 
+ *
+ * When all the key-value pairs in a table are marked as assimilated,
+ * the the table_hdr itself is marked as assimilated. 
+ * 
+ * Slow threads present a nuisance here.
+ *
+ */
+
+#define ASSIMILATED 0x1
+
+static inline bool is_assimilated(uint64_t key){
+  return (key & (KEY_ALIGNMENT - 1)) != 0;
+}
+
+static inline uint64_t set_assimilated(uint64_t key){
+  return (key | ASSIMILATED);
+}
+
+static inline uint64_t clear_assimilated(uint64_t key){
+  return (key & ~ASSIMILATED);
+}
+
 bool free_lfht_hdr(lfht_tbl_hdr_t *hdr){
   if(hdr != NULL){
     int retcode = munmap(hdr, hdr->sz);
@@ -44,6 +72,7 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   if(ht != NULL && max != 0){
     hdr = alloc_lfht_hdr(max);
     if(hdr != NULL){
+      atomic_init(&ht->state, INITIAL);
       ht->table_hdr = hdr;
       return true;
     } 
@@ -108,7 +137,7 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
   lfht_entry_t*  table;
   lfht_entry_t entry, desired;
 
-  assert((key & 0xf) == 0);
+  assert( ! is_assimilated(key) );
   assert(val != TOMBSTONE);
 
   if(ht != NULL  && ht->table_hdr != NULL  && key != 0  && val != TOMBSTONE){

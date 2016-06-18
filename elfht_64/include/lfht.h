@@ -16,6 +16,7 @@ enum tombstone { TOMBSTONE = 0 };
 //(1 << 31) or 2^31
 #define MAX_TABLE_SIZE ((uint32_t)0x80000000u)
 
+#define KEY_ALIGNMENT  0x10
 
 enum lfht_state { INITIAL, EXPANDING, EXPANDED, DELETED };
 

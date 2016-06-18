@@ -27,7 +27,7 @@ void* thread_main(void* targ){
   int i;
 
   for(i = 1; i <= targsp->count; i++){
-    if( lfht_add(&tbl, i, i) ){
+    if( lfht_add(&tbl, i * 16, i) ){
       targsp->successes ++;
     }
   }

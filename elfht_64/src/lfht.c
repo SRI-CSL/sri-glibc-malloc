@@ -108,6 +108,7 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
   lfht_entry_t*  table;
   lfht_entry_t entry, desired;
 
+  assert((key & 0xf) == 0);
   assert(val != TOMBSTONE);
 
   if(ht != NULL  && ht->table_hdr != NULL  && key != 0  && val != TOMBSTONE){

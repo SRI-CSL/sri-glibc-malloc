@@ -22,14 +22,14 @@ int main(int argc, char* argv[]){
   if( !success ) exit(EXIT_FAILURE);
 
   for(i = 1; i <= count; i++){
-    if( ! lfht_add(&ht, i, i) ){
+    if( ! lfht_add(&ht, i * 16, i) ){
       fprintf(stderr, "%s insert failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }
   }
 
   for(i = 1; i <= count; i++){
-    if( ! lfht_find(&ht, i, &val) ){
+    if( ! lfht_find(&ht, i * 16, &val) ){
       fprintf(stderr, "%s find failed for i = %d, max = %d\n", argv[0], i, max);
       exit(EXIT_FAILURE);
     }

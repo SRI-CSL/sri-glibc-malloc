@@ -72,7 +72,10 @@ extern bool delete_lfht(lfht_t *ht);
 
 /*
  * Insert or update the value of key in the table to val. 
- * val *must* not be TOMBSTONE.
+ * 
+ * - key must be 16 byte aligned.
+ * - val *must* not be TOMBSTONE.
+ *
  */
 extern bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val);
 

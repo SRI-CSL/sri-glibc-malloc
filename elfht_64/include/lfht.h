@@ -27,7 +27,7 @@ typedef struct lfht_entry_s {
 } lfht_entry_t;
 
 
-typedef struct lfht_tbl_hdr_s {
+typedef struct lfht_hdr_s {
   // flag to indicate if this table no longer contains relevant key/value pairs
   atomic_bool assimilated;
   //the "sizeof" the mmapped region that is the header + table 
@@ -39,17 +39,17 @@ typedef struct lfht_tbl_hdr_s {
   //the number of non-zero keys in the table
   atomic_uint_least32_t count;
   //pointer to the immediate predecessor table
-  struct lfht_tbl_hdr_s *next;
+  struct lfht_hdr_s *next;
   //the actual table
   lfht_entry_t *table;
-} lfht_tbl_hdr_t;
+} lfht_hdr_t;
 
 
 
 typedef struct lfht_s {
-  //the lfht_state_t of the table
+  //the lfht_state of the table
   atomic_uint state;
-  lfht_tbl_hdr_t *table_hdr;
+  lfht_hdr_t *table_hdr;
 } lfht_t;
 
 /* 

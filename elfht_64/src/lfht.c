@@ -424,7 +424,7 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
       
       if ( ! is_assimilated(entry.key) ){
 	akey = set_assimilated(entry.key);
-	if (cas_64((volatile uint64_t *)&(table[i].key), akey, entry.key)){
+	if (cas_64((volatile uint64_t *)&(table[i].key), entry.key, akey)){
 	  if (entry.val != TOMBSTONE){
 	    _lfht_add(ht, entry.key, entry.val, false);
 	    retval ++;

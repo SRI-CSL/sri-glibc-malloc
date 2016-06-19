@@ -11,7 +11,8 @@
 /*
  * A table grows from N to 2N when there are N/R non-zero keys, where
  * R is the RESIZE_RATIO.  The new table, before it needs to grow, has
- * 2N/R free slots. So in N/R more insertions it will need to grow,
+ * 2N/R free slots. The N/R key-values in the old table need to be migrated
+ * before that happens. So, worst case, in N/R more insertions it will need to grow,
  * assuming the worst case where there are no TOMBSTONEs. Thus the tax
  * rate T must be such that N/R * T > N/R.
  *

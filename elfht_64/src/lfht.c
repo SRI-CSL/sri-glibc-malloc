@@ -134,16 +134,16 @@ bool _grow_table(lfht_t *ht){
   return false;
 }
 
-static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count);
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint64_t key, uint32_t hash,  uint32_t count);
 
-static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint32_t hash){
+static inline void _migrate_table(lfht_t *ht, lfht_tbl_hdr_t *hdr, uint64_t key, uint32_t hash){
   unsigned int table_state = atomic_load(&ht->state);
 
   if(table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
     
-    uint32_t moved = assimilate(ht, hdr->next, hash,  MIGRATIONS_PER_ACCESS);
-    if(moved != MIGRATIONS_PER_ACCESS){
+    uint32_t moved = assimilate(ht, hdr->next, key, hash,  MIGRATIONS_PER_ACCESS);
+    if(moved <  MIGRATIONS_PER_ACCESS){
       /* the move has finished! */
       atomic_store(&hdr->next->assimilated, true);
       atomic_store(&ht->state, EXPANDED);
@@ -168,7 +168,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
     hash = jenkins_hash_ptr((void *)key);
 
     /* only external calls pay the migration tax */
-    if( external ){ _migrate_table(ht, hdr, hash); }
+    if( external ){ _migrate_table(ht, hdr, key, hash); }
 
     j = hash & mask;
     i = j;
@@ -232,7 +232,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
     mask = hdr->max - 1;
     hash = jenkins_hash_ptr((void *)key);
 
-    _migrate_table(ht, hdr, hash);
+    _migrate_table(ht, hdr, key, hash);
 
     j = hash & mask;
     i = j;
@@ -279,7 +279,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
     mask = hdr->max - 1;
     hash = jenkins_hash_ptr((void *)key);
 
-    _migrate_table(ht, hdr, hash);
+    _migrate_table(ht, hdr, key, hash);
 
     j = hash & mask;
     i = j;
@@ -310,20 +310,25 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 }
   
 /*
- * The migration tax. Attempts to move count key-value pairs from the old table (from_hdr)
- * to the new table (ht->table_hdr). It starts the job where the key of interest may lie. It might
- * make sense for it to also handle the actual key of interest is one way or another.
- *
- * Discuss.
+ * The migration tax. Attempts to move at least count key-value pairs from the old table (from_hdr)
+ * to the new table (ht->table_hdr). It starts the job where the key of interest may lie. It also 
+ * makes sure that the key of interest, if it has a non-TOMBSTONE value in the table, has been moved.
  *
  */
 
-static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash,  uint32_t count){
+static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint64_t key, uint32_t hash,  uint32_t count){
   uint32_t retval, mask, j, i;
   lfht_entry_t entry;
-  uint64_t akey;
+  uint64_t akey, dkey;
   lfht_entry_t*  table;
+  bool success, moveit;
 
+  /* indicates that we are sure the key is either not in the table, or has been assimilated */
+  success = false;
+  moveit = false;
+  
+  dkey = set_assimilated(key);
+    
   retval = 0;
   mask = from_hdr->max - 1;
   table = from_hdr->table;
@@ -336,16 +341,39 @@ static uint32_t assimilate(lfht_t *ht, lfht_tbl_hdr_t *from_hdr, uint32_t hash, 
   i = j;
   
 
-  while (retval < count) {
+  while (true) {
 
     entry = table[i];
 
-    if( ! is_assimilated(entry.key) ){
-      akey = set_assimilated(entry.key);
-      if(cas_64((volatile uint64_t *)&(table[i].key), akey, entry.key)){
-	_lfht_add(ht, entry.key, entry.val, false);
-	retval ++;
+    if(entry.key == 0 || entry.key == dkey) {
+      
+      success = true;
+      
+    } else if(entry.key == key){
+
+      success = true;
+      moveit = true;
+
+    } 
+
+
+    if(moveit || retval < count){
+
+      moveit = false;
+      
+      if( ! is_assimilated(entry.key) ){
+	akey = set_assimilated(entry.key);
+	if(cas_64((volatile uint64_t *)&(table[i].key), akey, entry.key)){
+	  if(entry.val != TOMBSTONE){
+	    _lfht_add(ht, entry.key, entry.val, false);
+	    retval ++;
+	  }
+	}
       }
+    } else {
+
+      if(success && retval >= count){ break; }
+      
     }
 
     

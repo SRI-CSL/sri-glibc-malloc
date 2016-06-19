@@ -9,13 +9,13 @@
 #define MIGRATIONS_PER_ACCESS   3
 
 /*
- * A table grows from N to 2N when there are N/R non-zero keys.
- * The new table, before it grows, has 2N/R free slots. So in N/R more
- * insertions it will need to grow, assuming the worst case where
- * there are no TOMBSTONEs. Thus the tax rate T must be such
- * that N/R * T > N/R.
+ * A table grows from N to 2N when there are N/R non-zero keys.  The
+ * new table, before it needs to grow, has 2N/R free slots. So in N/R
+ * more insertions it will need to grow, assuming the worst case where
+ * there are no TOMBSTONEs. Thus the tax rate T must be such that N/R
+ * * T > N/R.
  *
- *  So a tax rate > 1 will suffice. We have chose 3.
+ *  So a tax rate > 1 will suffice. We have chosen 3.
  *
  */
 

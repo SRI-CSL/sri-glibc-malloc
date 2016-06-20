@@ -20,16 +20,15 @@ enum tombstone { TOMBSTONE = 0 };
 
 enum lfht_state { INITIAL, EXPANDING, EXPANDED, DELETED };
 
-
 typedef struct lfht_entry_s {
-  uint64_t  key;
-  uint64_t  val;
+  volatile uint64_t  key;
+  volatile uint64_t  val;
 } lfht_entry_t;
 
 
 typedef struct lfht_hdr_s {
   // flag to indicate if this table no longer contains relevant key/value pairs
-  atomic_bool assimilated;
+  volatile atomic_bool assimilated;
   //the "sizeof" the mmapped region that is the header + table 
   uint64_t sz;
   //length of the table in units of lfht_entry_t's
@@ -37,7 +36,7 @@ typedef struct lfht_hdr_s {
   // threshold beyond which we should grow the table
   uint32_t threshold;
   //the number of non-zero keys in the table
-  atomic_uint_least32_t count;
+  volatile atomic_uint_least32_t count;
   //pointer to the immediate predecessor table
   struct lfht_hdr_s *next;
   //the actual table
@@ -48,8 +47,8 @@ typedef struct lfht_hdr_s {
 
 typedef struct lfht_s {
   //the lfht_state of the table
-  atomic_uint state;
-  lfht_hdr_t *table_hdr;
+  volatile atomic_uint state;
+  volatile lfht_hdr_t *table_hdr;
 } lfht_t;
 
 /* 

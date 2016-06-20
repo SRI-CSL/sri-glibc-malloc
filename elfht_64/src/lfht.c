@@ -109,7 +109,7 @@ bool delete_lfht(lfht_t *ht){
   
   if (ht != NULL){
 
-    hdr = ht->table_hdr;
+    hdr = (lfht_hdr_t *)ht->table_hdr;
     
     while(hdr != NULL){
       lfht_hdr_t * next = hdr->next;
@@ -127,9 +127,16 @@ bool delete_lfht(lfht_t *ht){
 }
 
 /* returns true if this attempt succeeded; false otherwise. */
-bool _grow_table(lfht_t *ht){
+bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
 
-  lfht_hdr_t *ohdr = ht->table_hdr;
+  lfht_hdr_t *ohdr = (lfht_hdr_t *)ht->table_hdr;
+  
+  /* someone beat us to it */
+  if(hdr != ohdr){
+    fprintf(stderr, "LOST RACE: ht->state = %d\n", ht->state);
+    return false;
+  }
+  
   uint32_t omax = ohdr->max;
 
   if (omax < MAX_TABLE_SIZE){ 
@@ -149,13 +156,16 @@ bool _grow_table(lfht_t *ht){
 	}
 	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
 	atomic_store(&ht->state, EXPANDING);
-
-
+	
+	/*
 	if(ohdr->next != NULL && ! ohdr->next->assimilated){
 	  lfht_dump(stderr, ht);
 	  abort();
 	}
 	assert(ohdr->next == NULL || ohdr->next->assimilated);
+	*/
+
+	assert(ht->table_hdr->next == hdr);
 
 	return true;
       } else {
@@ -189,15 +199,15 @@ static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
 
 
 static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
-  uint32_t hash, mask, j, i;
+  uint32_t hash, mask, j, i, retries;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   lfht_entry_t entry;
   bool retval;
 
   retval = false;
-  
-  
+  retries = 0;
+
   assert( ! is_assimilated(key) );
   assert(val != TOMBSTONE);
 
@@ -232,7 +242,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 	const uint_least32_t count = atomic_fetch_add(&hdr->count, 1);
 	
 	if (count + 1 > hdr->threshold){
-	  _grow_table(ht);
+	  _grow_table(ht, hdr);
 	}
 	retval = true;
 	goto exit;
@@ -260,9 +270,10 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
  exit:
 
   /* slow thread last gasp */
-  if (atomic_load(&hdr->assimilated)){
+  if ( external && atomic_load(&hdr->assimilated)){
     /* could have a fail count */
-    fprintf(stderr, "RETRYING\n");
+    fprintf(stderr, "lfht_add: RETRYING %"PRIu32"\n", retries);
+    retries++;
     goto retry;
   }
 
@@ -277,14 +288,15 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
 
 
 bool lfht_remove(lfht_t *ht, uint64_t key){
-  uint32_t hash, mask, j, i;
+  uint32_t hash, mask, j, i, retries;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   lfht_entry_t entry;
   bool retval;
 
   retval = false;
-  
+  retries = 0;
+
   if (ht == NULL || ht->table_hdr == NULL || key == 0){
     return retval;
   }
@@ -331,7 +343,8 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
-    fprintf(stderr, "RETRYING\n");
+    fprintf(stderr, "lfht_remove: RETRYING %"PRIu32"\n", retries);
+    retries++;
     goto retry;
   }
 
@@ -341,14 +354,14 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
 
 bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
-  uint32_t hash, mask, j, i;
+  uint32_t hash, mask, j, i, retries;
   uint64_t kval;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   bool retval;
 
   retval = false;
-  
+  retries = 0;
     
   if (ht == NULL || ht->table_hdr == NULL || key == 0 || valp == NULL){
     return retval;
@@ -395,7 +408,8 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
-    fprintf(stderr, "RETRYING\n");
+    fprintf(stderr, "lfht_find: RETRYING %"PRIu32"\n", retries);
+    retries++;
     goto retry;
   }
 
@@ -427,7 +441,6 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
   moveit = false;
   
   dkey = set_assimilated(key);
-    
   retval = 0;
   mask = from_hdr->max - 1;
   table = from_hdr->table;
@@ -438,28 +451,19 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
 
   j = hash & mask;
   i = j;
-  
 
   while (true) {
-
     entry = table[i];
 
     if (entry.key == 0 || entry.key == dkey) {
-      
       success = true;
-      
     } else if (entry.key == key){
-
       success = true;
       moveit = true;
-
     } 
 
-
     if ( moveit || retval < count ){
-
       if ( moveit ){  moveit = false; }
-      
       if ( entry.key && ! is_assimilated(entry.key) ){
 	akey = set_assimilated(entry.key);
 	if (cas_64((volatile uint64_t *)&(table[i].key), entry.key, akey)){
@@ -469,20 +473,14 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
 	  }
 	}
       }
-      
     } else {
-
       if (success && retval >= count){ break; }
-      
     }
-
     
     i++;
     i &= mask;
     
     if ( i == j ){ break; }
-    
-    
   }
   
   return retval;

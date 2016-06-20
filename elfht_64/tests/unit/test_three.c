@@ -48,12 +48,14 @@ int main(int argc, char* argv[]){
   }
 
 
-  
+  lfht_dump(stderr, &ht);
+
 
   success = delete_lfht(&ht);
 
   if( !success ) exit(EXIT_FAILURE);
 
+  
   fprintf(stdout, "[SUCCESS]\n");
 
   exit(EXIT_SUCCESS);

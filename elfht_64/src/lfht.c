@@ -8,6 +8,8 @@
 #include "util.h"
 #include "atomic.h"
 
+#define VERBOSE  false
+
 /* migration tax rate.  */
 #define MIGRATIONS_PER_ACCESS   3
 
@@ -23,7 +25,6 @@
  *  So a tax rate > 1 will suffice. We have chosen 3.
  *
  */
-
 
 
 /* 
@@ -119,7 +120,7 @@ bool delete_lfht(lfht_t *ht){
       hdr = next;
     }
 
-    ht->state = DELETED;
+    atomic_store(&ht->state, DELETED);
     return true;
   }
   
@@ -133,7 +134,7 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
   
   /* someone beat us to it */
   if(hdr != ohdr){
-    fprintf(stderr, "LOST RACE: ht->state = %d\n", ht->state);
+    if(VERBOSE){ fprintf(stderr, "LOST RACE: ht->state = %d\n", ht->state); }
     return false;
   }
   
@@ -149,12 +150,14 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
       nhdr->next = ohdr;
 
       if (cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
+
 	/* we succeeded in adding the new table */
 	if(atomic_load(&ht->state) != INITIAL && atomic_load(&ht->state) != EXPANDED){
 	  lfht_dump(stderr, ht);
 	  abort();
 	}
 	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
+
 	atomic_store(&ht->state, EXPANDING);
 	
 	/*
@@ -182,18 +185,26 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
 
 static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
   unsigned int table_state = atomic_load(&ht->state);
+  lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
 
   if (table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
 
-    lfht_hdr_t *hdr = ht->table_hdr;
+    lfht_hdr_t *ohdr = hdr->next;
 
-    uint32_t moved = assimilate(ht, hdr->next, key, hash,  MIGRATIONS_PER_ACCESS);
+    uint32_t moved = assimilate(ht, ohdr, key, hash,  MIGRATIONS_PER_ACCESS);
+
     if (moved <  MIGRATIONS_PER_ACCESS){
       /* the move has finished! */
-      atomic_store(&hdr->next->assimilated, true);
-      atomic_store(&ht->state, EXPANDED);
+      atomic_store(&ohdr->assimilated, true);
+      
+      if(ht->table_hdr == hdr){
+	atomic_store(&ht->state, EXPANDED);
+      } else {
+	if(VERBOSE){ fprintf(stderr, "TABLE MOVED OUT FROM UNDER US\n");}
+      }
     }
+
   }
 }
 
@@ -222,7 +233,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 
  retry:
   
-  hdr = ht->table_hdr;
+  hdr = (lfht_hdr_t *)ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
 
@@ -231,7 +242,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   i = j;
   
   while (true) {
-    
+
     entry = table[i];
     
     if (entry.key == 0){
@@ -272,7 +283,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   /* slow thread last gasp */
   if ( external && atomic_load(&hdr->assimilated)){
     /* could have a fail count */
-    fprintf(stderr, "lfht_add: RETRYING %"PRIu32"\n", retries);
+    if(VERBOSE){ fprintf(stderr, "lfht_add: RETRYING %"PRIu32"\n", retries); }
     retries++;
     goto retry;
   }
@@ -308,7 +319,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
  retry:
   
-  hdr = ht->table_hdr;
+  hdr = (lfht_hdr_t *)ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
 
@@ -343,7 +354,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
-    fprintf(stderr, "lfht_remove: RETRYING %"PRIu32"\n", retries);
+    if(VERBOSE){ fprintf(stderr, "lfht_remove: RETRYING %"PRIu32"\n", retries); }
     retries++;
     goto retry;
   }
@@ -373,7 +384,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
  retry:
   
-  hdr = ht->table_hdr;
+  hdr = (lfht_hdr_t *)ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
   
@@ -405,10 +416,12 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   
  exit:
 
+  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
+
   /* slow thread last gasp */
-  if (atomic_load(&hdr->assimilated)){
+  if (atomic_load(&hdr->assimilated)){  
     /* could have a fail count */
-    fprintf(stderr, "lfht_find: RETRYING %"PRIu32"\n", retries);
+    if(VERBOSE){ fprintf(stderr, "lfht_find: RETRYING %"PRIu32"\n", retries); }
     retries++;
     goto retry;
   }
@@ -426,6 +439,8 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
  * the key of interest, if it has a non-TOMBSTONE value in the table,
  * has been moved.  Thus after paying the migration tax, the operation
  * can concentrate on the current table to service the request.
+ *
+ * Drew says we could think about doing this in a cache friendly fashion.
  *
  */
 
@@ -453,6 +468,7 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
   i = j;
 
   while (true) {
+
     entry = table[i];
 
     if (entry.key == 0 || entry.key == dkey) {
@@ -528,7 +544,7 @@ void lfht_dump(FILE* fp, lfht_t *ht){
 
   index = 0;
   hdr = (lfht_hdr_t *)ht->table_hdr;
-
+  fprintf(fp, "table state: %u\n", ht->state);
   while(hdr != NULL){
     lfht_hdr_dump(fp, hdr, index);
     hdr = hdr->next;

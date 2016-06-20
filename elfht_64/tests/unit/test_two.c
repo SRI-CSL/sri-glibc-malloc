@@ -8,7 +8,7 @@
 
 uint32_t max = 1024;
 
-#define MAX_THREADS 64
+#define MAX_THREADS 128
 
 static lfht_t tbl;
 

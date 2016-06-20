@@ -33,6 +33,9 @@ check: ${TESTS}
 	./test_three 4
 	./test_three 8
 	./test_two  32 4
+	./test_two  32 8
+	./test_two  32 16
+	./test_two  64 16
 
 clean:
 	${RM} -f ${TESTS}

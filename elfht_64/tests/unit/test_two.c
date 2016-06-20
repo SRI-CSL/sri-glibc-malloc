@@ -6,9 +6,7 @@
 
 #include "lfht.h"
 
-uint32_t max = 16 * 4096;
-
-uint32_t count = 1000;
+uint32_t max = 1024;
 
 #define MAX_THREADS 64
 
@@ -46,13 +44,16 @@ int main(int argc, char* argv[]){
   int total = 0;
   bool success;
 
-  if (argc != 2) {
-    fprintf(stdout, "Usage: %s <nthreads>\n", argv[0]);
+  if (argc != 3) {
+    fprintf(stdout, "Usage: %s <nthreads> <count in K>\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
   nthreads = atoi(argv[1]);
 
+  uint32_t count = 1024 * atoi(argv[2]);
+
+  
   if((nthreads == 0) ||  (nthreads >= MAX_THREADS)){
     fprintf(stdout, "Usage: %s <nthreads>\n", argv[0]);
     fprintf(stdout, "\t(nthreads > 0) and (nthreads < %d)\n", MAX_THREADS);
@@ -97,6 +98,8 @@ int main(int argc, char* argv[]){
     total += targs[i].successes;
     //fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
   }
+
+  lfht_dump(stderr, &tbl);
 
   success = delete_lfht(&tbl);
 

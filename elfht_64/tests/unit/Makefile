@@ -29,8 +29,10 @@ all: ${TESTS}
 check: ${TESTS}
 
 	./test_one
-	./test_two  32
+	./test_two  32 1
 	./test_three 4
+	./test_three 8
+	./test_two  32 4
 
 clean:
 	${RM} -f ${TESTS}

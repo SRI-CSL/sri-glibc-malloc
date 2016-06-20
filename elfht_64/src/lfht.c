@@ -142,11 +142,21 @@ bool _grow_table(lfht_t *ht){
       nhdr->next = ohdr;
 
       if (cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
+	/* we succeeded in adding the new table */
 	if(atomic_load(&ht->state) != INITIAL && atomic_load(&ht->state) != EXPANDED){
 	  lfht_dump(stderr, ht);
+	  abort();
 	}
 	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
 	atomic_store(&ht->state, EXPANDING);
+
+
+	if(ohdr->next != NULL && ! ohdr->next->assimilated){
+	  lfht_dump(stderr, ht);
+	  abort();
+	}
+	assert(ohdr->next == NULL || ohdr->next->assimilated);
+
 	return true;
       } else {
 	free_lfht_hdr(nhdr);
@@ -252,6 +262,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
+    fprintf(stderr, "RETRYING\n");
     goto retry;
   }
 
@@ -320,6 +331,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
+    fprintf(stderr, "RETRYING\n");
     goto retry;
   }
 
@@ -383,6 +395,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
     /* could have a fail count */
+    fprintf(stderr, "RETRYING\n");
     goto retry;
   }
 
@@ -504,15 +517,10 @@ void lfht_hdr_dump(FILE* fp, lfht_hdr_t *hdr, uint32_t index){
     }
   }
   
-  fprintf(fp, "table[%"PRIu32\
-	  "]: assimilated = %d max = %"PRIu32\
-	  " count =  %"PRIu32\
-	  " threshold =  %"PRIu32\
-	  " actual =  %"PRIu32\
-	  " moved =  %"PRIu32\
-	  " tombstoned =  %"PRIu32"\n",
-	  index,
-	  hdr->assimilated, hdr->max, hdr->count, hdr->threshold,
+  fprintf(fp, "table[%"PRIu32"]: assimilated = %d max = %"PRIu32\
+	  " count =  %"PRIu32" threshold =  %"PRIu32" actual =  %"PRIu32\
+	  " moved =  %"PRIu32" tombstoned =  %"PRIu32"\n",
+	  index, hdr->assimilated, hdr->max, hdr->count, hdr->threshold,
 	  count, moved, tombstoned);
 }
 

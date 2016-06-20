@@ -142,6 +142,9 @@ bool _grow_table(lfht_t *ht){
       nhdr->next = ohdr;
 
       if (cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
+	if(atomic_load(&ht->state) != INITIAL && atomic_load(&ht->state) != EXPANDED){
+	  lfht_dump(stderr, ht);
+	}
 	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
 	atomic_store(&ht->state, EXPANDING);
 	return true;
@@ -157,12 +160,14 @@ bool _grow_table(lfht_t *ht){
 
 static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint32_t hash,  uint32_t count);
 
-static inline void _migrate_table(lfht_t *ht, lfht_hdr_t *hdr, uint64_t key, uint32_t hash){
+static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
   unsigned int table_state = atomic_load(&ht->state);
 
   if (table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
-    
+
+    lfht_hdr_t *hdr = ht->table_hdr;
+
     uint32_t moved = assimilate(ht, hdr->next, key, hash,  MIGRATIONS_PER_ACCESS);
     if (moved <  MIGRATIONS_PER_ACCESS){
       /* the move has finished! */
@@ -192,15 +197,15 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   
   hash = jenkins_hash_ptr((void *)key);
 
+  /* only external calls pay the migration tax */
+  if ( external ){ _migrate_table(ht, key, hash); }
+
  retry:
   
   hdr = ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
-  
 
-  /* only external calls pay the migration tax */
-  if ( external ){ _migrate_table(ht, hdr, key, hash); }
   
   j = hash & mask;
   i = j;
@@ -246,7 +251,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
-    /* could have a fail count; might also not want to pay tax each time */
+    /* could have a fail count */
     goto retry;
   }
 
@@ -275,14 +280,15 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
   hash = jenkins_hash_ptr((void *)key);
 
+  _migrate_table(ht, key, hash);
+  
+
  retry:
   
   hdr = ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
 
-  _migrate_table(ht, hdr, key, hash);
-  
   j = hash & mask;
   i = j;
   
@@ -313,7 +319,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
-    /* could have a fail count; might also not want to pay tax each time */
+    /* could have a fail count */
     goto retry;
   }
 
@@ -338,13 +344,14 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
   hash = jenkins_hash_ptr((void *)key);
 
+  _migrate_table(ht, key, hash);
+
  retry:
   
   hdr = ht->table_hdr;
   table = hdr->table;
   mask = hdr->max - 1;
   
-  _migrate_table(ht, hdr, key, hash);
   
   j = hash & mask;
   i = j;
@@ -375,7 +382,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
-    /* could have a fail count; might also not want to pay tax each time */
+    /* could have a fail count */
     goto retry;
   }
 

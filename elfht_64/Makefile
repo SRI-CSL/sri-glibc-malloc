@@ -23,7 +23,7 @@ LDFLAGS = -lpthread
 endif
 
 
-CFLAGS= -Wall -fPIC -I./include -I./arch/${ARCH}
+CFLAGS= -Wall -fPIC -I./include -I./arch/${ARCH}  -g
 
 SRC_GLOBS = $(addsuffix /*.c,src)
 SRC = $(sort $(wildcard $(SRC_GLOBS)))

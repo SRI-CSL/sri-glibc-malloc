@@ -1,4 +1,7 @@
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 
 #include "lfht.h"
@@ -11,10 +14,11 @@
 /*
  * A table grows from N to 2N when there are N/R non-zero keys, where
  * R is the RESIZE_RATIO.  The new table, before it needs to grow, has
- * 2N/R free slots. The N/R key-values in the old table need to be migrated
- * before that happens. So, worst case, in N/R more insertions it will need to grow,
- * assuming the worst case where there are no TOMBSTONEs. Thus the tax
- * rate T must be such that N/R * T > N/R.
+ * 2N/R free slots. The N/R key-values in the old table need to be
+ * migrated before that happens. So, worst case, in N/R more
+ * insertions it will need to grow.  Assuming, the worst case, where
+ * there are no TOMBSTONEs anywhere. Thus the tax rate T must be such
+ * that N/R * T > N/R.
  *
  *  So a tax rate > 1 will suffice. We have chosen 3.
  *
@@ -436,7 +440,7 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
 
       if ( moveit ){  moveit = false; }
       
-      if ( ! is_assimilated(entry.key) ){
+      if ( entry.key && ! is_assimilated(entry.key) ){
 	akey = set_assimilated(entry.key);
 	if (cas_64((volatile uint64_t *)&(table[i].key), entry.key, akey)){
 	  if (entry.val != TOMBSTONE){
@@ -461,5 +465,60 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
     
   }
   
-  return count;
+  return retval;
+}
+
+
+
+void lfht_hdr_dump(FILE* fp, lfht_hdr_t *hdr, uint32_t index){
+  uint32_t i, max, count, moved, tombstoned;
+  lfht_entry_t*  table;
+  lfht_entry_t  entry;
+
+  max = hdr->max;
+  count = 0;
+  moved = 0;
+  tombstoned = 0;
+  table = hdr->table;
+  
+  for(i = 0; i < max; i++){
+
+    entry = table[i];
+    
+    
+    if(entry.key != 0){
+
+      count++;
+
+      if(entry.val == TOMBSTONE){ tombstoned++; }
+
+      if( is_assimilated(entry.key) ){ moved++; }
+
+    }
+  }
+  
+  fprintf(fp, "table[%"PRIu32\
+	  "]: assimilated = %d max = %"PRIu32\
+	  " count =  %"PRIu32\
+	  " threshold =  %"PRIu32\
+	  " actual =  %"PRIu32\
+	  " moved =  %"PRIu32\
+	  " tombstoned =  %"PRIu32"\n",
+	  index,
+	  hdr->assimilated, hdr->max, hdr->count, hdr->threshold,
+	  count, moved, tombstoned);
+}
+
+void lfht_dump(FILE* fp, lfht_t *ht){
+  uint32_t index;
+  lfht_hdr_t *hdr;
+
+  index = 0;
+  hdr = (lfht_hdr_t *)ht->table_hdr;
+
+  while(hdr != NULL){
+    lfht_hdr_dump(fp, hdr, index);
+    hdr = hdr->next;
+    index++;
+  }
 }

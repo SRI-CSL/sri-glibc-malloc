@@ -89,4 +89,7 @@ extern bool lfht_remove(lfht_t *ht, uint64_t key);
 extern bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp);
   
 
+extern void lfht_dump(FILE* fp, lfht_t *ht);
+
+
 #endif

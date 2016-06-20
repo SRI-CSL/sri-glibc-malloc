@@ -6,39 +6,31 @@ OS   =  $(shell uname)
 LIBRARYNAME=liblfht
 
 ifeq (Darwin, $(findstring Darwin, ${OS}))
-LIB = ${LFHT_HOME}/lib/${LIBRARYNAME}.dylib
 LDFLAGS =
 else
-LIB = ${LFHT_HOME}/lib/${LIBRARYNAME}.so
 LDFLAGS = -lpthread
 endif
 
-CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH}
+CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH} -g
 
-TESTS = test_one test_two
+OBJS = ${LFHT_HOME}/obj/*.o
+
+
+
+TESTS = test_one test_two test_three
 
 all: ${TESTS}
 
 
 %: %.c
-	${CC} ${CFLAGS} $< -o $@ ${LDFLAGS} ${LIB}
+	${CC} ${CFLAGS} $< -o $@ ${LDFLAGS} ${OBJS}
 
-
-ifeq (Darwin, $(findstring Darwin, ${OS}))
 
 check: ${TESTS}
 
-	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
-	DYLD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two  32
-
-else
-
-check: ${TESTS}
-
-	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_one
-	LD_LIBRARY_PATH=${LFHT_HOME}/lib/ ./test_two   32
-
-endif
+	./test_one
+	./test_two  32
+	./test_three 4
 
 clean:
 	${RM} -f ${TESTS}

@@ -353,10 +353,6 @@ static void* MallocFromPartial(procheap* heap)
     // reserve blocks
     newanchor = oldanchor = desc->Anchor;
     if (oldanchor.state == EMPTY) {
-
-      //iam: added this in the hope that it is now true...
-      //      assert(desc->sb == NULL); 
-
       DescRetire(desc); 
       goto retry;
     }
@@ -440,9 +436,6 @@ static void* MallocFromNewSB(procheap* heap)
   else {
     //Free the superblock desc->sb.
     munmap(desc->sb, desc->heap->sc->sbsize);
-    //iam suggests:
-    //    desc->sb = NULL;
-    desc->sb = (void*)(uintptr_t)0xdeadbeef;
     DescRetire(desc); 
     return NULL;
   }
@@ -673,17 +666,8 @@ void lfpa_free(void* ptr)
     fflush(stderr);
 #endif
 
-    /*
-    if(true){
-      fprintf(stderr, "Freeing a sb\n");
-      abort();
-    }
-    */
 
     munmap(sb, heap->sc->sbsize);
-    //iam suggests:
-    //    desc->sb = NULL;
-    desc->sb = (void*)(uintptr_t)0xcafebabe;
     RemoveEmptyDesc(heap, desc);
   } 
   else if (oldanchor.state == FULL) {

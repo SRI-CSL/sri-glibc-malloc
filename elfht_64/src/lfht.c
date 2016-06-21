@@ -150,23 +150,12 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
       nhdr->next = ohdr;
 
       if (cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
-
 	/* we succeeded in adding the new table */
-	if(atomic_load(&ht->state) != INITIAL && atomic_load(&ht->state) != EXPANDED){
-	  lfht_dump(stderr, ht);
-	  abort();
-	}
 	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
 
 	atomic_store(&ht->state, EXPANDING);
 	
-	/*
-	if(ohdr->next != NULL && ! ohdr->next->assimilated){
-	  lfht_dump(stderr, ht);
-	  abort();
-	}
 	assert(ohdr->next == NULL || ohdr->next->assimilated);
-	*/
 
 	assert(ht->table_hdr->next == hdr);
 
@@ -185,11 +174,10 @@ static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint3
 
 static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
   unsigned int table_state = atomic_load(&ht->state);
-  lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
 
   if (table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
-
+    lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
     lfht_hdr_t *ohdr = hdr->next;
 
     uint32_t moved = assimilate(ht, ohdr, key, hash,  MIGRATIONS_PER_ACCESS);
@@ -197,11 +185,12 @@ static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
     if (moved <  MIGRATIONS_PER_ACCESS){
       /* the move has finished! */
       atomic_store(&ohdr->assimilated, true);
-      
+
+      /* someone may have triggered another expansion (we could be slow) */
       if(ht->table_hdr == hdr){
 	atomic_store(&ht->state, EXPANDED);
       } else {
-	if(VERBOSE){ fprintf(stderr, "TABLE MOVED OUT FROM UNDER US\n");}
+	if(VERBOSE){ fprintf(stderr, "Table expanding, not marking as expanded\n");}
       }
     }
 
@@ -219,8 +208,9 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   retval = false;
   retries = 0;
 
+  assert( key != 0 );
   assert( ! is_assimilated(key) );
-  assert(val != TOMBSTONE);
+  assert( val != TOMBSTONE );
 
   if (ht == NULL  || ht->table_hdr == NULL || key == 0  || val == TOMBSTONE){
     return retval;

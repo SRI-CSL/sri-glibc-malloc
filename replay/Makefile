@@ -1,5 +1,5 @@
 
-CFLAGS = -Wall  -I../mhooks
+CFLAGS = -Wall  -I../mhooks -O2 -DNDEBUG
 
 OBJECTS = replay.o lphash.o mtreplay.o replaylib.o
 

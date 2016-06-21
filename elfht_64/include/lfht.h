@@ -18,7 +18,7 @@ enum tombstone { TOMBSTONE = 0 };
 
 #define KEY_ALIGNMENT  0x10
 
-enum lfht_state { INITIAL, EXPANDING, EXPANDED, DELETED };
+enum lfht_state { INITIAL, EXPANDING, EXPANDED };
 
 typedef struct lfht_entry_s {
   volatile uint64_t  key;

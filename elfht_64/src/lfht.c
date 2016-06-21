@@ -6,7 +6,7 @@
 
 #include "lfht.h"
 #include "util.h"
-#include "atomic.h"
+#include "sri_atomic.h"
 
 #define VERBOSE  false
 
@@ -18,6 +18,8 @@
  * Idea: might be better to not update ht->state and ht->hdr seperately,
  * but rather do it in one shot with a cas_64. ht->hdr is mmapped so 
  * page aligned so we can certainly steal the bits needed for the state.
+ * Ian's question is should we do this with a bitfield hack, or a bit
+ * mask in the lowest 4 bits.
  *
  */
 
@@ -127,8 +129,6 @@ bool delete_lfht(lfht_t *ht){
       ht->table_hdr = NULL;
       hdr = next;
     }
-
-    atomic_store(&ht->state, DELETED);
     return true;
   }
   
@@ -278,6 +278,8 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 
  exit:
 
+  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
+
   /* slow thread last gasp */
   if ( external && atomic_load(&hdr->assimilated)){
     /* could have a fail count */
@@ -348,6 +350,8 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   }
   
  exit:
+
+  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){

@@ -13,6 +13,14 @@
 /* migration tax rate.  */
 #define MIGRATIONS_PER_ACCESS   3
 
+
+/* 
+ * Idea: might be better to not update ht->state and ht->hdr seperately,
+ * but rather do it in one shot with a cas_64. ht->hdr is mmapped so 
+ * page aligned so we can certainly steal the bits needed for the state.
+ *
+ */
+
 /*
  * A table grows from N to 2N when there are N/R non-zero keys, where
  * R is the RESIZE_RATIO.  The new table, before it needs to grow, has

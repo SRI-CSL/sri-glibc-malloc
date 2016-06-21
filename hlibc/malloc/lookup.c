@@ -62,9 +62,12 @@ static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
  */
 #define TOMBSTONE 0
 
-#define HEAP_HTABLE_CAPACITY 4096
+//4096
+#define HEAP_HTABLE_CAPACITY 1024
 
-#define MMAP_HTABLE_CAPACITY 4096
+//4096
+#define MMAP_HTABLE_CAPACITY 1024
+
 
 static lfht_t heap_tbl;  // maps heap ptr --> arena_index
 static lfht_t mmap_tbl;  // maps mmapped region --> size 
@@ -167,28 +170,28 @@ bool lookup_decr_sbrk_hi(size_t sz){
 }
 
 bool lookup_add_heap(void* ptr, size_t index){
-  bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+  bool retval = lfht_add(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_delete_heap(void* ptr){
-  bool retval = lfht_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_remove(&heap_tbl, (uintptr_t)ptr);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_add_mmap(void* ptr, size_t sz){
-  bool retval = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+  bool retval = lfht_add(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_delete_mmap(void* ptr){
-  bool retval = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_remove(&mmap_tbl, (uintptr_t)ptr);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
@@ -205,7 +208,7 @@ void lookup_dump(FILE* fp){
 	    (void*)sbrk_regions[i].hi, 
 	    (void*)sbrk_regions[i].max);
   }
-  lfht_stats(fp, " mmap_table", &mmap_tbl, TOMBSTONE);
-  lfht_stats(fp, " heap_table", &heap_tbl, TOMBSTONE);
+  lfht_stats(fp, " mmap_table", &mmap_tbl);
+  lfht_stats(fp, " heap_table", &heap_tbl);
   fflush(fp);
 }

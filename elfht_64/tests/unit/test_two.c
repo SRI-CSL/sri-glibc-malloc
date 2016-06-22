@@ -99,7 +99,7 @@ int main(int argc, char* argv[]){
     //fprintf(stdout, "thread %d with %d successes\n", targs[i].id, targs[i].successes);
   }
 
-  lfht_dump(stderr, &tbl);
+  lfht_stats(stderr, "static", &tbl);
 
   success = delete_lfht(&tbl);
 

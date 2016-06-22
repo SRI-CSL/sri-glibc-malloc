@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2016  SRI International
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+
 /* Expanding Lock Free Hash Table (using only 64 bit CAS) */
 
 #ifndef __LFHT_H__
@@ -88,7 +107,7 @@ extern bool lfht_remove(lfht_t *ht, uint64_t key);
 extern bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp);
   
 
-extern void lfht_dump(FILE* fp, lfht_t *ht);
+extern void lfht_stats(FILE* fp, const char* name, lfht_t *ht);
 
 
 #endif

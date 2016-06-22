@@ -48,7 +48,7 @@ int main(int argc, char* argv[]){
   }
 
 
-  lfht_dump(stderr, &ht);
+  lfht_stats(stderr, "static", &ht);
 
 
   success = delete_lfht(&ht);

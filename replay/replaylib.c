@@ -9,6 +9,8 @@
 #include <time.h>
 #include <linux/limits.h>
 
+const uint64_t malloc_stats_interval = 10000000;
+
 #include "replaylib.h"
 
 #include "mhook.h"
@@ -111,7 +113,8 @@ int process_file(const char *filename, bool verbose){
   
   
   while(readline(fp, buffer, BUFFERSZ)) {
-    
+
+
     if (!replayline(&htbl, &stats, buffer, BUFFERSZ)) {
       fprintf(stderr, "Replaying line %zu failed: %s\n", linecount, buffer);
       code = 1;
@@ -119,6 +122,12 @@ int process_file(const char *filename, bool verbose){
     } else {
       linecount++;
     }
+
+    if(linecount % malloc_stats_interval == 0){
+      fprintf(stderr, "Malloc stats snapshot at line %zu\n", linecount);
+      malloc_stats();
+    }    
+
   }
 
 

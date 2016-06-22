@@ -31,44 +31,55 @@ enum tombstone { TOMBSTONE = 0 };
 
 #define RESIZE_RATIO 0.6
 
-
-//(1 << 31) or 2^31
+/* (1 << 31) or 2^31 */
 #define MAX_TABLE_SIZE ((uint32_t)0x80000000u)
 
 #define KEY_ALIGNMENT  0x10
 
-enum lfht_state { INITIAL, EXPANDING, EXPANDED };
+typedef enum lfht_state { INITIAL, EXPANDING, EXPANDED } lfht_state_t;
 
 typedef struct lfht_entry_s {
   volatile uint64_t  key;
   volatile uint64_t  val;
 } lfht_entry_t;
 
+typedef struct lfht_hdr_s lfht_hdr_t;
 
-typedef struct lfht_hdr_s {
-  // flag to indicate if this table no longer contains relevant key/value pairs
-  volatile atomic_bool assimilated;
-  //the "sizeof" the mmapped region that is the header + table 
+struct lfht_hdr_s {
+  /* flag to indicate if this table no longer contains relevant key/value pairs */
+  atomic_bool assimilated;
+  /* the "sizeof" the mmapped region that is the header + table  */
   uint64_t sz;
-  //length of the table in units of lfht_entry_t's
+  /* length of the table in units of lfht_entry_t's */
   uint32_t max;
-  // threshold beyond which we should grow the table
+  /* threshold beyond which we should grow the table */
   uint32_t threshold;
-  //the number of non-zero keys in the table
-  volatile atomic_uint_least32_t count;
-  //pointer to the immediate predecessor table
-  struct lfht_hdr_s *next;
-  //the actual table
+  /* the number of non-zero keys in the table */
+  atomic_uint_least32_t count;
+  /* pointer to the immediate predecessor table */
+  lfht_hdr_t *next;
+  /* the actual table */
   lfht_entry_t *table;
-} lfht_hdr_t;
-
+};
 
 
 typedef struct lfht_s {
-  //the lfht_state of the table
-  volatile atomic_uint state;
-  volatile lfht_hdr_t *table_hdr;
+  uintptr_t hdr:62, state:2;
 } lfht_t;
+
+
+static inline lfht_hdr_t *lfht_table_hdr(lfht_t* ht){
+  return (lfht_hdr_t *)(ht->hdr << 2);
+}
+
+static inline lfht_state_t lfht_state(lfht_t* ht){
+  return ht->state;
+}
+
+static inline void lfht_set(lfht_t* ht, lfht_hdr_t * hdr, lfht_state_t state){
+  ht->state = state;
+  ht->hdr = (uintptr_t)hdr >> 2;
+}
 
 /* 
  *  Initializes an uninitialized lfht_t struct.

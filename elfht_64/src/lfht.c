@@ -33,15 +33,6 @@
 #define MIGRATIONS_PER_ACCESS   3
 
 
-/* 
- * Idea: might be better to not update ht->state and ht->hdr seperately,
- * but rather do it in one shot with a cas_64. ht->hdr is mmapped so 
- * page aligned so we can certainly steal the bits needed for the state.
- * Ian's question is should we do this with a bitfield hack, or a bit
- * mask in the lowest 4 bits.
- *
- */
-
 /*
  * A table grows from N to 2N when there are N/R non-zero keys, where
  * R is the RESIZE_RATIO.  The new table, before it needs to grow, has
@@ -126,8 +117,7 @@ bool init_lfht(lfht_t *ht, uint32_t max){
   if (ht != NULL && max != 0){
     hdr = alloc_lfht_hdr(max);
     if (hdr != NULL){
-      atomic_init(&ht->state, INITIAL);
-      ht->table_hdr = hdr;
+      lfht_set(ht, hdr, INITIAL);
       return true;
     } 
   }
@@ -139,13 +129,13 @@ bool delete_lfht(lfht_t *ht){
   
   if (ht != NULL){
 
-    hdr = (lfht_hdr_t *)ht->table_hdr;
+    hdr = (lfht_hdr_t *)lfht_table_hdr(ht);
     
     while(hdr != NULL){
       lfht_hdr_t * next = hdr->next;
       bool success = free_lfht_hdr(hdr);
       assert(success);
-      ht->table_hdr = NULL;
+      lfht_set(ht, NULL, 0);
       hdr = next;
     }
     return true;
@@ -157,11 +147,13 @@ bool delete_lfht(lfht_t *ht){
 /* returns true if this attempt succeeded; false otherwise. */
 bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
 
-  lfht_hdr_t *ohdr = (lfht_hdr_t *)ht->table_hdr;
+  lfht_t oht = *ht;
+  
+  lfht_hdr_t *ohdr = lfht_table_hdr(&oht);
   
   /* someone beat us to it */
   if(hdr != ohdr){
-    if(VERBOSE){ fprintf(stderr, "LOST RACE: ht->state = %d\n", ht->state); }
+    if(VERBOSE){ fprintf(stderr, "LOST RACE: ht state = %d\n", lfht_state(ht)); }
     return false;
   }
   
@@ -174,18 +166,13 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
     lfht_hdr_t *nhdr  = alloc_lfht_hdr(nmax);
   
     if (nhdr != NULL){
+      lfht_t nht;
       nhdr->next = ohdr;
-
-      if (cas_64((volatile uint64_t *)&(ht->table_hdr), (uint64_t)ohdr, (uint64_t)nhdr)){
+      lfht_set(&nht, nhdr,  EXPANDING);
+      if (cas_ptr((volatile uintptr_t *)ht, *((uintptr_t *)&oht), *((uintptr_t *)&nht))){
 	/* we succeeded in adding the new table */
-	assert(atomic_load(&ht->state) == INITIAL || atomic_load(&ht->state) == EXPANDED);
-
-	atomic_store(&ht->state, EXPANDING);
-	
 	assert(ohdr->next == NULL || ohdr->next->assimilated);
-
-	assert(ht->table_hdr->next == hdr);
-
+	assert(lfht_table_hdr(ht)->next == hdr);
 	return true;
       } else {
 	free_lfht_hdr(nhdr);
@@ -200,24 +187,28 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
 static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint32_t hash,  uint32_t count);
 
 static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
-  unsigned int table_state = atomic_load(&ht->state);
-
+  lfht_t oht = *ht;
+  unsigned int table_state = lfht_state(&oht);
+  
   if (table_state == EXPANDING){
     /* gotta pitch in and do some migrating */
-    lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
+    lfht_hdr_t *hdr = (lfht_hdr_t *)lfht_table_hdr(ht);
     lfht_hdr_t *ohdr = hdr->next;
 
     uint32_t moved = assimilate(ht, ohdr, key, hash,  MIGRATIONS_PER_ACCESS);
 
     if (moved <  MIGRATIONS_PER_ACCESS){
+      lfht_t nht;
+
       /* the move has finished! */
       atomic_store(&ohdr->assimilated, true);
 
-      /* someone may have triggered another expansion (we could be slow) */
-      if(ht->table_hdr == hdr){
-	atomic_store(&ht->state, EXPANDED);
+      lfht_set(&nht, hdr, EXPANDED);
+
+      if (cas_ptr((volatile uintptr_t *)ht, *((uintptr_t *)&oht), *((uintptr_t *)&nht))){
+      /* we won this race */
       } else {
-	if(VERBOSE){ fprintf(stderr, "Table expanding, not marking as expanded\n");}
+	if(VERBOSE){ fprintf(stderr, "Table expanding again, not marking as expanded\n");}
       }
     }
 
@@ -239,7 +230,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
   assert( ! is_assimilated(key) );
   assert( val != TOMBSTONE );
 
-  if (ht == NULL  || ht->table_hdr == NULL || key == 0  || val == TOMBSTONE){
+  if (ht == NULL  || lfht_table_hdr(ht) == NULL || key == 0  || val == TOMBSTONE){
     return retval;
   }
   
@@ -250,7 +241,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 
  retry:
   
-  hdr = (lfht_hdr_t *)ht->table_hdr;
+  hdr = lfht_table_hdr(ht);
   table = hdr->table;
   mask = hdr->max - 1;
 
@@ -297,7 +288,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
 
  exit:
 
-  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
+  /* what do we do if we notice hdr != lfht_table_hdr(ht) at this point? ian thinks thats fine, think serialization. */
 
   /* slow thread last gasp */
   if ( external && atomic_load(&hdr->assimilated)){
@@ -327,7 +318,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   retval = false;
   retries = 0;
 
-  if (ht == NULL || ht->table_hdr == NULL || key == 0){
+  if (ht == NULL || lfht_table_hdr(ht) == NULL || key == 0){
     return retval;
   }
 
@@ -338,7 +329,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
  retry:
   
-  hdr = (lfht_hdr_t *)ht->table_hdr;
+  hdr = lfht_table_hdr(ht);
   table = hdr->table;
   mask = hdr->max - 1;
 
@@ -370,7 +361,7 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
   
  exit:
 
-  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
+  /* what do we do if we notice hdr != lfht_table_hdr(ht) at this point? ian thinks thats fine, think serialization. */
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){
@@ -395,7 +386,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   retval = false;
   retries = 0;
     
-  if (ht == NULL || ht->table_hdr == NULL || key == 0 || valp == NULL){
+  if (ht == NULL || lfht_table_hdr(ht) == NULL || key == 0 || valp == NULL){
     return retval;
   }
 
@@ -405,7 +396,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
 
  retry:
   
-  hdr = (lfht_hdr_t *)ht->table_hdr;
+  hdr = lfht_table_hdr(ht);
   table = hdr->table;
   mask = hdr->max - 1;
   
@@ -437,7 +428,7 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
   
  exit:
 
-  /* what do we do if we notice hdr != ht->table_hdr at this point? ian thinks thats fine, think serialization. */
+  /* what do we do if we notice hdr != lfht_table_hdr(ht) at this point? ian thinks thats fine, think serialization. */
 
   /* slow thread last gasp */
   if (atomic_load(&hdr->assimilated)){  
@@ -455,13 +446,15 @@ bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
  * The migration tax. 
  * 
  * The thread attempts to move at least count key-value pairs from the
- * old table (from_hdr) to the new table (ht->table_hdr). It starts
+ * old table (from_hdr) to the new table lfht_table_hdr(ht). It starts
  * the job where the key of interest may lie. It also makes sure that
  * the key of interest, if it has a non-TOMBSTONE value in the table,
  * has been moved.  Thus after paying the migration tax, the operation
  * can concentrate on the current table to service the request.
  *
  * Drew says we could think about doing this in a cache friendly fashion.
+ *
+ * FIXME: Drew could you, for the record, elaborate on this, here.
  *
  */
 
@@ -564,7 +557,7 @@ void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
   lfht_hdr_t *hdr;
   
   index = 0;
-  hdr = (lfht_hdr_t *)ht->table_hdr;
+  hdr = lfht_table_hdr(ht);
   fprintf(fp, "%s table state: %u\n", name, ht->state);
   while(hdr != NULL){
     lfht_hdr_dump(fp, hdr, index);

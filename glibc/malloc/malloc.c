@@ -5711,6 +5711,7 @@ __malloc_stats (void)
       fprintf (stderr, "Arena %zu:\n", ar_ptr->arena_index);
       fprintf (stderr, "system bytes     = %10u\n", (unsigned int) mi.arena);
       fprintf (stderr, "in use bytes     = %10u\n", (unsigned int) mi.uordblks);
+      dump_metadata(stderr, &(ar_ptr->htbl), false);
 #if MALLOC_DEBUG > 1
       if (i > 0)
         dump_heap (heap_for_ptr (chunkinfo2chunk(ar_ptr->_md_top)));

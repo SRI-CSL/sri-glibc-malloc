@@ -12,7 +12,7 @@ const size_t    metadata_initial_directory_length  = DIRECTORY_LENGTH;
 const size_t    metadata_segments_at_startup       = 1;
 
 const uint16_t  metadata_min_load                 = 2;   
-const uint16_t  metadata_max_load                 = 5;
+const uint16_t  metadata_max_load                 = 3;
 
 /* toggle for enabling table contraction */
 #define CONTRACTION_ENABLED  1
@@ -159,12 +159,37 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   return true;
 }
 
+#ifdef SRI_HISTOGRAM 
+
+const int tab32[32] = {
+     0,  9,  1, 10, 13, 21,  2, 29,
+    11, 14, 16, 18, 22, 25,  3, 30,
+     8, 12, 20, 28, 15, 17, 24,  7,
+    19, 27, 23,  6, 26,  5,  4, 31};
+
+int log2_32 (uint32_t value)
+{
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    return tab32[(uint32_t)(value*0x07C4ACDD) >> 27];
+}
+
+#endif
+
 extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
   bucket_t** bp;
 
   size_t maxlength;
+
+#ifdef SRI_HISTOGRAM 
+  uint32_t histogram[33] = {0};
+#endif
+  
   
   fprintf(fp, "directory_length = %" PRIuPTR "\n", lhtbl->directory_length);
   fprintf(fp, "directory_current = %" PRIuPTR "\n", lhtbl->directory_current);
@@ -184,13 +209,29 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   for(index = 0; index < lhtbl->bincount; index++){
     bp = bindex2bin(lhtbl, index);
     blen = bucket_length(*bp);
+
+#ifdef SRI_HISTOGRAM 
+    if( blen == 0){
+      histogram[0]++;
+    } else {
+      histogram[log2_32((uint32_t)blen) + 1]++;
+    }
+#endif
+
     if( blen > maxlength ){  maxlength = blen; }
+
     if(showloads && blen != 0){
       fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
     }
+
   }
   fprintf(fp, "\n");
   fprintf(fp, "maximum length = %" PRIuPTR "\n", maxlength);
+#ifdef SRI_HISTOGRAM 
+  for(index = 0; index < 33; index++){
+    fprintf(fp, "histogram[%zu] =\t%"PRIu32"\n", index, histogram[index]);
+  }
+#endif
 }
 
 
@@ -234,6 +275,20 @@ void delete_metadata(metadata_t* lhtbl){
   }
 }
 
+/* https://github.com/google/farmhash/blob/master/src/farmhash.h */
+
+// This is intended to be a good fingerprinting primitive.
+inline uint64_t Fingerprint(uint64_t x) {
+  // Murmur-inspired hashing.
+  const uint64_t kMul = 0x9ddfea08eb382d69ULL;
+  uint64_t b = x * kMul;
+  b ^= (b >> 44);
+  b *= kMul;
+  b ^= (b >> 41);
+  b *= kMul;
+  return b;
+}
+
 
 /* returns the raw bindex/index of the bin that should contain p  [{ hash }] */
 static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
@@ -241,8 +296,11 @@ static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
   uint32_t l;
   size_t next_maxp;
 
-  
   jhash  = jenkins_hash_ptr(p);
+
+  /*
+  jhash  = (uint32_t)Fingerprint((uintptr_t)p);
+  */
 
   l = mod_power_of_two(jhash, lhtbl->maxp);
 

@@ -62,11 +62,14 @@ static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
  */
 #define TOMBSTONE 0
 
+#define TABLE_SIZE  64
+//64
+//1024
 //4096
-#define HEAP_HTABLE_CAPACITY 1024
 
-//4096
-#define MMAP_HTABLE_CAPACITY 1024
+#define HEAP_HTABLE_CAPACITY TABLE_SIZE
+
+#define MMAP_HTABLE_CAPACITY TABLE_SIZE
 
 
 static lfht_t heap_tbl;  // maps heap ptr --> arena_index

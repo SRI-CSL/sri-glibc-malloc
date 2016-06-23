@@ -64,6 +64,21 @@ run:  clean all
 	./stest1
 	./stest2
 
+xalan:
+	./replay ../../analysis/data/Xalan_base.gcc49-64bit.20160613204504
+
+crypto:
+	./replay ../../analysis/data/cryptominisat4-hook.out.txt
+
+gcc:
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194243.txt
+
+omnet:
+	./replay ../../analysis/data/omnetpp_base.gcc49-64bit.20160613202413
+
+perl:
+	./replay ../../analysis/data/perlbench_base.gcc49-64bit.20160613192252
+
 testreplay:
 	./replay ../../analysis/data/yices_smt2_2668e3c6.txt
 

@@ -189,14 +189,13 @@ static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
 
 
 static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
-  uint32_t hash, mask, j, i, retries;
+  uint32_t hash, mask, j, i;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   lfht_entry_t entry;
   bool retval;
 
   retval = false;
-  retries = 0;
 
   assert( key != 0 );
   assert( ! is_assimilated(key) );
@@ -260,14 +259,13 @@ bool lfht_add(lfht_t *ht, uint64_t key, uint64_t val){
 
 
 bool lfht_remove(lfht_t *ht, uint64_t key){
-  uint32_t hash, mask, j, i, retries;
+  uint32_t hash, mask, j, i;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   lfht_entry_t entry;
   bool retval;
 
   retval = false;
-  retries = 0;
 
   if (ht == NULL || ht->table_hdr == NULL || key == 0){
     return retval;
@@ -312,14 +310,13 @@ bool lfht_remove(lfht_t *ht, uint64_t key){
 
 
 bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp){
-  uint32_t hash, mask, j, i, retries;
+  uint32_t hash, mask, j, i;
   uint64_t kval;
   lfht_hdr_t *hdr;
   lfht_entry_t*  table;
   bool retval;
 
   retval = false;
-  retries = 0;
     
   if (ht == NULL || ht->table_hdr == NULL || key == 0 || valp == NULL){
     return retval;

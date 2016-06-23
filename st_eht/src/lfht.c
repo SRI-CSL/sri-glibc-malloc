@@ -138,26 +138,20 @@ bool delete_lfht(lfht_t *ht){
 }
 
 /* returns true if this attempt succeeded; false otherwise. */
-bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
+bool _grow_table(lfht_t *ht){
 
-  lfht_hdr_t *ohdr = (lfht_hdr_t *)ht->table_hdr;
+  lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
   
-  /* someone beat us to it */
-  if(hdr != ohdr){
-    if(VERBOSE){ fprintf(stderr, "LOST RACE: ht->state = %d\n", ht->state); }
-    return false;
-  }
-  
-  uint32_t omax = ohdr->max;
+  uint32_t max = hdr->max;
 
-  if (omax < MAX_TABLE_SIZE){ 
+  if (max < MAX_TABLE_SIZE){ 
 
-    uint32_t nmax = 2 * ohdr->max;
+    uint32_t nmax = 2 * max;
 
     lfht_hdr_t *nhdr  = alloc_lfht_hdr(nmax);
   
     if (nhdr != NULL){
-      nhdr->next = ohdr;
+      nhdr->next = hdr;
 
       ht->table_hdr = nhdr;
 
@@ -176,9 +170,8 @@ bool _grow_table(lfht_t *ht,  lfht_hdr_t *hdr){
 static uint32_t assimilate(lfht_t *ht, lfht_hdr_t *from_hdr, uint64_t key, uint32_t hash,  uint32_t count);
 
 static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
-  unsigned int table_state = ht->state;
 
-  if (table_state == EXPANDING){
+  if (ht->state == EXPANDING){
     /* gotta pitch in and do some migrating */
     lfht_hdr_t *hdr = (lfht_hdr_t *)ht->table_hdr;
     lfht_hdr_t *ohdr = hdr->next;
@@ -236,7 +229,7 @@ static bool _lfht_add(lfht_t *ht, uint64_t key, uint64_t val, bool external){
       const uint32_t count = ++hdr->count;
 	
       if (count  > hdr->threshold){
-	_grow_table(ht, hdr);
+	_grow_table(ht);
       }
       retval = true;
       goto exit;

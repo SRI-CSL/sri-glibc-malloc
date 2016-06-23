@@ -75,6 +75,8 @@ typedef struct metadata_s {
   size_t count;                  /* the total number of records in the table                               */
   size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
   size_t bincount;               /* the current number of bins                                             */
+  uint64_t wtf1, wtf2;           /* the number of duplicate keys (chunks) with the same and different chunkinfoptr's
+				    (respectively) that we've tried to insert in this hashtable. */
 } metadata_t;
 
 

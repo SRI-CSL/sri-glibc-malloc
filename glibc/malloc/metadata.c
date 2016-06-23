@@ -1,5 +1,9 @@
 #include <errno.h>
 #include <inttypes.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "metadata.h"
 #include "utils.h"
@@ -47,6 +51,9 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
+
+/* drew desiderata */
+static void bucket_dump(int fd, bucket_t* bucket);
 
 /* for sanity checking */
 #ifndef NDEBUG
@@ -156,6 +163,9 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
     }
   }
 
+  /* No WTF's to start. */
+  lhtbl->wtf1 = lhtbl->wtf2  = 0;
+
   return true;
 }
 
@@ -185,8 +195,11 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   bucket_t** bp;
 
   size_t maxlength;
+  size_t maxindex;
 
 #ifdef SRI_HISTOGRAM 
+  static uint32_t dumpcount = 0;
+  char dumpfile[1024] = {'\0'};
   uint32_t histogram[33] = {0};
 #endif
   
@@ -199,8 +212,10 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "maxp = %" PRIuPTR "\n", lhtbl->maxp);
   fprintf(fp, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
   fprintf(fp, "load = %" PRIuPTR "\n", metadata_load(lhtbl));
-  
+  fprintf(fp, "wtf1 = %"PRIu64", wtf2 = %"PRIu64"\n", lhtbl->wtf1, lhtbl->wtf2);
+
   maxlength = 0;
+  maxindex = 0;
   
   if(showloads){
     fprintf(fp, "bucket lengths: ");
@@ -218,16 +233,41 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     }
 #endif
 
-    if( blen > maxlength ){  maxlength = blen; }
+    if( blen > maxlength ){ 
+      maxlength = blen; 
+      maxindex = index;
+    }
 
     if(showloads && blen != 0){
       fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
     }
 
   }
+
+
+
+
   fprintf(fp, "\n");
-  fprintf(fp, "maximum length = %" PRIuPTR "\n", maxlength);
+  fprintf(fp, "maximum length = %" PRIuPTR " @ index %zu\n", maxlength, maxindex);
+
 #ifdef SRI_HISTOGRAM 
+
+#ifndef SRI_NOT_JENKINS
+  const char hashname[] = "jenkins";
+#else
+  const char hashname[] = "google";
+#endif
+
+  snprintf(dumpfile, 1024, "/tmp/bin_%d_%zu_%s.txt", dumpcount++, maxindex, hashname);
+  
+  int fd = open(dumpfile, O_WRONLY | O_CREAT, 00777);
+  
+  
+  if (fd != -1){
+    bp = bindex2bin(lhtbl, maxindex);
+    bucket_dump(fd, *bp);
+    close(fd);
+  }
   for(index = 0; index < 33; index++){
     fprintf(fp, "histogram[%zu] =\t%"PRIu32"\n", index, histogram[index]);
   }
@@ -296,11 +336,11 @@ static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
   uint32_t l;
   size_t next_maxp;
 
+#ifndef SRI_NOT_JENKINS
   jhash  = jenkins_hash_ptr(p);
-
-  /*
+#else
   jhash  = (uint32_t)Fingerprint((uintptr_t)p);
-  */
+#endif
 
   l = mod_power_of_two(jhash, lhtbl->maxp);
 
@@ -531,29 +571,12 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 /* iam Q2: should we insert at the front or back or ...                        */
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
-bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
-  bucket_t** binp;
-
-  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
-
-  /* for the time being we insert the bucket at the front */
-  newbucket->next_bucket = *binp;
-  *binp = newbucket;
-
-  /* census adjustments */
-  lhtbl->count++;
-
-  /* check to see if we need to exand the table */
-  return metadata_expand_check(lhtbl);
-}
-
-bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
+static inline bucket_t *internal_md_lookup(bucket_t **binp, const void *chunk)
+{
   bucket_t* value;
-  bucket_t** binp;
   bucket_t* bucketp;
 
   value = NULL;
-  binp = metadata_fetch_bucket(lhtbl, chunk);
   bucketp = *binp;
 
   while(bucketp != NULL){
@@ -565,6 +588,43 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   }
 
   return value;
+}
+
+bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
+  bucket_t** binp;
+  bucket_t *lookup_result;
+
+  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
+  lookup_result = internal_md_lookup(binp, newbucket->chunk);
+
+  if(lookup_result == NULL) {
+    /* for the time being we insert the bucket at the front */
+    newbucket->next_bucket = *binp;
+    *binp = newbucket;
+    
+    /* census adjustments */
+    lhtbl->count++;
+
+    /* check to see if we need to exand the table */
+    return metadata_expand_check(lhtbl);
+  } else {
+    if(lookup_result == newbucket) {
+      /* This is a type-1 WTF, count & return */
+      lhtbl->wtf1++;
+      return true;
+    } else {
+      lhtbl->wtf2++;
+      return true;
+    }
+  }
+}
+
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
+
+  bucket_t** binp;
+
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  return internal_md_lookup(binp, chunk);
 }
 
 bool metadata_delete(metadata_t* lhtbl, const void *chunk){
@@ -649,6 +709,20 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 #endif
 
   return count;
+}
+
+
+void bucket_dump(int fd, bucket_t* bucket){
+  bucket_t* current;
+
+  current = bucket;
+  while(current != NULL){
+    char buff[64] = {'\0'};
+    snprintf(buff, 64, "%p:%p\n", current->chunk, bucket);
+    write(fd, buff, strlen(buff));
+    current = current->next_bucket;
+  }
+
 }
 
 

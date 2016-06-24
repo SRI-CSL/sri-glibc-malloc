@@ -634,9 +634,11 @@ static inline bool internal_md_delete(metadata_t *lhtbl, bucket_t **binp, const 
 
 bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
-  bucket_t *lookup_result;
+  // bucket_t *lookup_result; // Changing to unconditional delete...
 
   binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
+#if 0
+  // Drew is commenting out for unconditional delete...
   lookup_result = internal_md_lookup(binp, newbucket->chunk);
 
   if(lookup_result == newbucket) {
@@ -647,6 +649,11 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
     (void)internal_md_delete(lhtbl, binp, newbucket->chunk);
     // if(lhtbl->wtf2 > 1000) {abort(); }
   }
+#else
+  if(metadata_delete(lhtbl, newbucket->chunk)) {
+    lhtbl->wtf2++;
+  }
+#endif
 
   /* for the time being we insert the bucket at the front */
   newbucket->next_bucket = *binp;

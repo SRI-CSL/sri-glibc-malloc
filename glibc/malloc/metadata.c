@@ -201,6 +201,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   static uint32_t dumpcount = 0;
   char dumpfile[1024] = {'\0'};
   uint32_t histogram[33] = {0};
+  uint32_t hist_limit = 0;
 #endif
   
   
@@ -268,7 +269,9 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     bucket_dump(fd, *bp);
     close(fd);
   }
-  for(index = 0; index < 33; index++){
+  hist_limit = (log2_32(maxlength) + 2 < 33) ? (log2_32(maxlength) + 2) : 33;
+
+  for(index = 0; index < hist_limit; index++){
     fprintf(fp, "histogram[%zu] =\t%"PRIu32"\n", index, histogram[index]);
   }
 #endif
@@ -590,51 +593,13 @@ static inline bucket_t *internal_md_lookup(bucket_t **binp, const void *chunk)
   return value;
 }
 
-bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
-  bucket_t** binp;
-  bucket_t *lookup_result;
-
-  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
-  lookup_result = internal_md_lookup(binp, newbucket->chunk);
-
-  if(lookup_result == NULL) {
-    /* for the time being we insert the bucket at the front */
-    newbucket->next_bucket = *binp;
-    *binp = newbucket;
-    
-    /* census adjustments */
-    lhtbl->count++;
-
-    /* check to see if we need to exand the table */
-    return metadata_expand_check(lhtbl);
-  } else {
-    if(lookup_result == newbucket) {
-      /* This is a type-1 WTF, count & return */
-      lhtbl->wtf1++;
-      return true;
-    } else {
-      lhtbl->wtf2++;
-      return true;
-    }
-  }
-}
-
-bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
-
-  bucket_t** binp;
-
-  binp = metadata_fetch_bucket(lhtbl, chunk);
-  return internal_md_lookup(binp, chunk);
-}
-
-bool metadata_delete(metadata_t* lhtbl, const void *chunk){
+static inline bool internal_md_delete(metadata_t *lhtbl, bucket_t **binp, const void *chunk)
+{
   bool found = false;
-  bucket_t** binp;
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
 
   previous_bucketp = NULL;
-  binp = metadata_fetch_bucket(lhtbl, chunk);
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
@@ -666,6 +631,50 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
 
   return found;
 }
+
+bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
+  bucket_t** binp;
+  bucket_t *lookup_result;
+
+  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
+  lookup_result = internal_md_lookup(binp, newbucket->chunk);
+
+  if(lookup_result == newbucket) {
+      /* This is a type-1 WTF, count & return */
+      lhtbl->wtf1++;
+  } else if (lookup_result != NULL) {
+    lhtbl->wtf2++;
+    (void)internal_md_delete(lhtbl, binp, newbucket->chunk);
+    // if(lhtbl->wtf2 > 1000) {abort(); }
+  }
+
+  /* for the time being we insert the bucket at the front */
+  newbucket->next_bucket = *binp;
+  *binp = newbucket;
+    
+  /* census adjustments */
+  lhtbl->count++;
+  
+    /* check to see if we need to exand the table */
+  return metadata_expand_check(lhtbl);
+}
+
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
+
+  bucket_t** binp;
+
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  return internal_md_lookup(binp, chunk);
+}
+
+bool metadata_delete(metadata_t* lhtbl, const void *chunk){
+
+  bucket_t** binp;
+
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  return internal_md_delete(lhtbl, binp, chunk);
+
+ }
 
 size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   size_t count;

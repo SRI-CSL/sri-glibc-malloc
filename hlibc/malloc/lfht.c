@@ -552,7 +552,7 @@ void lfht_hdr_dump(FILE* fp, lfht_hdr_t *hdr, uint32_t index){
     }
   }
   
-  fprintf(fp, "table[%"PRIu32"]: assimilated = %d max = %"PRIu32\
+  fprintf(fp, "\ttable[%"PRIu32"]: assimilated = %d max = %"PRIu32\
 	  " count =  %"PRIu32" threshold =  %"PRIu32" actual =  %"PRIu32\
 	  " moved =  %"PRIu32" tombstoned =  %"PRIu32"\n",
 	  index, hdr->assimilated, hdr->max, hdr->count, hdr->threshold,

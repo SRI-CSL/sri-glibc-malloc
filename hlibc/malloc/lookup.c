@@ -62,7 +62,7 @@ static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
  */
 #define TOMBSTONE 0
 
-#define TABLE_SIZE  64
+#define TABLE_SIZE  1024
 //64
 //1024
 //4096
@@ -205,7 +205,7 @@ void lookup_dump(FILE* fp){
   fprintf(fp, "lookup:\n");
   for(i = 0; i <= sbrk_region_count; i++){
     fprintf(fp, 
-	    " sbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
+	    "\tsbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
 	    i, 
 	    (void*)sbrk_regions[i].lo, 
 	    (void*)sbrk_regions[i].hi, 

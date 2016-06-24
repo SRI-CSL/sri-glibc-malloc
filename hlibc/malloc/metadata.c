@@ -52,8 +52,10 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
-/* drew desiderata */
+#ifdef SRI_HISTOGRAM 
+/* drastic dump of long chains */
 static void bucket_dump(int fd, bucket_t* bucket);
+#endif
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
 static inline size_t mod_power_of_two(size_t x, size_t y){
@@ -684,6 +686,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 }
 
 
+#ifdef SRI_HISTOGRAM 
 void bucket_dump(int fd, bucket_t* bucket){
   bucket_t* current;
 
@@ -696,7 +699,7 @@ void bucket_dump(int fd, bucket_t* bucket){
   }
 
 }
-
+#endif
 
 size_t bucket_length(bucket_t* bucket){
   size_t count;

@@ -590,7 +590,7 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   return metadata_expand_check(lhtbl);
 }
 
-#if 0
+#ifdef SRI_WTF
 static inline bucket_t *internal_md_lookup(bucket_t **binp, const void *chunk)
 {
   bucket_t* value;
@@ -699,7 +699,8 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   binp = metadata_fetch_bucket(lhtbl, chunk);
   return internal_md_lookup(binp, chunk);
 }
-#endif
+
+#else 
 
 
 bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
@@ -761,6 +762,8 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
 
   return found;
 }
+
+#endif
 
 size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   size_t count;

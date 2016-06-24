@@ -9,7 +9,8 @@
 #include <time.h>
 #include <linux/limits.h>
 
-const uint64_t malloc_stats_interval = 10000000;
+//const uint64_t malloc_stats_interval = 10000000;
+const uint64_t malloc_stats_interval = 0;
 
 #include "replaylib.h"
 
@@ -123,7 +124,7 @@ int process_file(const char *filename, bool verbose){
       linecount++;
     }
 
-    if(linecount % malloc_stats_interval == 0){
+    if(malloc_stats_interval > 0 && linecount % malloc_stats_interval == 0){
       fprintf(stderr, "Malloc stats snapshot at line %zu\n", linecount);
       malloc_stats();
     }    

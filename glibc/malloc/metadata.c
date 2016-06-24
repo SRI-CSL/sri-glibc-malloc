@@ -52,8 +52,10 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
-/* drew desiderata */
+#ifdef SRI_HISTOGRAM 
+/* drastic data dump  */
 static void bucket_dump(int fd, bucket_t* bucket);
+#endif
 
 /* for sanity checking */
 #ifndef NDEBUG
@@ -810,6 +812,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 }
 
 
+#ifdef SRI_HISTOGRAM 
 void bucket_dump(int fd, bucket_t* bucket){
   bucket_t* current;
 
@@ -822,6 +825,7 @@ void bucket_dump(int fd, bucket_t* bucket){
   }
 
 }
+#endif
 
 
 size_t bucket_length(bucket_t* bucket){

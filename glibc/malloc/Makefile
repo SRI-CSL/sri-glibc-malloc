@@ -130,11 +130,13 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #CFLAGS-metadata.c =  -O0
 #else
 #N.B. some(?) debugging happens when NDEBUG is not defined!
-CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
-CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
-CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
+# -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
+# -DSRI_DEBUG=1
+CFLAGS-malloc.c =  -DNDEBUG -O2 
+CFLAGS-debug.c =  -DNDEBUG -O2 
+CFLAGS-utils.c =  -DNDEBUG  -O2
+CFLAGS-memcxt.c = -DNDEBUG  -O2 
+CFLAGS-metadata.c = -DNDEBUG -O2
 #endif
 
 

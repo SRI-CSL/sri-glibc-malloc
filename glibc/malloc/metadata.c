@@ -574,6 +574,23 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 /* iam Q2: should we insert at the front or back or ...                        */
 /* iam Q3: how often should we check to see if the table needs to be expanded  */
 
+bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
+  bucket_t** binp;
+
+  binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
+
+  /* for the time being we insert the bucket at the front */
+  newbucket->next_bucket = *binp;
+  *binp = newbucket;
+
+  /* census adjustments */
+  lhtbl->count++;
+
+  /* check to see if we need to exand the table */
+  return metadata_expand_check(lhtbl);
+}
+
+#if 0
 static inline bucket_t *internal_md_lookup(bucket_t **binp, const void *chunk)
 {
   bucket_t* value;
@@ -666,14 +683,6 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   return metadata_expand_check(lhtbl);
 }
 
-bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
-
-  bucket_t** binp;
-
-  binp = metadata_fetch_bucket(lhtbl, chunk);
-  return internal_md_lookup(binp, chunk);
-}
-
 bool metadata_delete(metadata_t* lhtbl, const void *chunk){
 
   bucket_t** binp;
@@ -682,6 +691,76 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
   return internal_md_delete(lhtbl, binp, chunk);
 
  }
+
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
+
+  bucket_t** binp;
+
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  return internal_md_lookup(binp, chunk);
+}
+#endif
+
+
+bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
+  bucket_t* value;
+  bucket_t** binp;
+  bucket_t* bucketp;
+
+  value = NULL;
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  bucketp = *binp;
+
+  while(bucketp != NULL){
+    if(chunk == bucketp->chunk){
+      value = bucketp;
+      break;
+    }
+    bucketp = bucketp->next_bucket;
+  }
+
+  return value;
+}
+
+bool metadata_delete(metadata_t* lhtbl, const void *chunk){
+  bool found = false;
+  bucket_t** binp;
+  bucket_t* current_bucketp;
+  bucket_t* previous_bucketp;
+
+  previous_bucketp = NULL;
+  binp = metadata_fetch_bucket(lhtbl, chunk);
+  current_bucketp = *binp;
+
+  while(current_bucketp != NULL){
+    if(chunk == current_bucketp->chunk){
+      found = true;
+      
+      if(previous_bucketp == NULL){
+ 	*binp = current_bucketp->next_bucket;
+      } else {
+	previous_bucketp->next_bucket = current_bucketp->next_bucket;
+      }
+      memcxt_release(lhtbl->cfg.memcxt, BUCKET, current_bucketp, sizeof(bucket_t));
+
+      /* census adjustments */
+      lhtbl->count--;
+
+      break;
+    }
+    previous_bucketp = current_bucketp;
+    current_bucketp = current_bucketp->next_bucket;
+  }
+
+#if CONTRACTION_ENABLED
+  /* should we contract */
+  if(found){
+    metadata_contract_check(lhtbl);
+  }
+#endif
+
+  return found;
+}
 
 size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   size_t count;

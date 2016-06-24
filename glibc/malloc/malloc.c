@@ -4652,6 +4652,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 {
   INTERNAL_SIZE_T size;        /* its size */
   mfastbinptr *fb;             /* associated fastbin */
+  mchunkptr temp;              /* temporary handle of chunk destined to be coalesced */
   mchunkptr nextchunk;         /* next contiguous chunk */
   chunkinfoptr _md_nextchunk;  /* metadata of next contiguous chunk */
   INTERNAL_SIZE_T nextsize;    /* its size */
@@ -4840,9 +4841,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     if (!prev_inuse(_md_p, p)) {
       prevsize = _md_p->prev_size;
       size += prevsize;
+      temp = p;
       p = chunk_at_offset(p, -((long) prevsize));
-      _md_p = lookup_chunk(av, p);             
+      _md_p = lookup_chunk(av, p);  
+      if (_md_p == NULL) { missing_metadata(av, p); }           
       bin_unlink(av, _md_p, &bck, &fwd);                     
+      /* do not leak the coalesced chunk's metadata */
+      unregister_chunk(av, temp, 10); 
     }
 
     if (nextchunk != topchunk) {
@@ -4853,6 +4858,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       if (!nextinuse) {
         bin_unlink(av, _md_nextchunk, &bck, &fwd);
         size += nextsize;
+	/* do not leak the coalesced chunk's metadata */
+	unregister_chunk(av, nextchunk, 11); 
       } else
         clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
 
@@ -4899,6 +4906,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       size += nextsize;
       set_head(_md_p, size | PREV_INUSE);
       av->_md_top = _md_p;
+      /* do not leak the coalesced top chunk's metadata */
+      unregister_chunk(av, topchunk, 12); 
       check_chunk(av, p, _md_p);
     }
 
@@ -4989,8 +4998,10 @@ static void malloc_consolidate(mstate av)
   mfastbinptr*    fb;                 /* current fastbin being consolidated */
   mfastbinptr*    maxfb;              /* last fastbin (for loop control) */
   mchunkptr       p;                  /* current chunk being consolidated */
+  mchunkptr       temp;               /* temporary handle on current chunk being consolidated */
   chunkinfoptr    _md_p;              /* metatdata of current chunk being consolidated */
   chunkinfoptr    _md_nextp;          /* metadata of next chunk to consolidate */
+  
   chunkinfoptr    unsorted_bin;       /* bin header */
   chunkinfoptr    first_unsorted;     /* chunk to link to */
 
@@ -5046,10 +5057,13 @@ static void malloc_consolidate(mstate av)
           if (!prev_inuse(_md_p, p)) {
             prevsize = _md_p->prev_size;
             size += prevsize;
+	    temp = p;
             p = chunk_at_offset(p, -((long) prevsize));
             _md_p = lookup_chunk (av, p);
 	    if (_md_p == NULL) { missing_metadata(av, p); }
             bin_unlink(av, _md_p, &bck, &fwd);
+	    /* do not leak the coalesced chunk's metadata */
+	    unregister_chunk(av, temp, 7); 
           }
 
 	  topchunk = chunkinfo2chunk(av->_md_top);
@@ -5061,6 +5075,8 @@ static void malloc_consolidate(mstate av)
             if (!nextinuse) {
               size += nextsize;
               bin_unlink(av, _md_nextchunk, &bck, &fwd);
+	      /* do not leak the coalesced chunk's metadata */
+	      unregister_chunk(av, nextchunk, 8); 
             } else
               clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
 
@@ -5084,6 +5100,8 @@ static void malloc_consolidate(mstate av)
 	    
             size += nextsize;
             set_head(_md_p, size | PREV_INUSE);
+	    /* do not leak the old top's chunk's metadata */
+	    unregister_chunk(av, topchunk, 9); 
             av->_md_top = _md_p;
             check_top(av);
           }

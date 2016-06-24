@@ -1,5 +1,9 @@
 #include <errno.h>
 #include <inttypes.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "metadata.h"
 #include "utils.h"
@@ -12,7 +16,7 @@ const size_t    metadata_initial_directory_length  = DIRECTORY_LENGTH;
 const size_t    metadata_segments_at_startup       = 1;
 
 const uint16_t  metadata_min_load                 = 2;   
-const uint16_t  metadata_max_load                 = 5;
+const uint16_t  metadata_max_load                 = 3;
 
 /* toggle for enabling table contraction */
 #define CONTRACTION_ENABLED  1
@@ -48,6 +52,8 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
+/* drew desiderata */
+static void bucket_dump(int fd, bucket_t* bucket);
 
 /* Fast modulo arithmetic, assuming that y is a power of 2 */
 static inline size_t mod_power_of_two(size_t x, size_t y){
@@ -153,12 +159,41 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   return true;
 }
 
+#ifdef SRI_HISTOGRAM 
+
+const int tab32[32] = {
+     0,  9,  1, 10, 13, 21,  2, 29,
+    11, 14, 16, 18, 22, 25,  3, 30,
+     8, 12, 20, 28, 15, 17, 24,  7,
+    19, 27, 23,  6, 26,  5,  4, 31};
+
+int log2_32 (uint32_t value)
+{
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    return tab32[(uint32_t)(value*0x07C4ACDD) >> 27];
+}
+
+#endif
+
 extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t index;
   size_t blen;
   bucket_t** bp;
 
   size_t maxlength;
+  size_t maxindex;
+  
+#ifdef SRI_HISTOGRAM 
+  static uint32_t dumpcount = 0;
+  char dumpfile[1024] = {'\0'};
+  uint32_t histogram[33] = {0};
+  uint32_t hist_limit = 0;
+#endif
+  
   
   fprintf(fp, "directory_length = %" PRIuPTR "\n", lhtbl->directory_length);
   fprintf(fp, "directory_current = %" PRIuPTR "\n", lhtbl->directory_current);
@@ -170,6 +205,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "load = %" PRIuPTR "\n", metadata_load(lhtbl));
   
   maxlength = 0;
+  maxindex = 0;
   
   if(showloads){
     fprintf(fp, "bucket lengths: ");
@@ -178,13 +214,56 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   for(index = 0; index < lhtbl->bincount; index++){
     bp = bindex2bin(lhtbl, index);
     blen = bucket_length(*bp);
-    if( blen > maxlength ){  maxlength = blen; }
+
+#ifdef SRI_HISTOGRAM 
+    if( blen == 0){
+      histogram[0]++;
+    } else {
+      histogram[log2_32((uint32_t)blen) + 1]++;
+    }
+#endif
+
+    if( blen > maxlength ){ 
+      maxlength = blen; 
+      maxindex = index;
+    }
+
     if(showloads && blen != 0){
       fprintf(fp, "%" PRIuPTR ":%" PRIuPTR " ", index, blen);
     }
+
   }
+
+
+
+
   fprintf(fp, "\n");
-  fprintf(fp, "maximum length = %" PRIuPTR "\n", maxlength);
+  fprintf(fp, "maximum length = %" PRIuPTR " @ index %zu\n", maxlength, maxindex);
+
+#ifdef SRI_HISTOGRAM 
+
+#ifndef SRI_NOT_JENKINS
+  const char hashname[] = "jenkins";
+#else
+  const char hashname[] = "google";
+#endif
+
+  snprintf(dumpfile, 1024, "/tmp/bin_%d_%zu_%s.txt", dumpcount++, maxindex, hashname);
+  
+  int fd = open(dumpfile, O_WRONLY | O_CREAT, 00777);
+  
+  
+  if (fd != -1){
+    bp = bindex2bin(lhtbl, maxindex);
+    bucket_dump(fd, *bp);
+    close(fd);
+}
+  hist_limit = (log2_32(maxlength) + 2 < 33) ? (log2_32(maxlength) + 2) : 33;
+
+  for(index = 0; index < hist_limit; index++){
+    fprintf(fp, "histogram[%zu] =\t%"PRIu32"\n", index, histogram[index]);
+  }
+#endif
 }
 
 
@@ -228,6 +307,20 @@ void delete_metadata(metadata_t* lhtbl){
   }
 }
 
+/* https://github.com/google/farmhash/blob/master/src/farmhash.h */
+
+// This is intended to be a good fingerprinting primitive.
+inline uint64_t Fingerprint(uint64_t x) {
+  // Murmur-inspired hashing.
+  const uint64_t kMul = 0x9ddfea08eb382d69ULL;
+  uint64_t b = x * kMul;
+  b ^= (b >> 44);
+  b *= kMul;
+  b ^= (b >> 41);
+  b *= kMul;
+  return b;
+}
+
 
 /* returns the raw bindex/index of the bin that should contain p  [{ hash }] */
 static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
@@ -235,8 +328,11 @@ static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
   uint32_t l;
   size_t next_maxp;
 
-  
+#ifndef SRI_NOT_JENKINS
   jhash  = jenkins_hash_ptr(p);
+#else
+  jhash  = (uint32_t)Fingerprint((uintptr_t)p);
+#endif
 
   l = mod_power_of_two(jhash, lhtbl->maxp);
 
@@ -585,6 +681,20 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 #endif
 
   return count;
+}
+
+
+void bucket_dump(int fd, bucket_t* bucket){
+  bucket_t* current;
+
+  current = bucket;
+  while(current != NULL){
+    char buff[64] = {'\0'};
+    snprintf(buff, 64, "%p:%p\n", current->chunk, bucket);
+    write(fd, buff, strlen(buff));
+    current = current->next_bucket;
+  }
+
 }
 
 

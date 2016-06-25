@@ -15,8 +15,8 @@ const size_t    metadata_segment_length            = SEGMENT_LENGTH;
 const size_t    metadata_initial_directory_length  = DIRECTORY_LENGTH;
 const size_t    metadata_segments_at_startup       = 1;
 
-const uint16_t  metadata_min_load                 = 2;   
-const uint16_t  metadata_max_load                 = 3;
+const float  metadata_min_load                 = 1.5;   
+const float  metadata_max_load                 = 2.75;
 
 /* toggle for enabling table contraction */
 #define CONTRACTION_ENABLED  1
@@ -70,8 +70,8 @@ static inline size_t mod_power_of_two(size_t x, size_t y){
   return x & (y - 1);
 }
 
-static inline size_t metadata_load(metadata_t* lhtbl){
-  return lhtbl->count / lhtbl->bincount;
+static inline float metadata_load(metadata_t* lhtbl){
+  return (float)lhtbl->count / lhtbl->bincount;
 }
 
 static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt){
@@ -165,8 +165,10 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
     }
   }
 
+#ifdef SRI_WTF
   /* No WTF's to start. */
   lhtbl->wtf1 = lhtbl->wtf2  = 0;
+#endif
 
   return true;
 }
@@ -200,8 +202,6 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t maxindex;
 
 #ifdef SRI_HISTOGRAM 
-  static uint32_t dumpcount = 0;
-  char dumpfile[1024] = {'\0'};
   uint32_t histogram[33] = {0};
   uint32_t hist_limit = 0;
 #endif
@@ -214,8 +214,11 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "count = %" PRIuPTR "\n", lhtbl->count);
   fprintf(fp, "maxp = %" PRIuPTR "\n", lhtbl->maxp);
   fprintf(fp, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
-  fprintf(fp, "load = %" PRIuPTR "\n", metadata_load(lhtbl));
+  fprintf(fp, "load = %f\n", metadata_load(lhtbl));
+
+#ifdef SRI_WTF
   fprintf(fp, "wtf1 = %"PRIu64", wtf2 = %"PRIu64"\n", lhtbl->wtf1, lhtbl->wtf2);
+#endif
 
   maxlength = 0;
   maxindex = 0;
@@ -261,6 +264,10 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   const char hashname[] = "google";
 #endif
 
+#ifndef SRI_BIN_DUMP
+  static uint32_t dumpcount = 0;
+  char dumpfile[1024] = {'\0'};
+
   snprintf(dumpfile, 1024, "/tmp/bin_%d_%zu_%s.txt", dumpcount++, maxindex, hashname);
   
   int fd = open(dumpfile, O_WRONLY | O_CREAT, 00777);
@@ -271,6 +278,8 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     bucket_dump(fd, *bp);
     close(fd);
   }
+#endif
+
   hist_limit = (log2_32(maxlength) + 2 < 33) ? (log2_32(maxlength) + 2) : 33;
 
   for(index = 0; index < hist_limit; index++){
@@ -819,7 +828,7 @@ void bucket_dump(int fd, bucket_t* bucket){
   current = bucket;
   while(current != NULL){
     char buff[64] = {'\0'};
-    snprintf(buff, 64, "%p:%p\n", current->chunk, bucket);
+    snprintf(buff, 64, "%p:%p\n", current->chunk, current);
     write(fd, buff, strlen(buff));
     current = current->next_bucket;
   }

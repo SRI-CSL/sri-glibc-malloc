@@ -136,7 +136,7 @@ CFLAGS-malloc.c =  -DNDEBUG -O2
 CFLAGS-debug.c =  -DNDEBUG -O2 
 CFLAGS-utils.c =  -DNDEBUG  -O2
 CFLAGS-memcxt.c = -DNDEBUG  -O2 
-CFLAGS-metadata.c = -DNDEBUG -O2
+CFLAGS-metadata.c = -DNDEBUG -O2 -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
 #endif
 
 

@@ -41,8 +41,8 @@ typedef struct metadata_cfg_s {
   size_t initial_directory_length;  /* Larsen's directory is static ( also 256), ours will have to be dynamic  */
   size_t directory_length_max;      /* Currently don't get this big (see note following this)                  */
   size_t bincount_max;              /* the maximum number of bins: directory_length_max * segment_length       */
-  uint16_t min_load;                /* Not sure if Larsen ever specifies his value for this                    */
-  uint16_t max_load;                /* Larsen uses 5 we could use  4 or 8                                      */
+  float min_load;                /* Not sure if Larsen ever specifies his value for this                    */
+  float max_load;                /* Larsen uses 5 we could use  4 or 8                                      */
   bool multithreaded;               /* are we going to protect against contention                              */
 } metadata_cfg_t;
 

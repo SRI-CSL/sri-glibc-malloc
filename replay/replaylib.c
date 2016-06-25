@@ -9,8 +9,8 @@
 #include <time.h>
 #include <linux/limits.h>
 
-//const uint64_t malloc_stats_interval = 10000000;
-const uint64_t malloc_stats_interval = 0;
+const uint64_t malloc_stats_interval = 10000000;
+//const uint64_t malloc_stats_interval = 0;
 
 #include "replaylib.h"
 

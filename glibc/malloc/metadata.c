@@ -15,7 +15,7 @@ const size_t    metadata_segment_length            = SEGMENT_LENGTH;
 const size_t    metadata_initial_directory_length  = DIRECTORY_LENGTH;
 const size_t    metadata_segments_at_startup       = 1;
 
-const float  metadata_min_load                 = 1.5;   
+const float  metadata_min_load                 = 1.5;
 const float  metadata_max_load                 = 2.75;
 
 /* toggle for enabling table contraction */
@@ -31,7 +31,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt);
 
 /* split's the current bin  */
 static bool metadata_expand_table(metadata_t* lhtbl);
- 
+
 #if CONTRACTION_ENABLED
 /* linhash contraction routines */
 
@@ -52,7 +52,7 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
 /* drastic data dump  */
 static void bucket_dump(int fd, bucket_t* bucket);
 #endif
@@ -78,7 +78,7 @@ static void metadata_cfg_init(metadata_cfg_t* cfg, memcxt_t* memcxt){
   cfg->multithreaded            = metadata_multithreaded;
   cfg->segment_length           = metadata_segment_length;
   cfg->initial_directory_length = metadata_initial_directory_length;
-  cfg->min_load                 = metadata_min_load;   
+  cfg->min_load                 = metadata_min_load;
   cfg->max_load                 = metadata_max_load;
   cfg->memcxt                   = memcxt;
   cfg->bincount_max             = UINT32_MAX;
@@ -99,37 +99,37 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   bool success;
   size_t dirsz;
   size_t binsz;
-  
+
   if((lhtbl == NULL) || (memcxt == NULL)){
     errno = EINVAL;
     return false;
   }
-  
+
   assert((lhtbl != NULL) && (memcxt != NULL));
 
   lhtbl_cfg = &lhtbl->cfg;
-  
+
   metadata_cfg_init(lhtbl_cfg, memcxt);
-    
+
 
   lhtbl->directory_length = lhtbl_cfg->initial_directory_length;
-  lhtbl->directory_current = metadata_segments_at_startup; 
+  lhtbl->directory_current = metadata_segments_at_startup;
 
-  
+
   /* the size of the directory */
   success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   if(!success){
     errno = EINVAL;
     return false;
   }
-    
+
   /* the directory; i.e. the array of segment pointers */
   lhtbl->directory = memcxt_allocate(memcxt, DIRECTORY, NULL, dirsz);
   if(lhtbl->directory == NULL){
     errno = ENOMEM;
     return false;
   }
-  
+
   /* mininum number of bins    [{ N }]   */
   success = mul_size(lhtbl_cfg->segment_length, lhtbl->directory_current, &binsz);
   if(!success){
@@ -170,10 +170,21 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   lhtbl->wtf1 = lhtbl->wtf2  = 0;
 #endif
 
+#ifdef SRI_DWALLACH_WTF
+/*
+  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
+  uint64_t cacheMisses;                                                           */
+  for(index = 0; index < WTF_BUCKETS; index++) {
+    lhtbl->priorLookups[index] = (void*) NULL;
+    lhtbl->cacheHits[index] = 0;
+  }
+  lhtbl->cacheMisses = 0;
+#endif
+
   return true;
 }
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
 
 const int tab32[32] = {
      0,  9,  1, 10, 13, 21,  2, 29,
@@ -201,12 +212,12 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t maxlength;
   size_t maxindex;
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
   uint32_t histogram[33] = {0};
   uint32_t hist_limit = 0;
 #endif
-  
-  
+
+
   fprintf(fp, "directory_length = %" PRIuPTR "\n", lhtbl->directory_length);
   fprintf(fp, "directory_current = %" PRIuPTR "\n", lhtbl->directory_current);
   fprintf(fp, "N = %" PRIuPTR "\n", lhtbl->N);
@@ -220,9 +231,20 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "wtf1 = %"PRIu64", wtf2 = %"PRIu64"\n", lhtbl->wtf1, lhtbl->wtf2);
 #endif
 
+#ifdef SRI_DWALLACH_WTF
+/*
+  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
+  uint64_t cacheMisses;                                                           */
+  fprintf(fp, "hypothetical hash table cache hit performance (cache size=%d) (cache size / #hits):\n", WTF_BUCKETS);
+  for(int i = 0; i < WTF_BUCKETS; i++) {
+    fprintf(fp, "  %02d : %" PRIuPTR "\n", i, lhtbl->cacheHits[i]);
+  }
+  fprintf(fp, "  MISS : %" PRIuPTR "\n", lhtbl->cacheMisses);
+#endif
+
   maxlength = 0;
   maxindex = 0;
-  
+
   if(showloads){
     fprintf(fp, "bucket lengths: ");
   }
@@ -231,7 +253,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     bp = bindex2bin(lhtbl, index);
     blen = bucket_length(*bp);
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
     if( blen == 0){
       histogram[0]++;
     } else {
@@ -239,8 +261,8 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     }
 #endif
 
-    if( blen > maxlength ){ 
-      maxlength = blen; 
+    if( blen > maxlength ){
+      maxlength = blen;
       maxindex = index;
     }
 
@@ -256,7 +278,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "\n");
   fprintf(fp, "maximum length = %" PRIuPTR " @ index %zu\n", maxlength, maxindex);
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
 
 #ifndef SRI_NOT_JENKINS
   const char hashname[] = "jenkins";
@@ -269,10 +291,10 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   char dumpfile[1024] = {'\0'};
 
   snprintf(dumpfile, 1024, "/tmp/bin_%d_%zu_%s.txt", dumpcount++, maxindex, hashname);
-  
+
   int fd = open(dumpfile, O_WRONLY | O_CREAT, 00777);
-  
-  
+
+
   if (fd != -1){
     bp = bindex2bin(lhtbl, maxindex);
     bucket_dump(fd, *bp);
@@ -306,7 +328,7 @@ void delete_metadata(metadata_t* lhtbl){
   for(segindex = 0; segindex < lhtbl->directory_current; segindex++){
 
     current_segment = lhtbl->directory[segindex];
-    
+
     /* cdr down the segment and release the linked list of buckets */
       for(index = 0; index < seglen; index++){
 	current_bucket = current_segment->segment[index];
@@ -321,7 +343,7 @@ void delete_metadata(metadata_t* lhtbl){
       /* now release the segment */
       memcxt_release(memcxt, SEGMENT, current_segment,  sizeof(segment_t));
   }
-  
+
   success = mul_size(lhtbl->directory_length, sizeof(segment_t*), &dirsz);
   assert(success);
   if(success){
@@ -366,9 +388,9 @@ static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
     if(next_maxp < lhtbl->cfg.bincount_max){
       l = mod_power_of_two(jhash, next_maxp);
     }
-    
+
   }
-  
+
   return l;
 }
 
@@ -379,7 +401,7 @@ bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex){
   uint32_t index;
 
   assert( bindex < lhtbl->bincount );
-  
+
   seglen = lhtbl->cfg.segment_length;
 
   segindex = bindex / seglen;
@@ -393,20 +415,59 @@ bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex){
   return &(segptr->segment[index]);
 }
 
+#ifdef SRI_DWALLACH_WTF
+/*
+  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
+  uint64_t cacheMisses;                                                           */
+static void lookup_cache_log(metadata_t* lhtbl, const void* chunk){
+  bool hitYet = false;
+  int index;
 
-/* 
- *  pointer (in the appropriate segment) to the bucket_t* 
- *  where the start of the bucket chain should be for p 
+  /*
+   * First, we'll look through the cacheHit buckets and see if we
+   * have a hit. If we do, we'll increment the counters for a cache
+   * of that size OR LARGER, since presumably if we hit in a cache
+   * of size 4, we'd hid in one of size 20...                                        */
+  for(index = 0; index < WTF_BUCKETS; index++) {
+    if(lhtbl->priorLookups[index] == chunk) {
+      hitYet = true;
+    }
+    if(hitYet) {
+      lhtbl->cacheHits[index]++;
+    }
+  }
+  if(!hitYet) {
+      lhtbl->cacheMisses++;
+  }
+
+  /*
+   * Next, we need to shuffle around the array of priorLookups.
+   * The newbie always goes in the front.
+   */
+  for(index = WTF_BUCKETS - 1; index > 0; index--) {
+    lhtbl->priorLookups[index] = lhtbl->priorLookups[index-1];
+  }
+  lhtbl->priorLookups[0] = (void*) chunk; /* ditch the "const" */
+}
+#endif
+
+/*
+ *  pointer (in the appropriate segment) to the bucket_t*
+ *  where the start of the bucket chain should be for p
  */
 bucket_t** metadata_fetch_bucket(metadata_t* lhtbl, const void *p){
   uint32_t bindex;
-  
+
+#ifdef SRI_DWALLACH_WTF
+  lookup_cache_log(lhtbl, p);
+#endif
+
   bindex = metadata_bindex(lhtbl, p);
 
   return bindex2bin(lhtbl, bindex);
 }
 
-/* check if the table needs to be expanded; true if either it didn't need to be 
+/* check if the table needs to be expanded; true if either it didn't need to be
  * expanded, or else it expanded successfully. false if it failed.
  *
  */
@@ -429,7 +490,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   segment_t** newdir;
 
   old_dirlen = lhtbl->directory_length;
-  
+
   /* we should be full */
   assert(old_dirlen == lhtbl->directory_current);
 
@@ -458,7 +519,7 @@ static bool metadata_expand_directory(metadata_t* lhtbl, memcxt_t* memcxt){
     }
     lhtbl->directory = newdir;
   }
-  
+
   lhtbl->directory_length = new_dirlen;
 
   success = mul_size(old_dirlen, sizeof(segment_t*), &old_dirsz);
@@ -492,7 +553,7 @@ static bool metadata_expand_table(metadata_t* lhtbl){
     errno = EINVAL;
     return false;
   }
-  
+
   assert(new_bindex < lhtbl->cfg.bincount_max);
 
   /* see if the directory needs to grow  */
@@ -511,9 +572,9 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 
     new_segindex = new_bindex / seglen;
 
-    newsegindex = mod_power_of_two(new_bindex, seglen);  
-    
-    /* expand address space; if necessary create new segment */  
+    newsegindex = mod_power_of_two(new_bindex, seglen);
+
+    /* expand address space; if necessary create new segment */
     if((newsegindex == 0) && (lhtbl->directory[new_segindex] == NULL)){
       newseg = memcxt_allocate(memcxt, SEGMENT, NULL, sizeof(segment_t));
       if(newseg == NULL){
@@ -526,13 +587,13 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 
     /* location of the new bin */
     newseg = lhtbl->directory[new_segindex];
-   
+
     /* update the state variables */
     lhtbl->p += 1;
     if(lhtbl->p == lhtbl->maxp){
       lhtbl->maxp = lhtbl->maxp << 1;
       lhtbl->p = 0;
-      lhtbl->L += 1; 
+      lhtbl->L += 1;
     }
 
     lhtbl->bincount += 1;
@@ -573,12 +634,10 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 	current = current->next_bucket;
       }
     }
-  } 
+  }
 
   return true;
 }
-
-
 
 
 /* iam Q1: what should we do if the thing is already in the table ?            */
@@ -633,7 +692,7 @@ static inline bool internal_md_delete(metadata_t *lhtbl, bucket_t **binp, const 
   while(current_bucketp != NULL){
     if(chunk == current_bucketp->chunk){
       found = true;
-      
+
       if(previous_bucketp == NULL){
  	*binp = current_bucketp->next_bucket;
       } else {
@@ -686,10 +745,10 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   /* for the time being we insert the bucket at the front */
   newbucket->next_bucket = *binp;
   *binp = newbucket;
-    
+
   /* census adjustments */
   lhtbl->count++;
-  
+
     /* check to see if we need to exand the table */
   return metadata_expand_check(lhtbl);
 }
@@ -711,7 +770,7 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   return internal_md_lookup(binp, chunk);
 }
 
-#else 
+#else
 
 
 bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
@@ -747,7 +806,7 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
   while(current_bucketp != NULL){
     if(chunk == current_bucketp->chunk){
       found = true;
-      
+
       if(previous_bucketp == NULL){
  	*binp = current_bucketp->next_bucket;
       } else {
@@ -789,10 +848,10 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   current_bucketp = *binp;
 
   while(current_bucketp != NULL){
-    
+
     if(chunk == current_bucketp->chunk){
       count++;
-      
+
       if(previous_bucketp == NULL){
  	*binp = current_bucketp->next_bucket;
       } else {
@@ -821,7 +880,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 }
 
 
-#ifdef SRI_HISTOGRAM 
+#ifdef SRI_HISTOGRAM
 void bucket_dump(int fd, bucket_t* bucket){
   bucket_t* current;
 
@@ -883,7 +942,7 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   if( ! success ){
     return;
   }
-  
+
   success = mul_size(oldlen, sizeof(segment_t*), &oldsz);
 
   assert(success);
@@ -895,21 +954,21 @@ static void metadata_contract_directory(metadata_t* lhtbl, memcxt_t* memcxt){
   if( ! (curlen < newlen) ){
     return;
   }
-  
+
   olddir = lhtbl->directory;
-  
+
   newdir = memcxt_allocate(memcxt, DIRECTORY, olddir, newsz);
-  
+
   if (olddir != newdir){
     for(index = 0; index < newlen; index++){
       newdir[index] = olddir[index];
     }
-    
+
     lhtbl->directory = newdir;
   }
 
   lhtbl->directory_length = newlen;
-  
+
   memcxt_release(memcxt, DIRECTORY, olddir, oldsz);
 }
 
@@ -933,7 +992,7 @@ static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
 
   assert(srcbin != NULL);
   assert(tgtbin != NULL);
-  
+
   src = *srcbin;
   tgt = *tgtbin;
 
@@ -945,7 +1004,7 @@ static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
       /* not very likely */
       *tgtbin = src;
       *srcbin = NULL;
-      
+
     } else {
       /* easiest is to splice the src bin onto the end of the tgt */
       tmp = tgt;
@@ -953,7 +1012,7 @@ static inline void move_buckets(bucket_t** srcbin, bucket_t** tgtbin){
       tmp->next_bucket = src;
       *srcbin = NULL;
     }
-  } 
+  }
 }
 
 static void metadata_contract_table(metadata_t* lhtbl){
@@ -968,17 +1027,17 @@ static void metadata_contract_table(metadata_t* lhtbl){
 
   memcxt = lhtbl->cfg.memcxt;
 
-  /* 
-     see if the directory needs to contract; 
+  /*
+     see if the directory needs to contract;
      iam: need to ensure we don't get unwanted oscillations;
-     should load should enter here?!? 
+     should load should enter here?!?
   */
   if((lhtbl->directory_length > lhtbl->cfg.initial_directory_length) &&
      (lhtbl->directory_current < lhtbl->directory_length  >> 1)){
     metadata_contract_directory(lhtbl,  memcxt);
   }
 
-  
+
   /* get the two buckets involved; moving src to tgt */
   if(lhtbl->p == 0){
     tgtindex = (lhtbl->maxp >> 1) - 1;
@@ -997,7 +1056,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
   check_index(tgtindex, "tgt",  lhtbl);
 
   /* get the two buckets involved; moving src to tgt */
-  
+
   srcbin = bindex2bin(lhtbl, srcindex);
 
   tgtbin = bindex2bin(lhtbl, tgtindex);
@@ -1005,7 +1064,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
   /* move the buckets */
   move_buckets(srcbin, tgtbin);
 
-  
+
   /* now check if we can eliminate a segment */
   seglen = lhtbl->cfg.segment_length;
 
@@ -1017,7 +1076,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
     lhtbl->directory[segindex] = NULL;
     lhtbl->directory_current -= 1;
   }
-  
+
   /* update the state variables */
   lhtbl->p -= 1;
   if(lhtbl->p == -1){
@@ -1028,7 +1087,7 @@ static void metadata_contract_table(metadata_t* lhtbl){
 
 
   lhtbl->bincount -= 1;
-  
+
 }
 
 

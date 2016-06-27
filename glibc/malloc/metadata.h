@@ -62,7 +62,9 @@ typedef struct metadata_cfg_s {
 
  */
 
-
+#ifdef SRI_DWALLACH_WTF
+#define WTF_BUCKETS 16                                                            
+#endif    
 
 typedef struct metadata_s {
   metadata_cfg_t cfg;            /* configuration constants                                                */
@@ -77,6 +79,12 @@ typedef struct metadata_s {
   size_t bincount;               /* the current number of bins                                             */
   uint64_t wtf1, wtf2;           /* the number of duplicate keys (chunks) with the same and different chunkinfoptr's
 				    (respectively) that we've tried to insert in this hashtable. */
+
+#ifdef SRI_DWALLACH_WTF
+  void* priorLookups[WTF_BUCKETS];                                             
+  uint64_t cacheHits[WTF_BUCKETS];                                                
+  uint64_t cacheMisses; 
+#endif
 } metadata_t;
 
 

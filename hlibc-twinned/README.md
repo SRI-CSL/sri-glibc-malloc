@@ -52,7 +52,7 @@ make build
 
 ## 5. Developing
 
-When developing 3. and 4. can be combined by doing:
+When developing, 3 and 4 can be combined by doing:
 
 ```
 make

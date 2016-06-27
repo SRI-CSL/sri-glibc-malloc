@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+/* for sanity checking */
+#ifndef NDEBUG
+static bool is_power_of_two(uint32_t n) {
+  return (n & (n - 1)) == 0;
+}
+#endif
+
+
 /* 
  * BD's Jenkins's lookup3 code 
  */

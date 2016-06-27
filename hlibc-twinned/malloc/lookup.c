@@ -29,39 +29,55 @@
  *
  * Note that only the main_arena futzes with these, and when it does
  * it has the main_arena lock. So we do not need to do anything
- * ourselves.
+ * ourselves. Though lots of threads might be reading them, so
+ * we may need to make them atomic(ish)
+ *
+ * To eliminate racish things we probably want to:
+ * 
+ * split out the actual sbrk region sbrk_regions[0] from the mmapped
+ * ones (which do not grow so do not need a max) and make them atomic.
+ *
+ * if we are careful with the array of mmapped ones we probably only need
+ * to make the count atomic.
  *
  */
 
 /* FIXME: make this dynamic I suppose. */
 #define SBRK_MAX_SEGMENTS 1024
 
+/* Max is just for curiosity. */
 typedef struct sbrk_region_s {
   uintptr_t lo;
   uintptr_t hi;
   uintptr_t max;
 } sbrk_region_t;
 
+
 static int32_t sbrk_region_count = 0;
 static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
 
 /* 
- *  Just a placeholder to mark where we *really* should be using
- *  lfht_delete if we had it. Note that in our world 0 is an invalid
- *  value for either a heap index or the size of a mmapped region.
+ *  Note that in our world 0 is an invalid value for either a heap
+ *  index or the size of a mmapped region.
  */
 #define TOMBSTONE 0
 
-#define HEAP_HTABLE_CAPACITY 4096
+#define TABLE_SIZE  1024
+//64
+//1024
+//4096
 
-#define MMAP_HTABLE_CAPACITY 4096
+#define HEAP_HTABLE_CAPACITY TABLE_SIZE
+
+#define MMAP_HTABLE_CAPACITY TABLE_SIZE
+
 
 static lfht_t heap_tbl;  // maps heap ptr --> arena_index
 static lfht_t mmap_tbl;  // maps mmapped region --> size 
 
 /*
  * N.B. We could eliminate the need for a mmapped arena 
- * if we also stored the offset of the region, but ...
+ * if we also stored the offset of the region, somehow ...
  */
 
 
@@ -117,13 +133,16 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 }
 
 bool lookup_add_sbrk_region(void* lo, void* hi){
-  sbrk_region_count++;
-  //FIXME!!
-  assert(sbrk_region_count < SBRK_MAX_SEGMENTS);
+  int nregion = sbrk_region_count + 1;
 
-  sbrk_regions[sbrk_region_count].lo = (uintptr_t)lo;
-  sbrk_regions[sbrk_region_count].hi = (uintptr_t)hi;
-  sbrk_regions[sbrk_region_count].max = (uintptr_t)hi;
+  //FIXME!!
+  assert(nregion < SBRK_MAX_SEGMENTS);
+
+  sbrk_regions[nregion].lo = (uintptr_t)lo;
+  sbrk_regions[nregion].hi = (uintptr_t)hi;
+  sbrk_regions[nregion].max = (uintptr_t)hi;
+
+  sbrk_region_count = nregion;
 
   return true;
 }
@@ -154,28 +173,28 @@ bool lookup_decr_sbrk_hi(size_t sz){
 }
 
 bool lookup_add_heap(void* ptr, size_t index){
-  bool retval = lfht_insert_or_update(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
+  bool retval = lfht_add(&heap_tbl, (uintptr_t)ptr, (uintptr_t)index);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_delete_heap(void* ptr){
-  bool retval = lfht_update(&heap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_remove(&heap_tbl, (uintptr_t)ptr);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_add_mmap(void* ptr, size_t sz){
-  bool retval = lfht_insert_or_update(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
+  bool retval = lfht_add(&mmap_tbl, (uintptr_t)ptr, (uintptr_t)sz);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
 }
 
 bool lookup_delete_mmap(void* ptr){
-  bool retval = lfht_update(&mmap_tbl, (uintptr_t)ptr, TOMBSTONE);
+  bool retval = lfht_remove(&mmap_tbl, (uintptr_t)ptr);
   assert(retval);
   if(!retval){ abort(); }
   return retval;
@@ -186,13 +205,13 @@ void lookup_dump(FILE* fp){
   fprintf(fp, "lookup:\n");
   for(i = 0; i <= sbrk_region_count; i++){
     fprintf(fp, 
-	    " sbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
+	    "\tsbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
 	    i, 
 	    (void*)sbrk_regions[i].lo, 
 	    (void*)sbrk_regions[i].hi, 
 	    (void*)sbrk_regions[i].max);
   }
-  lfht_stats(fp, " mmap_table", &mmap_tbl, TOMBSTONE);
-  lfht_stats(fp, " heap_table", &heap_tbl, TOMBSTONE);
+  lfht_stats(fp, " mmap_table", &mmap_tbl);
+  lfht_stats(fp, " heap_table", &heap_tbl);
   fflush(fp);
 }

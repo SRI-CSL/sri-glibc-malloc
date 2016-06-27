@@ -7,6 +7,8 @@
 
 #include "gassert.h"
 
+extern bool is_power_of_two(uint32_t n);
+
 /*
  *  Bruno Dutertre's versions of Jenkin's hash functions.
  *

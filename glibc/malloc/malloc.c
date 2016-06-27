@@ -2169,7 +2169,6 @@ lookup_chunk (mstate av, mchunkptr p)
   return metadata_lookup(&av->htbl, chunk2mem(p));
 }
 
-
 /* Remove the metadata from the hashtable */
 static bool
 unregister_chunk (mstate av, mchunkptr p, int tag) 

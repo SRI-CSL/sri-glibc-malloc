@@ -127,6 +127,8 @@ static inline chunkinfoptr allocate_chunkinfoptr(metadata_t* htbl){
     retval->fd_nextsize = 0; 
     retval->bk_nextsize = 0;
     retval->chunk = NULL; 
+    retval->md_next = 0; 
+    retval->md_prev = 0;
     retval->next_bucket = NULL; 
   }
   return retval;

@@ -2262,10 +2262,14 @@ static chunkinfoptr split_chunk(mstate av,
   /* configure the remainder */
   remainder_size = victim_size - desiderata;
   remainder = chunk_at_offset(victim, desiderata);
+
   /* pair it with new metatdata and add the metadata into the hashtable */
   _md_remainder = register_chunk(av, remainder, false, 1);
   set_head(_md_remainder, remainder_size | PREV_INUSE);
 
+  // _md_remainder->md_prev = _md_victim->md_prev
+  // _md_remainder->md_next = _md_victim->md_next ( these should be NULL)
+  // _md_victim->md_prev = _md_remainder
 
   /* configure the victim */
   set_head(_md_victim,  desiderata | PREV_INUSE);
@@ -2944,7 +2948,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      _md_p = register_chunk(&main_arena, p, true, 2);
-
+	      // _md_p->md_prev = _md_p->md_next = NULL
+	      
               if (front_misalign > 0)
                 {
                   _md_p->prev_size = correction;

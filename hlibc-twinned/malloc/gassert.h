@@ -1,3 +1,6 @@
+#ifndef __GASSERT_H__
+#define __GASSERT_H__
+
 #include <features.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -31,3 +34,5 @@ __malloc_assert (const char *assertion, const char *file, unsigned int line,
 #endif
 
 
+
+#endif

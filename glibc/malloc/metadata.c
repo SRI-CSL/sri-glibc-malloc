@@ -175,7 +175,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
   uint64_t cacheMisses;                                                           */
   for(index = 0; index < WTF_BUCKETS; index++) {
-    lhtbl->priorLookups[index] = (void*) NULL;
+    lhtbl->priorLookups[index] = NULL;
     lhtbl->cacheHits[index] = 0;
   }
   lhtbl->cacheMisses = 0;

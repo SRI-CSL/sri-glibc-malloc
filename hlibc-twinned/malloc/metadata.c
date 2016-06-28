@@ -585,9 +585,11 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   bucket_t* value;
   bucket_t** binp;
   bucket_t* bucketp;
+  bucket_t* bucketp_prev;
 
   value = NULL;
   binp = metadata_fetch_bucket(lhtbl, chunk);
+  bucketp_prev = *binp;
   bucketp = *binp;
 
   while(bucketp != NULL){
@@ -595,7 +597,21 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
       value = bucketp;
       break;
     }
+
+    bucketp_prev = bucketp;
     bucketp = bucketp->next_bucket;
+  }
+
+  /*
+   * Cache optimization: we're going to move the winning bucket to the
+   * top of the linked list, which means it will be found faster next
+   * time around. Note that we do nothing in the case where we found
+   * nothing at all or if we were already at the top of the table.
+   */
+  if(value != NULL && bucketp_prev != *binp) {
+    bucketp_prev->next_bucket = bucketp->next_bucket;
+    bucketp->next_bucket = *binp;
+    *binp = bucketp;
   }
 
   return value;

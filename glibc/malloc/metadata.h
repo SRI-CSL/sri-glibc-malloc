@@ -62,7 +62,7 @@ typedef struct metadata_cfg_s {
 
  */
 
-#define HASHTABLE_CACHE_BUCKETS 16
+#define HASHTABLE_CACHE_BUCKETS 4
 
 typedef struct metadata_s {
   metadata_cfg_t cfg;            /* configuration constants                                                */

@@ -389,6 +389,7 @@ static void cache_insert(metadata_t* lhtbl, const void* key, chunkinfoptr value)
    * and we'll bump a counter so we know about it.
    */
    
+#ifdef SRI_CACHE_DEBUG
   for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
     if(lhtbl->cacheKeys[i] == key) {
       lhtbl->cacheValues[i] = value;
@@ -396,6 +397,7 @@ static void cache_insert(metadata_t* lhtbl, const void* key, chunkinfoptr value)
       return;
     }
   }
+#endif
 
   /*
    * Performance note: there are special instructions that can find the
@@ -438,10 +440,11 @@ static void cache_delete(metadata_t* lhtbl, const void* key){
   for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
     if(lhtbl->cacheKeys[i] == key) {
 
-      lhtbl->cacheKeys[i] = NULL;
+      lhtbl->cacheKeys[i] = NULL; // this is all we care about
+#ifdef SRI_CACHE_DEBUG
       lhtbl->cacheValues[i] = NULL;
-
-      // TODO return here once we've found something?
+#endif
+      return;
     }
   }
 }

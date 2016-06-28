@@ -2024,6 +2024,7 @@ static inline chunkinfoptr initial_md_top(mstate av)
 {
   mchunkptr top = &(av->initial_top);
   chunkinfoptr _md_top = register_chunk(av, top, false, 0);
+  //_md_top->md_prev = _md_top->md_next = NULL
   _md_top->prev_size = 0;
   set_head(_md_top, 0);
   return _md_top;
@@ -2265,11 +2266,14 @@ static chunkinfoptr split_chunk(mstate av,
 
   /* pair it with new metatdata and add the metadata into the hashtable */
   _md_remainder = register_chunk(av, remainder, false, 1);
-  set_head(_md_remainder, remainder_size | PREV_INUSE);
 
-  // _md_remainder->md_prev = _md_victim->md_prev
-  // _md_remainder->md_next = _md_victim->md_next ( these should be NULL)
-  // _md_victim->md_prev = _md_remainder
+  /* fix the next and prev metadata pointers */
+  _md_remainder->md_next = _md_victim->md_next;
+  _md_remainder->md_prev = _md_victim;
+  _md_victim->md_next = _md_remainder;
+
+  /* set its size */
+  set_head(_md_remainder, remainder_size | PREV_INUSE);
 
   /* configure the victim */
   set_head(_md_victim,  desiderata | PREV_INUSE);
@@ -2841,8 +2845,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   mchunkptr p;                    /* the allocated/returned chunk */
   chunkinfoptr _md_p;             /* metadata of the allocated/returned chunk */
 
-  mchunkptr fencepost;            /* fenceposts */
-  chunkinfoptr _md_fencepost;     /* metadata of fenceposts */
+  mchunkptr fencepost_0;            /* fenceposts */
+  chunkinfoptr _md_fencepost_0;     /* metadata of fenceposts */
+
+  mchunkptr fencepost_1;            /* fenceposts */
+  chunkinfoptr _md_fencepost_1;     /* metadata of fenceposts */
 
   mchunkptr topchunk;             /* new chunk destined for top */
 
@@ -2948,7 +2955,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      _md_p = register_chunk(&main_arena, p, true, 2);
-	      // _md_p->md_prev = _md_p->md_next = NULL
+	      //_md_p->md_prev = _md_p->md_next = NULL
 	      
               if (front_misalign > 0)
                 {
@@ -3065,6 +3072,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           /* Set up the new top.  */
           topchunk = chunk_at_offset (heap, sizeof (*heap));
           av->_md_top = register_chunk(av, topchunk, false, 3);
+	  //av->_md_top->md_prev = av->_md_top->md_next = NULL  //iam: next and prev need not span multiple heaps.
           set_head (av->_md_top, (heap->size - sizeof (*heap)) | PREV_INUSE);
 
           check_top(av);
@@ -3075,16 +3083,28 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
              become the top chunk again later.  Note that a footer is set
              up, too, although the chunk is marked in use. */
           old_size = (old_size - MINSIZE) & ~MALLOC_ALIGN_MASK;
-          fencepost = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
-          _md_fencepost = register_chunk(av,  fencepost, false, 4);
-          set_head (_md_fencepost, 0 | PREV_INUSE);
+
+          fencepost_0 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
+          _md_fencepost_0 = register_chunk(av,  fencepost_0, false, 4);
+
+	  _md_fencepost_0->md_prev = _md_old_top;
+	  _md_fencepost_0->md_next = _md_old_top->md_next;
+	  _md_old_top->md_next = _md_fencepost_0;
+
+          set_head (_md_fencepost_0, 0 | PREV_INUSE);
 
           if (old_size >= MINSIZE)
             {
-              fencepost = chunk_at_offset (old_top, old_size);
-	      _md_fencepost = register_chunk(av,  fencepost, false, 5);
-              set_head (_md_fencepost, (2 * SIZE_SZ) | PREV_INUSE);
-              set_foot (av, _md_fencepost, fencepost, (2 * SIZE_SZ));
+              fencepost_1 = chunk_at_offset (old_top, old_size);
+	      _md_fencepost_1 = register_chunk(av,  fencepost_1, false, 5);
+
+	      _md_old_top->md_next = _md_fencepost_1;
+	      _md_fencepost_0->md_prev = _md_fencepost_1;
+	      _md_fencepost_1->md_next = _md_fencepost_0;
+	      _md_fencepost_1->md_prev = _md_old_top;
+
+              set_head (_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
+              set_foot (av, _md_fencepost_1, fencepost_1, (2 * SIZE_SZ));
 
               set_head (_md_old_top, old_size | PREV_INUSE);
 
@@ -3188,9 +3208,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
       if (brk != (char *) (MORECORE_FAILURE))
         {
-	  //FIXME: if mbrk != NULL we are creating a new sbrk segment that lookup
-	  //has to know about. Then we also need to check how systrim works with
-	  //regards to these multiple "sbrk"-ed regions.
 	  
 	  if(mbrk != NULL){
 
@@ -3350,6 +3367,9 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                 {
                   topchunk = (mchunkptr) aligned_brk;
                   av->_md_top = register_chunk(av, topchunk, false, 6);
+
+		  /* not sure what the md_next and md_prev are here */
+
                   set_head (av->_md_top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
                   check_top(av);
 
@@ -3383,13 +3403,24 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                         intentional. We need the fencepost, even if old_top otherwise gets
                         lost.
                       */
-                      fencepost = chunk_at_offset (old_top, old_size);
-		      _md_fencepost = register_chunk(av, fencepost, false, 7);
-                      set_head(_md_fencepost, (2 * SIZE_SZ) | PREV_INUSE); 
+                      fencepost_0 = chunk_at_offset (old_top, old_size);
+		      _md_fencepost_0 = register_chunk(av, fencepost_0, false, 7);
+
+		      _md_fencepost_0->md_next = _md_old_top->md_next;
+		      _md_fencepost_0->md_prev = _md_old_top;
+		      _md_old_top->md_next = _md_fencepost_0;
+
+                      set_head(_md_fencepost_0, (2 * SIZE_SZ) | PREV_INUSE); 
                                             
-                      fencepost = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
-                      _md_fencepost = register_chunk(av, fencepost, false, 8);
-                      set_head(_md_fencepost, (2 * SIZE_SZ) | PREV_INUSE);
+                      fencepost_1 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
+                      _md_fencepost_1 = register_chunk(av, fencepost_1, false, 8);
+
+		      _md_fencepost_1->md_next = _md_fencepost_0->md_next;
+		      _md_fencepost_1->md_prev = _md_fencepost_0;
+		      _md_fencepost_0->md_next = _md_fencepost_1;
+
+
+                      set_head(_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
                       
                       /* If possible, release the rest. */
                       if (old_size >= MINSIZE)
@@ -3592,6 +3623,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
     lookup_add_mmap(p, new_size);
 
     _md_p = register_chunk(av, p, true, 9);
+    //_md_p->md_prev = _md_p->md_next = NULL;
     _md_p->prev_size = offset;
   }
 
@@ -4373,6 +4405,12 @@ _int_malloc (mstate av, size_t bytes)
               set_head (_md_victim, nb | PREV_INUSE);
 
               _md_remainder = register_chunk(av, remainder, false, 10);
+
+	      _md_remainder->md_next = _md_victim->md_next;
+	      _md_remainder->md_prev = _md_victim;
+	      _md_victim->md_next = _md_remainder;
+
+	      
               set_head (_md_remainder, remainder_size | PREV_INUSE);
               set_foot (av, _md_remainder, remainder, remainder_size);
 
@@ -4520,6 +4558,11 @@ _int_malloc (mstate av, size_t bytes)
                   set_head (_md_victim, nb | PREV_INUSE);
 		  
                   _md_remainder = register_chunk(av, remainder, false, 11);
+
+		  _md_remainder->md_next = _md_victim->md_next;
+		  _md_remainder->md_prev = _md_victim;
+		  _md_victim->md_next = _md_remainder;
+
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
                   set_foot (av, _md_remainder, remainder, remainder_size);
 
@@ -4632,6 +4675,11 @@ _int_malloc (mstate av, size_t bytes)
                   set_head (_md_victim, nb | PREV_INUSE);
 
                   _md_remainder = register_chunk(av, remainder, false, 12);
+
+		  _md_remainder->md_next = _md_victim->md_next;
+		  _md_remainder->md_prev = _md_victim;
+		  _md_victim->md_next = _md_remainder;
+
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
                   set_foot (av, _md_remainder, remainder, remainder_size);
 
@@ -5284,6 +5332,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           topchunk = chunk_at_offset (oldp, nb);
           /* removing invalidates; need to get a fresh one */
           av->_md_top = register_chunk(av, topchunk, false, 13);
+
+	  _md_oldp->md_next = av->_md_top;
+	  av->_md_top->md_prev = _md_oldp;
+	  av->_md_top->md_next = NULL;
+
           set_head (av->_md_top, (newsize - nb) | PREV_INUSE);
 
           check_inuse_chunk (av, oldp, _md_oldp);
@@ -5399,6 +5452,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       set_head_size (_md_newp, nb);
       remainder = chunk_at_offset (newp, nb);
       _md_remainder = register_chunk(av, remainder, false, 14);
+
+      _md_remainder->md_next = _md_newp->md_next;
+      _md_remainder->md_prev = _md_newp;
+      _md_newp->md_next =  _md_remainder;
+
       set_head (_md_remainder, remainder_size | PREV_INUSE);
      /* Mark remainder as inuse so free() won't complain */
       set_inuse_bit_at_offset (av, _md_remainder, remainder, remainder_size);
@@ -5497,6 +5555,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
           _md_newp = register_chunk(&main_arena, newp, true, 15);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
+	  _md_newp->md_next = _md_newp->md_prev = NULL;
           set_head (_md_newp, newsize);
 
 	  UNLOCK_ARENA(&main_arena, MEMALIGN_SITE);
@@ -5509,6 +5568,12 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
       /* Otherwise, give back leader, use the rest */
       _md_newp = register_chunk(av, newp, false, 16);
+
+      _md_newp->md_next = _md_p->md_next;
+      _md_newp->md_prev = _md_p;
+      _md_p->md_next = _md_newp;
+
+
       set_head (_md_newp, newsize | PREV_INUSE);
 
       set_inuse_bit_at_offset (av, _md_newp, newp, newsize);
@@ -5529,6 +5594,11 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           remainder_size = size - nb;
           remainder = chunk_at_offset (p, nb);
           _md_remainder = register_chunk(av, remainder, false, 17);
+
+	  _md_remainder->md_next = _md_p->md_next;
+	  _md_remainder->md_prev = _md_p;
+	  _md_p->md_next = _md_remainder;
+
           set_head (_md_remainder, remainder_size | PREV_INUSE);
           set_head_size (_md_p, nb);
           _int_free (av, _md_remainder, remainder, 1);

@@ -86,9 +86,19 @@ typedef struct metadata_s {
    * into one array and the cacheValues into a second array. This way, if we
    * search the entire cacheKeys and miss, we'll have only touched half the
    * memory, which will be beneficial if we're worried about the L1 CPU cache.
+   *
+   * An LRU algorithm would be too computationally expensive, so we're going with
+   * a "clock" algorithm, wherein we keep a "recentlyUsed" bit for each entry.
+   * The clock hand rotates around, unsetting recentlyUsed bits until it finds
+   * one that was already unset. That's the entry we'll reuse.
+   * https://en.wikipedia.org/wiki/Page_replacement_algorithm#Clock
    */
   void* cacheKeys[HASHTABLE_CACHE_BUCKETS];
   chunkinfoptr cacheValues[HASHTABLE_CACHE_BUCKETS];
+
+  bool recentlyUsed[HASHTABLE_CACHE_BUCKETS];
+  int clock;
+
   uint64_t cacheHits;
   uint64_t cacheMisses; 
   uint64_t cacheInsertUpdates;

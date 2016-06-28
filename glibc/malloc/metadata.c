@@ -173,6 +173,10 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
 /*
   void* cacheKeys[HASHTABLE_CACHE_BUCKETS];
   chunkinfoptr cacheValues[HASHTABLE_CACHE_BUCKETS];
+
+  bool recentlyUsed[HASHTABLE_CACHE_BUCKETS];
+  int clock;
+
   uint64_t cacheHits;
   uint64_t cacheMisses;
   uint64_t cacheInsertUpdates;
@@ -180,7 +184,9 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   for(index = 0; index < HASHTABLE_CACHE_BUCKETS; index++) {
     lhtbl->cacheKeys[index] = NULL;
     lhtbl->cacheValues[index] = NULL;
+    lhtbl->recentlyUsed[index] = false;
   }
+  lhtbl->clock = 0;
   lhtbl->cacheHits = 0;
   lhtbl->cacheMisses = 0;
   lhtbl->cacheInsertUpdates = 0;
@@ -246,7 +252,8 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "  HIT   : %" PRIuPTR "\n", lhtbl->cacheHits);
   fprintf(fp, "  MISS  : %" PRIuPTR "\n", lhtbl->cacheMisses);
   fprintf(fp, "        : %.4f%% hit rate\n", 100.0 * lhtbl->cacheHits / (lhtbl->cacheHits + lhtbl->cacheMisses));
-  fprintf(fp, "  UPDATE: %" PRIuPTR " updates on cache insert\n", lhtbl->cacheInsertUpdates);
+  if(lhtbl->cacheInsertUpdates != 0)
+    fprintf(fp, "  UPDATE: %" PRIuPTR " NON-ZERO updates on cache insert!!\n", lhtbl->cacheInsertUpdates);
 
   maxlength = 0;
   maxindex = 0;
@@ -391,34 +398,50 @@ static void cache_insert(metadata_t* lhtbl, const void* key, chunkinfoptr value)
   }
 
   /*
-   * If we got here, then our key isn't in the table, so shift right!
+   * Performance note: there are special instructions that can find the
+   * most-sigificant-bit or least-significant-bit that is set in a given
+   * word of memory. We could try shoehorning such things in and converting
+   * the recentlyUsed array to a faster bitvector. (There's probably code out
+   * there that already does this.)
+   *
+   * Obligatory StackOverflow discussion:
+   * http://stackoverflow.com/questions/671815/what-is-the-fastest-most-efficient-way-to-find-the-highest-set-bit-msb-in-an-i
+   *
+   * See Bit Hack #7 ("isolate the rightmost 1-bit"):
+   * http://www.catonmat.net/blog/low-level-bit-hacks-you-absolutely-must-know/
+   *
+   * Putting all this together would definitely help, but it's unclear how much.
    */
-  for(int i = HASHTABLE_CACHE_BUCKETS - 1; i > 0; i--) {
-    lhtbl->cacheKeys[i] = lhtbl->cacheKeys[i-1];
-    lhtbl->cacheValues[i] = lhtbl->cacheValues[i-1];
-  }
-  lhtbl->cacheKeys[0] = (void*) key; /* ditch the "const" */
-  lhtbl->cacheValues[0] = value;
+
+  int localClock = lhtbl->clock;
+  do {
+    if(lhtbl->cacheKeys[localClock] == NULL) break; // we found an empty entry!
+    if(!lhtbl->recentlyUsed[localClock]) break; // we'll replace this one
+
+    lhtbl->recentlyUsed[localClock] = false;
+    localClock = (localClock + 1) % HASHTABLE_CACHE_BUCKETS;
+  } while(localClock != lhtbl->clock);
+
+
+  lhtbl->cacheKeys[localClock] = (void*) key;
+  lhtbl->cacheValues[localClock] = value;
+  lhtbl->recentlyUsed[localClock] = true;
+  lhtbl->clock = (localClock + 1) % HASHTABLE_CACHE_BUCKETS;
 }
 
 static void cache_delete(metadata_t* lhtbl, const void* key){
   /*
    * First, we'll look through the cache and see if we
-   * have a hit. If we do, then we're going to shift everything
-   * over. If not, then we're done.
+   * have a hit. If we do, we nuke it. 
    */
    
   for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
     if(lhtbl->cacheKeys[i] == key) {
-      for(int j = i; j < (HASHTABLE_CACHE_BUCKETS - 1); j++) {
-        lhtbl->cacheKeys[j] = lhtbl->cacheKeys[j+1];
-        lhtbl->cacheValues[j] = lhtbl->cacheValues[j+1];
-      }
 
-      lhtbl->cacheKeys[HASHTABLE_CACHE_BUCKETS - 1] = NULL;
-      lhtbl->cacheValues[HASHTABLE_CACHE_BUCKETS - 1] = NULL;
+      lhtbl->cacheKeys[i] = NULL;
+      lhtbl->cacheValues[i] = NULL;
 
-      // return;
+      // TODO return here once we've found something?
     }
   }
 }
@@ -430,25 +453,11 @@ static void cache_delete(metadata_t* lhtbl, const void* key){
 static chunkinfoptr cache_lookup(metadata_t* lhtbl, const void* key){
   chunkinfoptr result = NULL;
 
-  /*
-   * ENGINEERING NOTE: If we hit in the cache, then we're going to want
-   * to take steps to ensure that we'll hit again, so we're going to implement
-   * an LRU discipline by moving the cache hitter up to the 0th position,
-   * making the hitter the least likely to be evicted on the next insertion
-   * operation.
-   */
   for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
     if(lhtbl->cacheKeys[i] == key) {
       result = lhtbl->cacheValues[i];
+      lhtbl->recentlyUsed[i] = true;
       lhtbl->cacheHits++;
-
-      for(int j = i; j > 0; j--) {
-        lhtbl->cacheKeys[j] = lhtbl->cacheKeys[j-1];
-        lhtbl->cacheValues[j] = lhtbl->cacheValues[j-1];
-      }
-
-      lhtbl->cacheKeys[0] = (void*) key;
-      lhtbl->cacheValues[0] = result;
 
       return result;
     }

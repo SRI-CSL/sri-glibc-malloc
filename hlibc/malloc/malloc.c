@@ -2290,6 +2290,26 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
               chunk2mem(c), file, lineno);
       return false;
     }
+    
+    if(ci->md_next != NULL){
+
+      if(ci->md_next->md_prev != ci){
+      fprintf(stderr, "check_metadata_chunk of %p:\nci->md_next->md_prev = %p != ci = %p@ %s line %d\n",
+              chunk2mem(c), ci->md_next->md_prev, ci, file, lineno);
+      return false;
+      }
+    }
+
+    if(ci->md_prev != NULL){
+  
+      if(ci->md_prev->md_next != ci){
+	fprintf(stderr, "check_metadata_chunk of %p:\nci->md_prev->md_next = %p != ci = %p@ %s line %d\n",
+		chunk2mem(c), ci->md_prev->md_next, ci, file, lineno);
+	return false;
+      }
+    }
+    
+
     return true;
   } 
   return false;

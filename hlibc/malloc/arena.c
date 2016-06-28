@@ -726,6 +726,7 @@ heap_trim (heap_info *heap, size_t pad)
   chunkinfoptr bck, fwd;
 
   mchunkptr p;
+  chunkinfoptr _md_temp;
   chunkinfoptr _md_p;
   chunkinfoptr _md_fencepost;
 
@@ -757,6 +758,7 @@ heap_trim (heap_info *heap, size_t pad)
 
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
+      //FIXME: once twinned we can use the md_prev pointer here.
       p = chunk_at_offset (prev_heap, prev_size - misalign);
       _md_p = lookup_chunk(ar_ptr, p);
 
@@ -769,6 +771,7 @@ heap_trim (heap_info *heap, size_t pad)
       _md_fencepost = _md_p;
 
       p = prev_chunk (_md_p, p);
+      //FIXME: once twinned we can use the md_prev pointer here.
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); 
@@ -786,9 +789,14 @@ heap_trim (heap_info *heap, size_t pad)
         break;  /* SRI: are we in a sane state here? */
       }
 
+      _md_temp = _md_fencepost->md_next;
+      
       /* SRI: pulling out the fencepost */
       unregister_chunk(ar_ptr, chunkinfo2chunk(_md_fencepost), 4); 
-
+      
+      _md_p->md_next = _md_temp;
+      if(_md_temp != NULL)
+	_md_temp->md_prev = _md_p;
 
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
@@ -800,6 +808,7 @@ heap_trim (heap_info *heap, size_t pad)
       if (!prev_inuse(_md_p, p)) /* consolidate backward; SRI: size already done above */
         {
 	  mchunkptr op = p;
+	  _md_temp = _md_p->md_next;
           p = prev_chunk (_md_p, p);
 	  unregister_chunk(ar_ptr, op, 5);  
 	  _md_p = lookup_chunk(ar_ptr, p);
@@ -808,6 +817,10 @@ heap_trim (heap_info *heap, size_t pad)
 	    return 0;
 	  }
           bin_unlink(ar_ptr, _md_p, &bck, &fwd);
+	  /* fix the md_next and md_prev pointers */
+	  _md_p->md_next = _md_temp;
+	  if(_md_temp != NULL)
+	    _md_temp->md_prev = _md_p;
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));

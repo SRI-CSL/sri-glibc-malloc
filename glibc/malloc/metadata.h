@@ -62,9 +62,7 @@ typedef struct metadata_cfg_s {
 
  */
 
-#ifdef SRI_DWALLACH_WTF
-#define WTF_BUCKETS 16                                                            
-#endif    
+#define HASHTABLE_CACHE_BUCKETS 16
 
 typedef struct metadata_s {
   metadata_cfg_t cfg;            /* configuration constants                                                */
@@ -80,11 +78,20 @@ typedef struct metadata_s {
   uint64_t wtf1, wtf2;           /* the number of duplicate keys (chunks) with the same and different chunkinfoptr's
 				    (respectively) that we've tried to insert in this hashtable. */
 
-#ifdef SRI_DWALLACH_WTF
-  void* priorLookups[WTF_BUCKETS];                                             
-  uint64_t cacheHits[WTF_BUCKETS];                                                
+  /*
+   * ENGINEERING NOTES: we're expecting to do this cache lookup before each
+   * and every dive into the hashtable. Simulation results suggest a cache
+   * hit rate of as high as 40%, which means of course that we're going to
+   * miss altogether as much as 60%. Consequently, we're putting the cacheKeys
+   * into one array and the cacheValues into a second array. This way, if we
+   * search the entire cacheKeys and miss, we'll have only touched half the
+   * memory, which will be beneficial if we're worried about the L1 CPU cache.
+   */
+  void* cacheKeys[HASHTABLE_CACHE_BUCKETS];
+  chunkinfoptr cacheValues[HASHTABLE_CACHE_BUCKETS];
+  uint64_t cacheHits;
   uint64_t cacheMisses; 
-#endif
+  uint64_t cacheInsertUpdates;
 } metadata_t;
 
 

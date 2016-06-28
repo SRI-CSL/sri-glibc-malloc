@@ -170,16 +170,20 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   lhtbl->wtf1 = lhtbl->wtf2  = 0;
 #endif
 
-#ifdef SRI_DWALLACH_WTF
 /*
-  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
-  uint64_t cacheMisses;                                                           */
-  for(index = 0; index < WTF_BUCKETS; index++) {
-    lhtbl->priorLookups[index] = NULL;
-    lhtbl->cacheHits[index] = 0;
+  void* cacheKeys[HASHTABLE_CACHE_BUCKETS];
+  chunkinfoptr cacheValues[HASHTABLE_CACHE_BUCKETS];
+  uint64_t cacheHits;
+  uint64_t cacheMisses;
+  uint64_t cacheInsertUpdates;
+*/
+  for(index = 0; index < HASHTABLE_CACHE_BUCKETS; index++) {
+    lhtbl->cacheKeys[index] = NULL;
+    lhtbl->cacheValues[index] = NULL;
   }
+  lhtbl->cacheHits = 0;
   lhtbl->cacheMisses = 0;
-#endif
+  lhtbl->cacheInsertUpdates = 0;
 
   return true;
 }
@@ -231,16 +235,18 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "wtf1 = %"PRIu64", wtf2 = %"PRIu64"\n", lhtbl->wtf1, lhtbl->wtf2);
 #endif
 
-#ifdef SRI_DWALLACH_WTF
 /*
-  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
-  uint64_t cacheMisses;                                                           */
-  fprintf(fp, "hypothetical hash table cache hit performance (cache size=%d) (cache size / #hits):\n", WTF_BUCKETS);
-  for(int i = 0; i < WTF_BUCKETS; i++) {
-    fprintf(fp, "  %02d : %" PRIuPTR "\n", i, lhtbl->cacheHits[i]);
-  }
-  fprintf(fp, "  MISS : %" PRIuPTR "\n", lhtbl->cacheMisses);
-#endif
+  void* cacheKeys[HASHTABLE_CACHE_BUCKETS];
+  chunkinfoptr cacheValues[HASHTABLE_CACHE_BUCKETS];
+  uint64_t cacheHits;
+  uint64_t cacheMisses;
+  uint64_t cacheInsertUpdates;
+*/
+  fprintf(fp, "hash table cache hit performance (cache size=%d):\n", HASHTABLE_CACHE_BUCKETS);
+  fprintf(fp, "  HIT   : %" PRIuPTR "\n", lhtbl->cacheHits);
+  fprintf(fp, "  MISS  : %" PRIuPTR "\n", lhtbl->cacheMisses);
+  fprintf(fp, "        : %.4f%% hit rate\n", 100.0 * lhtbl->cacheHits / (lhtbl->cacheHits + lhtbl->cacheMisses));
+  fprintf(fp, "  UPDATE: %" PRIuPTR " updates on cache insert\n", lhtbl->cacheInsertUpdates);
 
   maxlength = 0;
   maxindex = 0;
@@ -365,6 +371,96 @@ inline uint64_t Fingerprint(uint64_t x) {
   return b;
 }
 
+/*
+ * Below are three functions that implement a cache in front of the hashtable.
+ */
+static void cache_insert(metadata_t* lhtbl, const void* key, chunkinfoptr value){
+  /*
+   * First, we'll look through the cache and see if we
+   * have a hit. If we do, then there's the perennial question of
+   * whether we should update or have an error. We'll go with update
+   * and we'll bump a counter so we know about it.
+   */
+   
+  for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
+    if(lhtbl->cacheKeys[i] == key) {
+      lhtbl->cacheValues[i] = value;
+      lhtbl->cacheInsertUpdates++;
+      return;
+    }
+  }
+
+  /*
+   * If we got here, then our key isn't in the table, so shift right!
+   */
+  for(int i = HASHTABLE_CACHE_BUCKETS - 1; i > 0; i--) {
+    lhtbl->cacheKeys[i] = lhtbl->cacheKeys[i-1];
+    lhtbl->cacheValues[i] = lhtbl->cacheValues[i-1];
+  }
+  lhtbl->cacheKeys[0] = (void*) key; /* ditch the "const" */
+  lhtbl->cacheValues[0] = value;
+}
+
+static void cache_delete(metadata_t* lhtbl, const void* key){
+  /*
+   * First, we'll look through the cache and see if we
+   * have a hit. If we do, then we're going to shift everything
+   * over. If not, then we're done.
+   */
+   
+  for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
+    if(lhtbl->cacheKeys[i] == key) {
+      for(int j = i; j < (HASHTABLE_CACHE_BUCKETS - 1); j++) {
+        lhtbl->cacheKeys[j] = lhtbl->cacheKeys[j+1];
+        lhtbl->cacheValues[j] = lhtbl->cacheValues[j+1];
+      }
+
+      lhtbl->cacheKeys[HASHTABLE_CACHE_BUCKETS - 1] = NULL;
+      lhtbl->cacheValues[HASHTABLE_CACHE_BUCKETS - 1] = NULL;
+
+      // return;
+    }
+  }
+}
+
+/**
+ * Check if the chunkinfoptr for a given heap pointer is in the cache.
+ * If present, the chunkinfoptr is returned. If absent, NULL is returned.
+ */
+static chunkinfoptr cache_lookup(metadata_t* lhtbl, const void* key){
+  chunkinfoptr result = NULL;
+
+  /*
+   * ENGINEERING NOTE: If we hit in the cache, then we're going to want
+   * to take steps to ensure that we'll hit again, so we're going to implement
+   * an LRU discipline by moving the cache hitter up to the 0th position,
+   * making the hitter the least likely to be evicted on the next insertion
+   * operation.
+   */
+  for(int i = 0; i < HASHTABLE_CACHE_BUCKETS; i++) {
+    if(lhtbl->cacheKeys[i] == key) {
+      result = lhtbl->cacheValues[i];
+      lhtbl->cacheHits++;
+
+      for(int j = i; j > 0; j--) {
+        lhtbl->cacheKeys[j] = lhtbl->cacheKeys[j-1];
+        lhtbl->cacheValues[j] = lhtbl->cacheValues[j-1];
+      }
+
+      lhtbl->cacheKeys[0] = (void*) key;
+      lhtbl->cacheValues[0] = result;
+
+      return result;
+    }
+  }
+
+  /*
+   * If we got here, then our key isn't in the table, so we missed!
+   */
+  lhtbl->cacheMisses++;
+  return NULL;
+}
+
 
 /* returns the raw bindex/index of the bin that should contain p  [{ hash }] */
 static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
@@ -414,53 +510,12 @@ bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex){
 
   return &(segptr->segment[index]);
 }
-
-#ifdef SRI_DWALLACH_WTF
-/*
-  uint64_t priorLookups[WTF_BUCKETS];                                               uint64_t cacheHits[WTF_BUCKETS];
-  uint64_t cacheMisses;                                                           */
-static void lookup_cache_log(metadata_t* lhtbl, const void* chunk){
-  bool hitYet = false;
-  int index;
-
-  /*
-   * First, we'll look through the cacheHit buckets and see if we
-   * have a hit. If we do, we'll increment the counters for a cache
-   * of that size OR LARGER, since presumably if we hit in a cache
-   * of size 4, we'd hid in one of size 20...                                        */
-  for(index = 0; index < WTF_BUCKETS; index++) {
-    if(lhtbl->priorLookups[index] == chunk) {
-      hitYet = true;
-    }
-    if(hitYet) {
-      lhtbl->cacheHits[index]++;
-    }
-  }
-  if(!hitYet) {
-      lhtbl->cacheMisses++;
-  }
-
-  /*
-   * Next, we need to shuffle around the array of priorLookups.
-   * The newbie always goes in the front.
-   */
-  for(index = WTF_BUCKETS - 1; index > 0; index--) {
-    lhtbl->priorLookups[index] = lhtbl->priorLookups[index-1];
-  }
-  lhtbl->priorLookups[0] = (void*) chunk; /* ditch the "const" */
-}
-#endif
-
 /*
  *  pointer (in the appropriate segment) to the bucket_t*
  *  where the start of the bucket chain should be for p
  */
 bucket_t** metadata_fetch_bucket(metadata_t* lhtbl, const void *p){
   uint32_t bindex;
-
-#ifdef SRI_DWALLACH_WTF
-  lookup_cache_log(lhtbl, p);
-#endif
 
   bindex = metadata_bindex(lhtbl, p);
 
@@ -647,6 +702,8 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
 
+  // cache_insert(lhtbl, newbucket->chunk, newbucket);
+
   binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
 
   /* for the time being we insert the bucket at the front */
@@ -723,6 +780,8 @@ bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
   // bucket_t *lookup_result; // Changing to unconditional delete...
 
+  // cache_insert(lhtbl, newbucket->chunk, newbucket);
+
   binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
 #if 0
   // Drew is commenting out for unconditional delete...
@@ -757,6 +816,8 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
 
   bucket_t** binp;
 
+  cache_delete(lhtbl, chunk);
+
   binp = metadata_fetch_bucket(lhtbl, chunk);
   return internal_md_delete(lhtbl, binp, chunk);
 
@@ -765,6 +826,11 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
 bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
 
   bucket_t** binp;
+
+  bucket_t* cacheResult = cache_lookup(lhtbl, chunk);
+  if(cacheResult != NULL) {
+    return cacheResult;
+  }
 
   binp = metadata_fetch_bucket(lhtbl, chunk);
   return internal_md_lookup(binp, chunk);
@@ -778,6 +844,11 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   bucket_t** binp;
   bucket_t* bucketp;
 
+  bucket_t* cacheResult = cache_lookup(lhtbl, chunk);
+  if(cacheResult != NULL) {
+    return cacheResult;
+  }
+
   value = NULL;
   binp = metadata_fetch_bucket(lhtbl, chunk);
   bucketp = *binp;
@@ -790,6 +861,7 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
     bucketp = bucketp->next_bucket;
   }
 
+  cache_insert(lhtbl, chunk, value);
   return value;
 }
 
@@ -798,6 +870,8 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
   bucket_t** binp;
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
+
+  cache_delete(lhtbl, chunk);
 
   previous_bucketp = NULL;
   binp = metadata_fetch_bucket(lhtbl, chunk);
@@ -841,6 +915,8 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
   bucket_t* temp_bucketp;
+
+  cache_delete(lhtbl, chunk);
 
   count = 0;
   previous_bucketp = NULL;

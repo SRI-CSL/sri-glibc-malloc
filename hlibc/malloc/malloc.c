@@ -3749,7 +3749,8 @@ __libc_free (void *mem)
       munmap_chunk (_md_p); 
 
       unregister_chunk(ar_ptr, p, false);
-
+      /* md_next = md_prev = NULL */
+      
       UNLOCK_ARENA(ar_ptr, FREE_SITE);
       return;
     }
@@ -3890,6 +3891,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       munmap_chunk (_md_oldp);
       LOCK_ARENA(&main_arena, REALLOC_SITE);
       unregister_chunk(&main_arena, oldp, false);
+      /* md_next = md_prev = NULL */
       UNLOCK_ARENA(&main_arena, REALLOC_SITE);
       return newmem;
     }
@@ -4967,7 +4969,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       p = chunk_at_offset(p, -((long) prevsize));
       _md_p = lookup_chunk(av, p);             
       if (_md_p == NULL) { missing_metadata(av, p); }           
-      bin_unlink(av, _md_p, &bck, &fwd);                     
+      bin_unlink(av, _md_p, &bck, &fwd);
       /* do not leak the coalesced chunk's metadata */
       unregister_chunk(av, temp, 10); 
     }
@@ -5085,13 +5087,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     
       munmap_chunk (_md_p);
       unregister_chunk(&main_arena, p, false);
-    
+      /* md_next = md_prev = NULL */
       UNLOCK_ARENA(&main_arena, FREE_SITE);
     } else {
 
       munmap_chunk (_md_p);
       unregister_chunk(&main_arena, p, false);
-      
+      /* md_next = md_prev = NULL */
       if(!have_lock){
 	UNLOCK_ARENA(&main_arena, FREE_SITE);
       }

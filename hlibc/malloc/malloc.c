@@ -2024,7 +2024,7 @@ static inline chunkinfoptr initial_md_top(mstate av)
 {
   mchunkptr top = &(av->initial_top);
   chunkinfoptr _md_top = register_chunk(av, top, false, 0);
-  //_md_top->md_prev = _md_top->md_next = NULL
+  //Done: _md_top->md_prev = _md_top->md_next = NULL
   _md_top->prev_size = 0;
   set_head(_md_top, 0);
   return _md_top;
@@ -2955,7 +2955,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      _md_p = register_chunk(&main_arena, p, true, 2);
-	      //_md_p->md_prev = _md_p->md_next = NULL
+	      //Done: _md_p->md_prev = _md_p->md_next = NULL
 	      
               if (front_misalign > 0)
                 {
@@ -3072,7 +3072,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           /* Set up the new top.  */
           topchunk = chunk_at_offset (heap, sizeof (*heap));
           av->_md_top = register_chunk(av, topchunk, false, 3);
-	  //av->_md_top->md_prev = av->_md_top->md_next = NULL  //iam: next and prev need not span multiple heaps.
+	  //Done?: av->_md_top->md_prev = av->_md_top->md_next = NULL  
+	  //iam: next and prev need not span multiple heaps?
           set_head (av->_md_top, (heap->size - sizeof (*heap)) | PREV_INUSE);
 
           check_top(av);
@@ -3368,7 +3369,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   topchunk = (mchunkptr) aligned_brk;
                   av->_md_top = register_chunk(av, topchunk, false, 6);
 
-		  /* not sure what the md_next and md_prev are here */
+		  /* FIXME: not sure what the md_next and md_prev are here */
 
                   set_head (av->_md_top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
                   check_top(av);
@@ -3618,12 +3619,11 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
   if (p != op) {
     /* remove the old one */
     unregister_chunk(av, op, false);
-
+    // Done: _md_p->md_prev = _md_p->md_next = NULL;
     lookup_delete_mmap(op);
     lookup_add_mmap(p, new_size);
-
     _md_p = register_chunk(av, p, true, 9);
-    //_md_p->md_prev = _md_p->md_next = NULL;
+    // Done: _md_p->md_prev = _md_p->md_next = NULL;
     _md_p->prev_size = offset;
   }
 
@@ -3749,7 +3749,7 @@ __libc_free (void *mem)
       munmap_chunk (_md_p); 
 
       unregister_chunk(ar_ptr, p, false);
-      /* md_next = md_prev = NULL */
+      // Done: md_next = md_prev = NULL
       
       UNLOCK_ARENA(ar_ptr, FREE_SITE);
       return;
@@ -3891,7 +3891,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       munmap_chunk (_md_oldp);
       LOCK_ARENA(&main_arena, REALLOC_SITE);
       unregister_chunk(&main_arena, oldp, false);
-      /* md_next = md_prev = NULL */
+      //Done: md_next = md_prev = NULL 
       UNLOCK_ARENA(&main_arena, REALLOC_SITE);
       return newmem;
     }
@@ -4777,6 +4777,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   INTERNAL_SIZE_T size;        /* its size */
   mfastbinptr *fb;             /* associated fastbin */
   mchunkptr temp;              /* temporary handle of chunk destined to be coalesced */
+  chunkinfoptr _md_temp;       /* metadata of chunk destined to be coalesced */
   mchunkptr nextchunk;         /* next contiguous chunk */
   chunkinfoptr _md_nextchunk;  /* metadata of next contiguous chunk */
   INTERNAL_SIZE_T nextsize;    /* its size */
@@ -4858,6 +4859,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   check_inuse_chunk(av, p, _md_p);
   
   nextchunk = chunk_at_offset(p, size);  
+  //FIXME: Once twinned this lookup can be tossed.
   _md_nextchunk = lookup_chunk(av, nextchunk);
   if(_md_nextchunk == NULL){ missing_metadata(av, nextchunk); }
   nextsize = chunksize (_md_nextchunk);
@@ -4966,10 +4968,15 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       prevsize = _md_p->prev_size;
       size += prevsize;
       temp = p;
+      _md_temp = _md_p;
       p = chunk_at_offset(p, -((long) prevsize));
+      //FIXME: Once twinned this lookup can be tossed.
       _md_p = lookup_chunk(av, p);             
       if (_md_p == NULL) { missing_metadata(av, p); }           
       bin_unlink(av, _md_p, &bck, &fwd);
+      /* correct the md_next pointer */
+      _md_p->md_next = _md_temp->md_next;
+
       /* do not leak the coalesced chunk's metadata */
       unregister_chunk(av, temp, 10); 
     }
@@ -4980,8 +4987,14 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 
       /* consolidate forward */
       if (!nextinuse) {
+	size += nextsize;
         bin_unlink(av, _md_nextchunk, &bck, &fwd);
-        size += nextsize;
+
+	/* correct the md_next & md_prev pointers */
+	_md_temp = _md_nextchunk->md_next;
+	_md_p->md_next = _md_temp;
+	_md_temp->md_prev = _md_p;
+
 	/* do not leak the coalesced chunk's metadata */
 	unregister_chunk(av, nextchunk, 11); 
       } else
@@ -5030,6 +5043,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       size += nextsize;
       set_head(_md_p, size | PREV_INUSE);
       av->_md_top = _md_p;
+      /* fix the md_next pointer */
+      _md_p->md_next = NULL;
+
       /* do not leak the coalesced top chunk's metadata */
       unregister_chunk(av, topchunk, 12); 
       check_chunk(av, p, _md_p);
@@ -5087,13 +5103,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     
       munmap_chunk (_md_p);
       unregister_chunk(&main_arena, p, false);
-      /* md_next = md_prev = NULL */
+      //Done:  md_next = md_prev = NULL 
       UNLOCK_ARENA(&main_arena, FREE_SITE);
     } else {
 
       munmap_chunk (_md_p);
       unregister_chunk(&main_arena, p, false);
-      /* md_next = md_prev = NULL */
+      //Done: md_next = md_prev = NULL 
       if(!have_lock){
 	UNLOCK_ARENA(&main_arena, FREE_SITE);
       }
@@ -5123,6 +5139,7 @@ static void malloc_consolidate(mstate av)
   mfastbinptr*    maxfb;              /* last fastbin (for loop control) */
   mchunkptr       p;                  /* current chunk being consolidated */
   mchunkptr       temp;               /* temporary handle on current chunk being consolidated */
+  chunkinfoptr    _md_temp;           /* temporary handle on the metatdata of the chunk being coalesced */
   chunkinfoptr    _md_p;              /* metatdata of current chunk being consolidated */
   chunkinfoptr    _md_nextp;          /* metadata of next chunk to consolidate */
   
@@ -5174,6 +5191,7 @@ static void malloc_consolidate(mstate av)
           /* Slightly streamlined version of consolidation code in free() */
           size = _md_p->size & ~PREV_INUSE;
           nextchunk = chunk_at_offset(p, size);
+	  //FIXME: Once twinned this lookup can be tossed.
 	  _md_nextchunk = lookup_chunk(av, nextchunk);
 	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
           nextsize = chunksize(_md_nextchunk);
@@ -5182,10 +5200,15 @@ static void malloc_consolidate(mstate av)
             prevsize = _md_p->prev_size;
             size += prevsize;
 	    temp = p;
+	    _md_temp = _md_p;
             p = chunk_at_offset(p, -((long) prevsize));
+	    //FIXME: Once twinned this lookup can be tossed.
             _md_p = lookup_chunk (av, p);
 	    if (_md_p == NULL) { missing_metadata(av, p); }
             bin_unlink(av, _md_p, &bck, &fwd);
+	    /* correct the md_next pointer */
+	    _md_p->md_next = _md_temp->md_next;
+
 	    /* do not leak the coalesced chunk's metadata */
 	    unregister_chunk(av, temp, 7); 
           }
@@ -5199,6 +5222,12 @@ static void malloc_consolidate(mstate av)
             if (!nextinuse) {
               size += nextsize;
               bin_unlink(av, _md_nextchunk, &bck, &fwd);
+
+	      /* correct the md_next & md_prev pointers */
+	      _md_temp = _md_nextchunk->md_next;
+	      _md_p->md_next = _md_temp;
+	      _md_temp->md_prev = _md_p;
+
 	      /* do not leak the coalesced chunk's metadata */
 	      unregister_chunk(av, nextchunk, 8); 
             } else
@@ -5224,9 +5253,12 @@ static void malloc_consolidate(mstate av)
 	    
             size += nextsize;
             set_head(_md_p, size | PREV_INUSE);
+            av->_md_top = _md_p;
+	    /* fix the md_next pointer */
+	    _md_p->md_next = NULL;
+
 	    /* do not leak the old top's chunk's metadata */
 	    unregister_chunk(av, topchunk, 9); 
-            av->_md_top = _md_p;
             check_top(av);
           }
 
@@ -5259,6 +5291,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
   mchunkptr        next;            /* next contiguous chunk after oldp */
   chunkinfoptr     _md_next;        /* metadata of next contiguous chunk after oldp */
+
+  chunkinfoptr     _md_temp;        /* temporary handle to metadata  */
 
   mchunkptr        remainder;       /* extra space at end of newp */
   chunkinfoptr     _md_remainder;   /* metadata for the extra space at end of newp */
@@ -5353,6 +5387,14 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
         {
 
           newp = oldp;
+	  
+	  /* fix the md_next and md_prev pointers */
+	  _md_temp = _md_next->md_next;
+	  if(_md_temp != NULL)
+	    _md_temp->md_prev = _md_oldp;
+	  _md_oldp->md_next = _md_temp;
+
+	  
           bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
           unregister_chunk(av, next, 2); 
@@ -5380,7 +5422,15 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
             {
               newsize += oldsize;
               newp = oldp;  /* now we have newp != malloced_chunk */
+
+	      /* fix the md_next and md_prev pointers */
+	      _md_temp = _md_newp->md_next;
+	      if(_md_temp != NULL)
+		_md_temp->md_prev = _md_oldp;
+	      _md_oldp->md_next = _md_temp;
+
               unregister_chunk(av, malloced_chunk, 3); 
+
             }
           else
             {
@@ -5432,9 +5482,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
     } /* SRI: hunk is already big enough */
 
   assert(newp == oldp);
+
   if (newp != oldp) {
     return 0;
   }
+
   _md_newp = _md_oldp;
 
   /* If possible, free extra space in old or extended chunk */
@@ -5460,7 +5512,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       _md_newp->md_next =  _md_remainder;
 
       set_head (_md_remainder, remainder_size | PREV_INUSE);
-     /* Mark remainder as inuse so free() won't complain */
+      /* Mark remainder as inuse so free() won't complain */
       set_inuse_bit_at_offset (av, _md_remainder, remainder, remainder_size);
 
       

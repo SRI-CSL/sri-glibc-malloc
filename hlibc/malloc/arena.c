@@ -901,6 +901,7 @@ _int_new_arena (size_t size)
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
   a->_md_top = register_chunk(a, (mchunkptr) ptr, false, 18);
+  //Done a->_md_top->md_prev = a->_md_top->md_next = NULL
   set_head (a->_md_top, (((char *) h + h->size) - ptr) | PREV_INUSE);
 
   do_check_top(a, __FILE__, __LINE__);

@@ -300,6 +300,7 @@ top_check (void)
   
   topchunk = (mchunkptr) (brk + front_misalign);
   main_arena._md_top = register_chunk(&main_arena, topchunk, false, 19);
+  //Done: main_arena._md_top->md_prev = main_arena._md_top->md_next = NULL
   set_head (main_arena._md_top, (sbrk_size - front_misalign) | PREV_INUSE);
 
   return 0;
@@ -351,6 +352,7 @@ free_check (void *mem, const void *caller)
     {
       munmap_chunk(_md_p);
       unregister_chunk(&main_arena, p, false); 
+      //Done: _md_p->md_prev = _md_p->md_next = NULL
       (void) mutex_unlock (&main_arena.mutex);
       return;
     }
@@ -430,6 +432,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
                 memcpy (newmem, oldmem, oldsize - 2 * SIZE_SZ);
                 munmap_chunk (_md_oldp);
 		unregister_chunk(&main_arena, oldp, false);
+		//Done: _md_p->md_prev = _md_p->md_next = NULL
               }
           }
       }

@@ -2865,11 +2865,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   mchunkptr p;                    /* the allocated/returned chunk */
   chunkinfoptr _md_p;             /* metadata of the allocated/returned chunk */
 
-  mchunkptr fencepost_0;            /* fenceposts */
-  chunkinfoptr _md_fencepost_0;     /* metadata of fenceposts */
+  mchunkptr fencepost_0;          /* fenceposts */
+  chunkinfoptr _md_fencepost_0;   /* metadata of fenceposts */
 
-  mchunkptr fencepost_1;            /* fenceposts */
-  chunkinfoptr _md_fencepost_1;     /* metadata of fenceposts */
+  mchunkptr fencepost_1;          /* fenceposts */
+  chunkinfoptr _md_fencepost_1;   /* metadata of fenceposts */
 
   mchunkptr topchunk;             /* new chunk destined for top */
 
@@ -3092,8 +3092,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           /* Set up the new top.  */
           topchunk = chunk_at_offset (heap, sizeof (*heap));
           av->_md_top = register_chunk(av, topchunk, false, 3);
-	  //Done?: av->_md_top->md_prev = av->_md_top->md_next = NULL  
-	  //iam: next and prev need not span multiple heaps?
+	  /* fix the md_next pointer here; 
+	   * the md_prev gets set after the fenceposts get put in.
+	   */
+	  av->_md_top->md_next = NULL;
+	  
           set_head (av->_md_top, (heap->size - sizeof (*heap)) | PREV_INUSE);
 
           check_top(av);
@@ -3107,11 +3110,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
           fencepost_0 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
           _md_fencepost_0 = register_chunk(av,  fencepost_0, false, 4);
-
 	  _md_fencepost_0->md_prev = _md_old_top;
 	  _md_fencepost_0->md_next = _md_old_top->md_next;
 	  _md_old_top->md_next = _md_fencepost_0;
-
+	  /* fix the new top's md+prev pointer */
+	  av->_md_top->md_prev = _md_fencepost_0;
           set_head (_md_fencepost_0, 0 | PREV_INUSE);
 
           if (old_size >= MINSIZE)
@@ -3386,8 +3389,12 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               /* Adjust top based on results of second sbrk */
               if (snd_brk != (char *) (MORECORE_FAILURE))
                 {
+		  
                   topchunk = (mchunkptr) aligned_brk;
                   av->_md_top = register_chunk(av, topchunk, false, 6);
+		  av->_md_top->md_next = NULL;
+		  av->_md_top->md_prev = NULL;
+		  /* we refix the md_prev pointer once the fenceposts have been put it */
 
 		  /* FIXME: not sure what the md_next and md_prev are here */
 
@@ -3440,6 +3447,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 		      _md_fencepost_1->md_prev = _md_fencepost_0;
 		      _md_fencepost_0->md_next = _md_fencepost_1;
 
+		      av->_md_top->md_prev = _md_fencepost_1;
 
                       set_head(_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
                       

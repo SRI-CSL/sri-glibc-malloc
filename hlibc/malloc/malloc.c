@@ -2292,19 +2292,22 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     }
     
     if(ci->md_next != NULL){
-
+      mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
-      fprintf(stderr, "check_metadata_chunk of %p:\nci->md_next->md_prev = %p != ci = %p@ %s line %d\n",
-              chunk2mem(c), ci->md_next->md_prev, ci, file, lineno);
+      fprintf(stderr, 
+	      "check_metadata_chunk of %p in arena %zu with canary %zu:\n" 
+	      "ci->md_next->md_prev = %p != ci = %p\n"
+	      "(ci->md_next = %p with canary %zu) @ %s line %d\n",
+              chunk2mem(c), c->arena_index, c->__canary__, ci->md_next->md_prev, ci->md_next, ci, cn->__canary__, file, lineno);
       return false;
       }
     }
 
     if(ci->md_prev != NULL){
-  
+      mchunkptr cp = chunkinfo2chunk(ci->md_prev);
       if(ci->md_prev->md_next != ci){
-	fprintf(stderr, "check_metadata_chunk of %p:\nci->md_prev->md_next = %p != ci = %p@ %s line %d\n",
-		chunk2mem(c), ci->md_prev->md_next, ci, file, lineno);
+	fprintf(stderr, "check_metadata_chunk of %p in arena %zu with canary %zu:\nci->md_prev->md_next = %p != ci = %p\n(ci->md_prev = %p with canary %zu)  @ %s line %d\n",
+		chunk2mem(c), c->arena_index, c->__canary__, ci->md_prev->md_next, ci->md_prev, ci, cp->__canary__, file, lineno);
 	return false;
       }
     }
@@ -3111,9 +3114,9 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           fencepost_0 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
           _md_fencepost_0 = register_chunk(av,  fencepost_0, false, 4);
 	  _md_fencepost_0->md_prev = _md_old_top;
-	  _md_fencepost_0->md_next = _md_old_top->md_next;
+	  _md_fencepost_0->md_next = av->_md_top;
 	  _md_old_top->md_next = _md_fencepost_0;
-	  /* fix the new top's md+prev pointer */
+	  /* fix the new top's md_prev pointer */
 	  av->_md_top->md_prev = _md_fencepost_0;
           set_head (_md_fencepost_0, 0 | PREV_INUSE);
 

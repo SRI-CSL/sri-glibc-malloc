@@ -2245,41 +2245,6 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 }
 
 
-/* Splits victim into a chunk of size 'desiderata' and returns the
-   configured metadata of the remainder.  Called in the situation
-   where victim is top.
-*/
-static chunkinfoptr split_chunk(mstate av, 
-                                chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, 
-                                INTERNAL_SIZE_T desiderata)
-{
-  INTERNAL_SIZE_T remainder_size;
-  mchunkptr remainder; 
-  chunkinfoptr _md_remainder;
-
-  assert(chunksize(_md_victim) == victim_size);
-  assert((unsigned long)victim_size >= (unsigned long)(desiderata + MINSIZE)); //iam: why the casts?
-
-  /* configure the remainder */
-  remainder_size = victim_size - desiderata;
-  remainder = chunk_at_offset(victim, desiderata);
-
-  /* pair it with new metatdata and add the metadata into the hashtable */
-  _md_remainder = register_chunk(av, remainder, false, 1);
-
-  /* fix the next and prev metadata pointers */
-  _md_remainder->md_next = _md_victim->md_next;   // should be NULL
-  _md_remainder->md_prev = _md_victim;
-  _md_victim->md_next = _md_remainder;
-
-  /* set its size */
-  set_head(_md_remainder, remainder_size | PREV_INUSE);
-
-  /* configure the victim */
-  set_head(_md_victim,  desiderata | PREV_INUSE);
-
-  return _md_remainder;
-}
 
 /* sanity check */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
@@ -2295,10 +2260,12 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
       fprintf(stderr, 
-	      "check_metadata_chunk of %p in arena %zu with canary %zu:\n" 
-	      "ci->md_next->md_prev = %p != ci = %p\n"
-	      "(ci->md_next = %p with canary %zu) @ %s line %d\n",
-              chunk2mem(c), c->arena_index, c->__canary__, ci->md_next->md_prev, ci->md_next, ci, cn->__canary__, file, lineno);
+	      "check_metadata_chunk of %p in arena %zu with canary %zu @ %s line %d:\n" 
+	      "\tci->md_next->md_prev = %p != ci = %p\n"
+	      "\tci->md_next = %p with canary %zu\n",
+              chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
+	      ci->md_next->md_prev, ci->md_next, 
+	      ci, cn->__canary__);
       return false;
       }
     }
@@ -2306,8 +2273,13 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     if(ci->md_prev != NULL){
       mchunkptr cp = chunkinfo2chunk(ci->md_prev);
       if(ci->md_prev->md_next != ci){
-	fprintf(stderr, "check_metadata_chunk of %p in arena %zu with canary %zu:\nci->md_prev->md_next = %p != ci = %p\n(ci->md_prev = %p with canary %zu)  @ %s line %d\n",
-		chunk2mem(c), c->arena_index, c->__canary__, ci->md_prev->md_next, ci->md_prev, ci, cp->__canary__, file, lineno);
+	fprintf(stderr, 
+		"check_metadata_chunk of %p in arena %zu with canary %zu @ %s line %d:\n"
+		"\tci->md_prev->md_next = %p != ci = %p\n"
+		"\tci->md_prev = %p with canary %zu\n",
+		chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
+		ci->md_prev->md_next, ci->md_prev,
+		ci, cp->__canary__);
 	return false;
       }
     }
@@ -2839,6 +2811,46 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
 /* ----------- Routines dealing with system allocation -------------- */
 
+/* Splits victim into a chunk of size 'desiderata' and returns the
+   configured metadata of the remainder.  Called in the situation
+   where victim is top.
+*/
+static chunkinfoptr split_chunk(mstate av, 
+                                chunkinfoptr _md_victim, mchunkptr victim, INTERNAL_SIZE_T victim_size, 
+                                INTERNAL_SIZE_T desiderata)
+{
+  INTERNAL_SIZE_T remainder_size;
+  mchunkptr remainder; 
+  chunkinfoptr _md_remainder;
+
+  assert(chunksize(_md_victim) == victim_size);
+  assert((unsigned long)victim_size >= (unsigned long)(desiderata + MINSIZE)); //iam: why the casts?
+
+  /* configure the remainder */
+  remainder_size = victim_size - desiderata;
+  remainder = chunk_at_offset(victim, desiderata);
+
+  /* pair it with new metatdata and add the metadata into the hashtable */
+  _md_remainder = register_chunk(av, remainder, false, 1);
+
+  /* fix the next and prev metadata pointers */
+  _md_remainder->md_next = _md_victim->md_next;   // should be NULL
+  _md_remainder->md_prev = _md_victim;
+  _md_victim->md_next = _md_remainder;
+
+  /* set its size */
+  set_head(_md_remainder, remainder_size | PREV_INUSE);
+
+  /* configure the victim */
+  set_head(_md_victim,  desiderata | PREV_INUSE);
+
+  check_metadata_chunk(av,remainder,_md_remainder);
+  check_metadata_chunk(av,victim,_md_victim);
+
+
+  return _md_remainder;
+}
+
 /*
   sysmalloc handles malloc cases requiring more memory from the system.
   On entry, it is assumed that av->_md_top does not have enough
@@ -2979,8 +2991,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      _md_p = register_chunk(&main_arena, p, true, 2);
-	      //Done: _md_p->md_prev = _md_p->md_next = NULL
-	      
+	      check_metadata_chunk(av,p,_md_p);
+
               if (front_misalign > 0)
                 {
                   _md_p->prev_size = correction;
@@ -3120,6 +3132,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	  /* fix the new top's md_prev pointer */
 	  av->_md_top->md_prev = _md_fencepost_0;
           set_head (_md_fencepost_0, 0 | PREV_INUSE);
+	  check_metadata_chunk(av,fencepost_0,_md_fencepost_0);
 
           if (old_size >= MINSIZE)
             {
@@ -3129,22 +3142,31 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	      _md_fencepost_0->md_prev = _md_fencepost_1;
 	      _md_fencepost_1->md_next = _md_fencepost_0;
 	      _md_fencepost_1->md_prev = _md_old_top;
-	      
+
+	      check_metadata_chunk(av,fencepost_0,_md_fencepost_0);
+     
 	      _md_old_top->md_next = _md_fencepost_1;
 
               set_head (_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
               set_foot (av, _md_fencepost_1, fencepost_1, (2 * SIZE_SZ));
+	      check_metadata_chunk(av,fencepost_1,_md_fencepost_1);
 
               set_head (_md_old_top, old_size | PREV_INUSE);
+	      check_metadata_chunk(av, old_top,_md_old_top);
 
               _int_free (av, _md_old_top, old_top, true);
+	      check_metadata_chunk(av, topchunk,av->_md_top);
 
             }
           else
             {
               set_head (_md_old_top, (old_size + 2 * SIZE_SZ) | PREV_INUSE);
               set_foot (av, _md_old_top, old_top, (old_size + 2 * SIZE_SZ));
+	      check_metadata_chunk(av, old_top,_md_old_top);
+
             }
+	  
+	  check_top(av);
         }
       else if (!tried_mmap)
         /* We can at least try to use to mmap memory.  */
@@ -3402,8 +3424,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 		  av->_md_top->md_prev = NULL;
 		  /* we refix the md_prev pointer once the fenceposts have been put it */
 
-		  /* FIXME: not sure what the md_next and md_prev are here */
-
                   set_head (av->_md_top, (snd_brk - aligned_brk + correction) | PREV_INUSE);
                   check_top(av);
 
@@ -3457,6 +3477,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
                       set_head(_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
                       
+		      check_metadata_chunk(av, fencepost_0, _md_fencepost_0);
+		      check_metadata_chunk(av, fencepost_1, _md_fencepost_1);
+		      check_metadata_chunk(av, old_top, _md_old_top);
+		      check_top(av);
+
                       /* If possible, release the rest. */
                       if (old_size >= MINSIZE)
                         {
@@ -3657,7 +3682,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
     lookup_delete_mmap(op);
     lookup_add_mmap(p, new_size);
     _md_p = register_chunk(av, p, true, 9);
-    // Done: _md_p->md_prev = _md_p->md_next = NULL;
+    check_metadata_chunk(av, p, _md_p);
     _md_p->prev_size = offset;
   }
 
@@ -3783,7 +3808,6 @@ __libc_free (void *mem)
       munmap_chunk (_md_p); 
 
       unregister_chunk(ar_ptr, p, false);
-      // Done: md_next = md_prev = NULL
       
       UNLOCK_ARENA(ar_ptr, FREE_SITE);
       return;
@@ -3925,7 +3949,6 @@ __libc_realloc (void *oldmem, size_t bytes)
       munmap_chunk (_md_oldp);
       LOCK_ARENA(&main_arena, REALLOC_SITE);
       unregister_chunk(&main_arena, oldp, false);
-      //Done: md_next = md_prev = NULL 
       UNLOCK_ARENA(&main_arena, REALLOC_SITE);
       return newmem;
     }
@@ -4252,6 +4275,7 @@ _int_malloc (mstate av, size_t bytes)
 
   mchunkptr remainder;              /* remainder from a split */
   chunkinfoptr _md_remainder;       /* metadata of remainder from a split */
+  chunkinfoptr _md_temp;            /* temporary handle of metadata */
   unsigned long remainder_size;     /* its size */
 
   unsigned int block;               /* bit map traverser */
@@ -4442,13 +4466,23 @@ _int_malloc (mstate av, size_t bytes)
 
               _md_remainder = register_chunk(av, remainder, false, 10);
 
-	      _md_remainder->md_next = _md_victim->md_next;
+	      _md_temp = _md_victim->md_next;
+
+	      _md_remainder->md_next = _md_temp;
 	      _md_remainder->md_prev = _md_victim;
 	      _md_victim->md_next = _md_remainder;
 
-	      
+	      if(_md_temp != NULL){
+		_md_temp->md_prev = _md_remainder;
+		check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+	      }
+
               set_head (_md_remainder, remainder_size | PREV_INUSE);
               set_foot (av, _md_remainder, remainder, remainder_size);
+
+	      check_metadata_chunk(av, remainder, _md_remainder);
+	      check_metadata_chunk(av, victim, _md_victim);
+	      	      
 
               unsorted_chunks (av)->bk = unsorted_chunks (av)->fd = _md_remainder;
               av->last_remainder = _md_remainder;
@@ -4595,12 +4629,21 @@ _int_malloc (mstate av, size_t bytes)
 		  
                   _md_remainder = register_chunk(av, remainder, false, 11);
 
-		  _md_remainder->md_next = _md_victim->md_next;
+		  _md_temp = _md_victim->md_next;
+
+		  _md_remainder->md_next = _md_temp;
 		  _md_remainder->md_prev = _md_victim;
 		  _md_victim->md_next = _md_remainder;
 
+		  if(_md_temp != NULL){
+		    _md_temp->md_prev = _md_remainder;
+		    check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+		  }
+
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
                   set_foot (av, _md_remainder, remainder, remainder_size);
+		  check_metadata_chunk(av, remainder, _md_remainder);
+		  check_metadata_chunk(av, victim, _md_victim);
 
                   _md_remainder->bk = bck;
                   _md_remainder->fd = fwd;
@@ -4712,12 +4755,21 @@ _int_malloc (mstate av, size_t bytes)
 
                   _md_remainder = register_chunk(av, remainder, false, 12);
 
-		  _md_remainder->md_next = _md_victim->md_next;
+		  _md_temp = _md_victim->md_next;
+
+		  _md_remainder->md_next = _md_temp;
 		  _md_remainder->md_prev = _md_victim;
 		  _md_victim->md_next = _md_remainder;
 
+		  if(_md_temp != NULL){
+		    _md_temp->md_prev = _md_remainder;
+		    check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+		  }
+		  
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
                   set_foot (av, _md_remainder, remainder, remainder_size);
+		  check_metadata_chunk(av, remainder, _md_remainder);
+		  check_metadata_chunk(av, victim, _md_victim);
 
                   _md_remainder->bk = bck;
                   _md_remainder->fd = fwd;
@@ -5010,6 +5062,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       bin_unlink(av, _md_p, &bck, &fwd);
       /* correct the md_next pointer */
       _md_p->md_next = _md_temp->md_next;
+      check_metadata_chunk(av, p, _md_p);
 
       /* do not leak the coalesced chunk's metadata */
       unregister_chunk(av, temp, 10); 
@@ -5028,6 +5081,8 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 	_md_temp = _md_nextchunk->md_next;
 	_md_p->md_next = _md_temp;
 	_md_temp->md_prev = _md_p;
+
+	check_metadata_chunk(av, p, _md_p);
 
 	/* do not leak the coalesced chunk's metadata */
 	unregister_chunk(av, nextchunk, 11); 
@@ -5114,7 +5169,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
         heap_info *heap = heap_for_ptr(topchunk);
 
         assert(heap->ar_ptr == av);
+	check_top(av);
         heap_trim(heap, mp_.top_pad);
+	check_top(av);
       }
     }
     
@@ -5242,6 +5299,8 @@ static void malloc_consolidate(mstate av)
             bin_unlink(av, _md_p, &bck, &fwd);
 	    /* correct the md_next pointer */
 	    _md_p->md_next = _md_temp->md_next;
+	    
+	    check_metadata_chunk(av, p, _md_p);
 
 	    /* do not leak the coalesced chunk's metadata */
 	    unregister_chunk(av, temp, 7); 
@@ -5261,6 +5320,8 @@ static void malloc_consolidate(mstate av)
 	      _md_temp = _md_nextchunk->md_next;
 	      _md_p->md_next = _md_temp;
 	      _md_temp->md_prev = _md_p;
+   
+	      check_metadata_chunk(av, p, _md_p);
 
 	      /* do not leak the coalesced chunk's metadata */
 	      unregister_chunk(av, nextchunk, 8); 
@@ -5410,6 +5471,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           set_head (av->_md_top, (newsize - nb) | PREV_INUSE);
 
           check_inuse_chunk (av, oldp, _md_oldp);
+	  check_top(av);
+
           return _md_oldp;
         }
 
@@ -5428,7 +5491,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 	    _md_temp->md_prev = _md_oldp;
 	  _md_oldp->md_next = _md_temp;
 
-	  
+	  check_metadata_chunk(av, oldp, _md_oldp);
+
           bin_unlink (av, _md_next, &bck, &fwd);
           /* don't leak next's metadata */
           unregister_chunk(av, next, 2); 
@@ -5462,6 +5526,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 	      if(_md_temp != NULL)
 		_md_temp->md_prev = _md_oldp;
 	      _md_oldp->md_next = _md_temp;
+
+	      check_metadata_chunk(av, oldp, _md_oldp);
 
               unregister_chunk(av, malloced_chunk, 3); 
 
@@ -5541,9 +5607,21 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       remainder = chunk_at_offset (newp, nb);
       _md_remainder = register_chunk(av, remainder, false, 14);
 
-      _md_remainder->md_next = _md_newp->md_next;
+      
+      _md_temp = _md_newp->md_next;
+
+      _md_remainder->md_next = _md_temp;
       _md_remainder->md_prev = _md_newp;
       _md_newp->md_next =  _md_remainder;
+
+      if(_md_temp != NULL){
+	_md_temp->md_prev = _md_remainder;
+	check_metadata_chunk(av,chunkinfo2chunk(_md_temp),_md_newp);
+      }
+      
+
+      check_metadata_chunk(av,remainder,_md_remainder);
+      check_metadata_chunk(av,newp,_md_newp);
 
       set_head (_md_remainder, remainder_size | PREV_INUSE);
       /* Mark remainder as inuse so free() won't complain */
@@ -5644,6 +5722,9 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           _md_newp = register_chunk(&main_arena, newp, true, 15);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
 	  _md_newp->md_next = _md_newp->md_prev = NULL;
+
+	  check_metadata_chunk(av, newp, _md_newp);
+
           set_head (_md_newp, newsize);
 
 	  UNLOCK_ARENA(&main_arena, MEMALIGN_SITE);
@@ -5661,6 +5742,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       _md_newp->md_prev = _md_p;
       _md_p->md_next = _md_newp;
 
+      check_metadata_chunk(av, newp, _md_newp);
 
       set_head (_md_newp, newsize | PREV_INUSE);
 
@@ -5686,9 +5768,13 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 	  _md_remainder->md_next = _md_p->md_next;
 	  _md_remainder->md_prev = _md_p;
 	  _md_p->md_next = _md_remainder;
+	  check_metadata_chunk(av,remainder,_md_remainder);
+	  check_metadata_chunk(av,p,_md_p);
 
           set_head (_md_remainder, remainder_size | PREV_INUSE);
           set_head_size (_md_p, nb);
+
+
           _int_free (av, _md_remainder, remainder, 1);
         }
     }

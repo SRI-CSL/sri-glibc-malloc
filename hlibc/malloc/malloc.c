@@ -2268,7 +2268,7 @@ static chunkinfoptr split_chunk(mstate av,
   _md_remainder = register_chunk(av, remainder, false, 1);
 
   /* fix the next and prev metadata pointers */
-  _md_remainder->md_next = _md_victim->md_next;
+  _md_remainder->md_next = _md_victim->md_next;   // should be NULL
   _md_remainder->md_prev = _md_victim;
   _md_victim->md_next = _md_remainder;
 
@@ -2403,6 +2403,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
     }
   }
 }
+
 
 #if !MALLOC_DEBUG
 
@@ -3125,10 +3126,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               fencepost_1 = chunk_at_offset (old_top, old_size);
 	      _md_fencepost_1 = register_chunk(av,  fencepost_1, false, 5);
 
-	      _md_old_top->md_next = _md_fencepost_1;
 	      _md_fencepost_0->md_prev = _md_fencepost_1;
 	      _md_fencepost_1->md_next = _md_fencepost_0;
 	      _md_fencepost_1->md_prev = _md_old_top;
+	      
+	      _md_old_top->md_next = _md_fencepost_1;
 
               set_head (_md_fencepost_1, (2 * SIZE_SZ) | PREV_INUSE);
               set_foot (av, _md_fencepost_1, fencepost_1, (2 * SIZE_SZ));
@@ -3136,6 +3138,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               set_head (_md_old_top, old_size | PREV_INUSE);
 
               _int_free (av, _md_old_top, old_top, true);
+
             }
           else
             {

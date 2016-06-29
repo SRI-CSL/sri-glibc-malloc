@@ -766,7 +766,7 @@ heap_trim (heap_info *heap, size_t pad)
 	missing_metadata(ar_ptr, p);
 	return 0;
       }
-      assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost */
+      assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost_0 */
       
       _md_fencepost = _md_p;
 
@@ -779,7 +779,9 @@ heap_trim (heap_info *heap, size_t pad)
       }
 
       new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
-      assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
+
+      assert (new_size > 0 && new_size < (long) (2 * MINSIZE)); /* must be fencepost_1 */
+
       if (!prev_inuse(_md_p, p)){
         new_size += _md_p->prev_size;
       }
@@ -794,10 +796,11 @@ heap_trim (heap_info *heap, size_t pad)
       /* SRI: pulling out the fencepost */
       unregister_chunk(ar_ptr, chunkinfo2chunk(_md_fencepost), 4); 
       
+      /* fix the md_next and md_prev pointers */
       _md_p->md_next = _md_temp;
       if(_md_temp != NULL)
 	_md_temp->md_prev = _md_p;
-
+      
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
@@ -811,6 +814,7 @@ heap_trim (heap_info *heap, size_t pad)
 	  _md_temp = _md_p->md_next;
           p = prev_chunk (_md_p, p);
 	  unregister_chunk(ar_ptr, op, 5);  
+	  //FIXME: once twinned we can use the md_prev pointer here.
 	  _md_p = lookup_chunk(ar_ptr, p);
 	  if(_md_p == NULL){
 	    missing_metadata(ar_ptr, p);
@@ -827,7 +831,9 @@ heap_trim (heap_info *heap, size_t pad)
       top_chunk = p;
       ar_ptr->_md_top = _md_p;
       set_head (_md_p, new_size | PREV_INUSE);
+
       do_check_top(ar_ptr, __FILE__, __LINE__);
+
       /* check_chunk(ar_ptr, top_chunk); */
     } /* while */
 
@@ -857,6 +863,7 @@ heap_trim (heap_info *heap, size_t pad)
 
   /* Success. Adjust top accordingly. */
   set_head (ar_ptr->_md_top, (top_size - extra) | PREV_INUSE);
+
   do_check_top(ar_ptr, __FILE__, __LINE__);
 
   /*check_chunk(ar_ptr, top_chunk);*/

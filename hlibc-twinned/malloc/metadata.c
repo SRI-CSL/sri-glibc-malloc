@@ -148,6 +148,25 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
 
   assert(is_power_of_two(lhtbl->maxp));
 
+  /* set up the cache */
+  /*
+  bool nextUpdateIsZero;
+  void* cacheKeys0;
+  void* cacheKeys1;
+  chunkinfoptr cacheValues0;
+  chunkinfoptr cacheValues1;
+                                                                                  
+  uint64_t cacheHits;                                                             
+  uint64_t cacheMisses;  
+  */
+  lhtbl->nextUpdateIsZero = true;
+  lhtbl->cacheKeys0 = NULL;
+  lhtbl->cacheKeys1 = NULL;
+  lhtbl->cacheValues0 = NULL;
+  lhtbl->cacheValues1 = NULL;
+  lhtbl->cacheHits = 0;
+  lhtbl->cacheMisses = 0;
+
   /* create the segments needed by the current directory */
   for(index = 0; index < lhtbl->directory_current; index++){
     seg = (segment_t*)memcxt_allocate(memcxt, SEGMENT, NULL, sizeof(segment_t));
@@ -205,6 +224,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "maxp = %" PRIuPTR "\n", lhtbl->maxp);
   fprintf(fp, "bincount = %" PRIuPTR "\n", lhtbl->bincount);
   fprintf(fp, "load = %" PRIuPTR "\n", metadata_load(lhtbl));
+  fprintf(fp, "cache hitrate = %.3f%% (two element cache)\n", 100.0 * lhtbl->cacheHits / (lhtbl->cacheHits + lhtbl->cacheMisses));
   
   maxlength = 0;
   maxindex = 0;
@@ -321,6 +341,55 @@ inline uint64_t Fingerprint(uint64_t x) {
   b ^= (b >> 41);
   b *= kMul;
   return b;
+}
+
+/*
+ * Below are three functions that implement a cache in front of the hashtable.
+ */
+static void cache_insert(metadata_t* lhtbl, const void* key, chunkinfoptr value){
+  if(lhtbl->nextUpdateIsZero) {
+    lhtbl->cacheKeys0 = (void*) key;
+    lhtbl->cacheValues0 = value;
+    lhtbl->nextUpdateIsZero = false;
+  } else {
+    lhtbl->cacheKeys1 = (void*) key;
+    lhtbl->cacheValues1 = value;
+    lhtbl->nextUpdateIsZero = true;
+  }
+}
+
+static void cache_delete(metadata_t* lhtbl, const void* key){
+  if(lhtbl->cacheKeys0 == key) {
+    lhtbl->cacheKeys0 = NULL;
+    lhtbl->cacheValues0 = NULL;
+    lhtbl->nextUpdateIsZero = true;
+  } else if(lhtbl->cacheKeys1 == key) {
+    lhtbl->cacheKeys1 = NULL;
+    lhtbl->cacheValues1 = NULL;
+    lhtbl->nextUpdateIsZero = false;
+  }
+}
+
+/**
+ * Check if the chunkinfoptr for a given heap pointer is in the cache.
+ * If present, the chunkinfoptr is returned. If absent, NULL is returned.
+ */
+static chunkinfoptr cache_lookup(metadata_t* lhtbl, const void* key){
+  if(lhtbl->cacheKeys0 == key) {
+    lhtbl->nextUpdateIsZero = false; // this entry is "hot", so update the other
+    lhtbl->cacheHits++;
+    return lhtbl->cacheValues0;
+  } else if(lhtbl->cacheKeys1 == key) {
+    lhtbl->nextUpdateIsZero = true; // this entry is "hot", so update the other
+    lhtbl->cacheHits++;
+    return lhtbl->cacheValues1;
+  }
+
+  /*
+   * If we got here, then our key isn't in the table, so we missed!
+   */
+  lhtbl->cacheMisses++;
+  return NULL;
 }
 
 
@@ -568,6 +637,8 @@ static bool metadata_expand_table(metadata_t* lhtbl){
 bool metadata_add(metadata_t* lhtbl, bucket_t* newbucket){
   bucket_t** binp;
 
+  cache_insert(lhtbl, newbucket->chunk, newbucket);
+
   binp = metadata_fetch_bucket(lhtbl, newbucket->chunk);
 
   /* for the time being we insert the bucket at the front */
@@ -586,6 +657,11 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
   bucket_t** binp;
   bucket_t* bucketp;
   bucket_t* bucketp_prev;
+
+  bucket_t* cacheResult = cache_lookup(lhtbl, chunk);
+  if(cacheResult != NULL) {
+    return cacheResult;
+  }
 
   value = NULL;
   binp = metadata_fetch_bucket(lhtbl, chunk);
@@ -614,6 +690,7 @@ bucket_t* metadata_lookup(metadata_t* lhtbl, const void *chunk){
     *binp = bucketp;
   }
 
+  cache_insert(lhtbl, chunk, value);
   return value;
 }
 
@@ -622,6 +699,8 @@ bool metadata_delete(metadata_t* lhtbl, const void *chunk){
   bucket_t** binp;
   bucket_t* current_bucketp;
   bucket_t* previous_bucketp;
+
+  cache_delete(lhtbl, chunk);
 
   previous_bucketp = NULL;
   binp = metadata_fetch_bucket(lhtbl, chunk);

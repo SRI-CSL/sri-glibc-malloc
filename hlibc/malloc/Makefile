@@ -124,7 +124,9 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #SRI hack to compile our version of malloc without optimizations.
 #you will need to make sure that you have commented out line 4 
 # of config.h in the glibc-build directory.
-# -DSRI_MALLOC_LOG=1 -DMALLOC_DEBUG=1
+# FIXME: These need english explanations
+# -DSRI_MALLOC_LOG=1 
+# -DMALLOC_DEBUG=1
 # -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
 
 #if 0

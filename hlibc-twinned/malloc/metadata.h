@@ -75,7 +75,7 @@ typedef struct metadata_s {
   size_t count;                  /* the total number of records in the table                               */
   size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
   size_t bincount;               /* the current number of bins                                             */
-
+#if SRI_METADATA_CACHE
   /*
    * Caching: we're going to cache the last *two* queries against
    * the metadata hashtable. Simulations indicated that we were
@@ -93,6 +93,7 @@ typedef struct metadata_s {
                                                                                   
   uint64_t cacheHits;                                                             
   uint64_t cacheMisses;  
+#endif
   
 } metadata_t;
 

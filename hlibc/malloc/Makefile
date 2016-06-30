@@ -125,7 +125,7 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #you will need to make sure that you have commented out line 4 
 # of config.h in the glibc-build directory.
 # -DSRI_MALLOC_LOG=1 -DMALLOC_DEBUG=1
-
+# -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
 
 #if 0
 CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
@@ -134,7 +134,7 @@ CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
 CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
 CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
 CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
-#elif 1
+#elif 0
 CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   
 CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    
 CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   
@@ -147,7 +147,7 @@ CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
 CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
-CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
+CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 #endif
 
 

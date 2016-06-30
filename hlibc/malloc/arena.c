@@ -814,14 +814,16 @@ heap_trim (heap_info *heap, size_t pad)
         {
 	  mchunkptr op = p;
 	  _md_temp = _md_p->md_next;
+	  /* MEFIXED: once twinned we can use the md_prev pointer here.
           p = prev_chunk (_md_p, p);
-	  unregister_chunk(ar_ptr, op, 5);  
-	  //FIXME: once twinned we can use the md_prev pointer here.
 	  _md_p = lookup_chunk(ar_ptr, p);
-	  if(_md_p == NULL){
-	    missing_metadata(ar_ptr, p);
-	    return 0;
-	  }
+	  */
+	  _md_p = _md_p->md_prev;
+	  if(_md_p == NULL){ missing_metadata(ar_ptr, NULL);  }
+	  p = chunkinfo2chunk(_md_p);
+
+	  /* don't leak the metadata of the coalesced chunk */
+	  unregister_chunk(ar_ptr, op, 5);  
           bin_unlink(ar_ptr, _md_p, &bck, &fwd);
 	  /* fix the md_next and md_prev pointers */
 	  _md_p->md_next = _md_temp;

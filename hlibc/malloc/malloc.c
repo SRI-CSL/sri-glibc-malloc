@@ -1304,8 +1304,10 @@ static inline bool inuse(mstate av, chunkinfoptr _md_p, mchunkptr p)
   mchunkptr next;
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
-  next =  next_chunk(_md_p, p);
-  _md_next = lookup_chunk(av, next);
+  _md_next = _md_p->md_next;
+  next = chunkinfo2chunk(_md_next);
+  //  next =  next_chunk(_md_p, p);
+  //  _md_next = lookup_chunk(av, next);
   return prev_inuse(_md_next, next) ==  PREV_INUSE;
 }
 
@@ -1317,6 +1319,8 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
+
+  assert( (s == 0) || (s == chunksize(p))); 
 
   next =  chunk_at_offset(p, s);
   _md_next = lookup_chunk(av, next);
@@ -1332,6 +1336,9 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
 {
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
+
+  assert( (s == 0) || (s == chunksize(p))); 
+
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = lookup_chunk(av, prev_chunk);
 
@@ -1348,6 +1355,9 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
 {
   chunkinfoptr _md_prev_chunk;
   mchunkptr prev_chunk;
+
+  assert( (s == 0) || (s == chunksize(p))); 
+
   prev_chunk = (mchunkptr)(((char*)p) + s);
   _md_prev_chunk = lookup_chunk(av, prev_chunk);
 
@@ -2387,6 +2397,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_malloced_chunk(A, P, MD_P, N)
 # define check_malloc_state(A)
 # define check_metadata_chunk(A,P,MD_P)
+# define check_metadata(A,MD_P)
 
 #else
 
@@ -2397,7 +2408,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_remalloced_chunk(A, P, MD_P, N)  do_check_remalloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloced_chunk(A, P, MD_P, N)    do_check_malloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloc_state(A)                  do_check_malloc_state (A,__FILE__,__LINE__)
-# define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
+# define check_metadata(A,MD_P)                 do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__)
 
 /*
   Properties of all chunks
@@ -2894,7 +2905,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   bool tried_mmap = false;
 
   bool have_switched_lock = false;
-
+  
+  bool mmapped = false;
 
   /*
     If have mmap, and the request size meets the mmap threshold, and
@@ -3262,10 +3274,12 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         {
 	  
 	  if(mbrk != NULL){
-
+	    mmapped = true;
 	    lookup_add_sbrk_region(brk, snd_brk);
 
 	  } else {
+
+	    //fprintf(stderr, ">sbrk(0) = %p\n", sbrk(0));
 
 	    if(mp_.sbrk_base == 0){
 	      lookup_set_sbrk_lo( brk );
@@ -3497,6 +3511,10 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     av->max_system_mem = av->system_mem;
   check_malloc_state (av);
 
+  if(!mmapped){
+    //fprintf(stderr, "<sbrk(0) = %p\n", sbrk(0));
+  }
+
   /* finally, do the allocation */
   _md_p = av->_md_top;
   p = chunkinfo2chunk(_md_p);
@@ -3550,6 +3568,8 @@ systrim (size_t pad, mstate av)
 
   if (extra == 0)
     return 0;
+
+  assert(extra >= 0);
 
   /*
     Only proceed if end of memory is where we last set it.
@@ -3779,6 +3799,9 @@ __libc_free (void *mem)
 	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
 	    p, ar_ptr->arena_index, p->arena_index);
     lookup_dump(stderr);
+    fprintf(stderr, "sbrk(0) = %p\n", sbrk(0));
+    sleep(1000);
+    abort();
   }
   assert(success);
   
@@ -3872,6 +3895,9 @@ __libc_realloc (void *oldmem, size_t bytes)
 	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
 	    oldp, ar_ptr->arena_index, oldp->arena_index);
     lookup_dump(stderr);
+    fprintf(stderr, "sbrk(0) = %p\n", sbrk(0));
+    sleep(1000);
+    abort();
   }
   assert(success);
 
@@ -4474,7 +4500,7 @@ _int_malloc (mstate av, size_t bytes)
 
 	      if(_md_temp != NULL){
 		_md_temp->md_prev = _md_remainder;
-		check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+		check_metadata(av, _md_temp);
 	      }
 
               set_head (_md_remainder, remainder_size | PREV_INUSE);
@@ -4637,7 +4663,7 @@ _int_malloc (mstate av, size_t bytes)
 
 		  if(_md_temp != NULL){
 		    _md_temp->md_prev = _md_remainder;
-		    check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+		    check_metadata(av, _md_temp);
 		  }
 
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
@@ -4763,7 +4789,7 @@ _int_malloc (mstate av, size_t bytes)
 
 		  if(_md_temp != NULL){
 		    _md_temp->md_prev = _md_remainder;
-		    check_metadata_chunk(av, chunkinfo2chunk(_md_temp), _md_temp);
+		    check_metadata(av, _md_temp);
 		  }
 		  
                   set_head (_md_remainder, remainder_size | PREV_INUSE);
@@ -5616,7 +5642,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
       if(_md_temp != NULL){
 	_md_temp->md_prev = _md_remainder;
-	check_metadata_chunk(av,chunkinfo2chunk(_md_temp),_md_newp);
+	check_metadata(av,_md_newp);
       }
       
 

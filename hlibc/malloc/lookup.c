@@ -47,6 +47,7 @@
 
 /* Max is just for curiosity. */
 typedef struct sbrk_region_s {
+  bool mmapped;
   uintptr_t lo;
   uintptr_t hi;
   uintptr_t max;
@@ -106,7 +107,7 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
   for(i = 0; i <= sbrk_region_count; i++){
     if( sbrk_regions[i].lo <= (uintptr_t)ptr && 
-	(uintptr_t)ptr < sbrk_regions[i].hi ){ 
+	(uintptr_t)ptr <= sbrk_regions[i].hi ){ 
       *arena_indexp = 1;
       return true;
     }
@@ -128,7 +129,7 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
     return true;
   }
   
-  return 0;
+  return false;
 
 }
 
@@ -138,6 +139,7 @@ bool lookup_add_sbrk_region(void* lo, void* hi){
   //FIXME!!
   assert(nregion < SBRK_MAX_SEGMENTS);
 
+  sbrk_regions[nregion].mmapped = true;
   sbrk_regions[nregion].lo = (uintptr_t)lo;
   sbrk_regions[nregion].hi = (uintptr_t)hi;
   sbrk_regions[nregion].max = (uintptr_t)hi;
@@ -148,19 +150,18 @@ bool lookup_add_sbrk_region(void* lo, void* hi){
 }
 
 bool lookup_set_sbrk_lo(void* ptr){
-  assert(sbrk_region_count == 0);
-  sbrk_regions[sbrk_region_count].lo = (uintptr_t) ptr;
+  sbrk_regions[0].lo = (uintptr_t) ptr;
   return true;
 }
 
 bool lookup_incr_sbrk_hi(size_t sz){
-  if(sbrk_regions[sbrk_region_count].hi == 0){
-    sbrk_regions[sbrk_region_count].hi = sbrk_regions[sbrk_region_count].lo;
+  if(sbrk_regions[0].hi == 0){
+    sbrk_regions[0].hi = sbrk_regions[0].lo;
   }
-  sbrk_regions[sbrk_region_count].hi += sz;
+  sbrk_regions[0].hi += sz;
   
-  if(sbrk_regions[sbrk_region_count].max <  sbrk_regions[sbrk_region_count].hi){
-    sbrk_regions[sbrk_region_count].max =  sbrk_regions[sbrk_region_count].hi;
+  if(sbrk_regions[0].max <  sbrk_regions[0].hi){
+    sbrk_regions[0].max =  sbrk_regions[0].hi;
   }
   
   return true;
@@ -205,11 +206,13 @@ void lookup_dump(FILE* fp){
   fprintf(fp, "lookup:\n");
   for(i = 0; i <= sbrk_region_count; i++){
     fprintf(fp, 
-	    "\tsbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p\n", 
+	    "\tsbrk[%d]: sbrk_lo = %p\tsbrk_hi = %p\tsbrk_max = %p  mmapped = %d\n", 
 	    i, 
 	    (void*)sbrk_regions[i].lo, 
 	    (void*)sbrk_regions[i].hi, 
-	    (void*)sbrk_regions[i].max);
+	    (void*)sbrk_regions[i].max,
+	    sbrk_regions[i].mmapped
+	    );
   }
   lfht_stats(fp, " mmap_table", &mmap_tbl);
   lfht_stats(fp, " heap_table", &heap_tbl);

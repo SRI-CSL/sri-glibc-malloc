@@ -715,9 +715,6 @@ shrink_heap (heap_info *h, long diff)
       __munmap ((char *) (heap), HEAP_MAX_SIZE);			      \
     } while (0)
 
-static mchunkptr phantom;
-static chunkinfoptr _md_phantom;
-
 static int
 internal_function
 heap_trim (heap_info *heap, size_t pad)
@@ -733,12 +730,9 @@ heap_trim (heap_info *heap, size_t pad)
   chunkinfoptr _md_temp;
   chunkinfoptr _md_p;
   chunkinfoptr _md_fencepost;
-  chunkinfoptr _md_fencepost_1;
 
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
-
-  int iteration = 0;
 
   /* Can this heap go away completely? */
   /*
@@ -768,7 +762,6 @@ heap_trim (heap_info *heap, size_t pad)
 
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
-      //FIXME: once twinned we can use the md_prev pointer here.
       p = chunk_at_offset (prev_heap, prev_size - misalign);
       _md_p = lookup_chunk(ar_ptr, p);
 
@@ -778,37 +771,15 @@ heap_trim (heap_info *heap, size_t pad)
       }
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost_0 */
       
-      if(!do_check_metadata_chunk(ar_ptr, p, _md_p, __FILE__, __LINE__)){
-	fprintf(stderr, "iteration = %d for heap %p\n", iteration, heap);
-      }
-
       _md_fencepost = _md_p;
 
       p = prev_chunk (_md_p, p);
-      //FIXME: once twinned we can use the md_prev pointer here.
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); 
 	return 0;
       }
  
-      _md_fencepost_1 = _md_p;
-
-      if(!do_check_metadata_chunk(ar_ptr, p, _md_fencepost_1, __FILE__, __LINE__)){
-     
-	phantom = prev_chunk (_md_fencepost_1, chunkinfo2chunk(_md_fencepost_1));
-	//FIXME: once twinned we can use the md_prev pointer here.
-	_md_phantom = lookup_chunk(ar_ptr, phantom);
-	
-	fprintf(stderr, "iteration = %d for heap %p %p %p\n", 
-		iteration, heap, _md_fencepost_1, _md_phantom);
-
-	abort();
-      }
-
-      iteration++;
-
-
       new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
 
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE)); /* must be fencepost_1 */
@@ -835,9 +806,7 @@ heap_trim (heap_info *heap, size_t pad)
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
-      //fprintf(stderr, "heap %p DELETED heap->size = %zu\n", heap, heap->size);
       delete_heap (heap);
-
       lookup_delete_heap(heap);
       heap = prev_heap;
 
@@ -869,9 +838,6 @@ heap_trim (heap_info *heap, size_t pad)
 
       /* check_chunk(ar_ptr, top_chunk); */
     } /* while */
-
-  //if(iteration > 0){ fprintf(stderr, "heap_trim(%zu) %d iterations\n", ar_ptr->arena_index, iteration);  }
-
 
   /* Uses similar logic for per-thread arenas as the main arena with systrim
      and _int_free by preserving the top pad and rounding down to the nearest

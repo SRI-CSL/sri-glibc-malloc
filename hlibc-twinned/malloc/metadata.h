@@ -75,6 +75,25 @@ typedef struct metadata_s {
   size_t count;                  /* the total number of records in the table                               */
   size_t maxp;                   /* the current limit on the bin count  [{ maxp = N * 2^L }]               */
   size_t bincount;               /* the current number of bins                                             */
+
+  /*
+   * Caching: we're going to cache the last *two* queries against
+   * the metadata hashtable. Simulations indicated that we were
+   * hitting diminishing returns with a fully associative cache
+   * of size 16 (roughly 50% hit rate on malloc-heavy benchmarks),
+   * but the cost of searching the cache when we missed was unacceptably
+   * high. Simulations showed a non-trivial benefit for very, very
+   * small caches, so we'll try that.
+   */
+  bool nextUpdateIsZero; /* we'll alternate which key we replace */
+  void* cacheKeys0;
+  void* cacheKeys1;
+  chunkinfoptr cacheValues0;
+  chunkinfoptr cacheValues1;
+                                                                                  
+  uint64_t cacheHits;                                                             
+  uint64_t cacheMisses;  
+  
 } metadata_t;
 
 

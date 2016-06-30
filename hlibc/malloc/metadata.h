@@ -9,6 +9,9 @@
 
 #include "memcxt.h"
 
+#ifndef SRI_METADATA_CACHE
+#define SRI_METADATA_CACHE 0
+#endif
 
 
 /*

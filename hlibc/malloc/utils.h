@@ -59,4 +59,10 @@ static inline uint32_t ctz64(uint64_t x) {
 #endif
 
 
+extern void* sri_mmap(void* oldaddr, size_t size);
+
+
+extern bool sri_munmap(void* memory, size_t size);
+
+
 #endif

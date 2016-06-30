@@ -23,6 +23,10 @@
 #include "gassert.h"
 #include "lookup.h"
 #include "lfht.h"
+#include "utils.h"
+
+
+
 
 /* 
  * The sbrked regions of the main_arena.
@@ -45,6 +49,9 @@
 /* FIXME: make this dynamic I suppose. */
 #define SBRK_MAX_SEGMENTS 1024
 
+/* (1 << 31) or 2^31  */
+#define MAX_SBRK_TABLE_SIZE ((uint32_t)0x80000000u)
+
 /* Max is just for curiosity. */
 typedef struct sbrk_region_s {
   bool mmapped;
@@ -55,7 +62,9 @@ typedef struct sbrk_region_s {
 
 
 static int32_t sbrk_region_count = 0;
-static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
+static int32_t sbrk_region_current_max = SBRK_MAX_SEGMENTS;
+
+static sbrk_region_t *sbrk_regions;
 
 /* 
  *  Note that in our world 0 is an invalid value for either a heap
@@ -83,7 +92,9 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
 
 
 void lookup_init(void){
-  if( ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
+  sbrk_regions = sri_mmap(NULL, sbrk_region_current_max * sizeof(sbrk_region_t));
+  if( ! sbrk_regions ||
+      ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
       ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
     fprintf(stderr, "Off to a bad start: lfht inits failed\n");
     abort();

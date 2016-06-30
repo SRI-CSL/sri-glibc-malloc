@@ -5086,9 +5086,13 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       _md_p = lookup_chunk(av, p);             
       if (_md_p == NULL) { missing_metadata(av, p); }           
       bin_unlink(av, _md_p, &bck, &fwd);
-      /* correct the md_next pointer */
+      /* correct the md_next and md_prev pointers */
       _md_p->md_next = _md_temp->md_next;
+      
+      _md_nextchunk->md_prev = _md_p;
+      
       check_metadata_chunk(av, p, _md_p);
+      check_metadata_chunk(av, nextchunk, _md_nextchunk);
 
       /* do not leak the coalesced chunk's metadata */
       unregister_chunk(av, temp, 10); 
@@ -5323,10 +5327,12 @@ static void malloc_consolidate(mstate av)
             _md_p = lookup_chunk (av, p);
 	    if (_md_p == NULL) { missing_metadata(av, p); }
             bin_unlink(av, _md_p, &bck, &fwd);
-	    /* correct the md_next pointer */
+	    /* correct the md_next and md_prev pointers */
 	    _md_p->md_next = _md_temp->md_next;
+	    _md_nextchunk->md_prev = _md_p;
 	    
 	    check_metadata_chunk(av, p, _md_p);
+	    check_metadata_chunk(av, nextchunk,  _md_nextchunk);
 
 	    /* do not leak the coalesced chunk's metadata */
 	    unregister_chunk(av, temp, 7); 
@@ -5345,7 +5351,10 @@ static void malloc_consolidate(mstate av)
 	      /* correct the md_next & md_prev pointers */
 	      _md_temp = _md_nextchunk->md_next;
 	      _md_p->md_next = _md_temp;
-	      _md_temp->md_prev = _md_p;
+	      if(_md_temp != NULL){
+		_md_temp->md_prev = _md_p;
+		check_metadata(av, _md_temp);
+	      }
    
 	      check_metadata_chunk(av, p, _md_p);
 

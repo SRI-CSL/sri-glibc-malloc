@@ -1318,6 +1318,8 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
 
+  assert( (s == 0) || (s == chunksize(p))); 
+
   next =  chunk_at_offset(p, s);
   _md_next = lookup_chunk(av, next);
 
@@ -1330,32 +1332,38 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
 static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchunkptr p, size_t s)
 {
-  chunkinfoptr _md_prev_chunk;
-  mchunkptr prev_chunk;
-  prev_chunk = (mchunkptr)(((char*)p) + s);
-  _md_prev_chunk = lookup_chunk(av, prev_chunk);
+  chunkinfoptr _md_next_chunk;
+  mchunkptr next_chunk;
 
-  if (_md_prev_chunk != NULL) {
-    _md_prev_chunk->size |= PREV_INUSE;
+  assert( (s == 0) || (s == chunksize(p))); 
+
+  next_chunk = (mchunkptr)(((char*)p) + s);
+  _md_next_chunk = lookup_chunk(av, next_chunk);
+
+  if (_md_next_chunk != NULL) {
+    _md_next_chunk->size |= PREV_INUSE;
   } else {
     fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
-            prev_chunk,  s);
+            next_chunk,  s);
     abort();
   }
 }
 
 static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
 {
-  chunkinfoptr _md_prev_chunk;
-  mchunkptr prev_chunk;
-  prev_chunk = (mchunkptr)(((char*)p) + s);
-  _md_prev_chunk = lookup_chunk(av, prev_chunk);
+  chunkinfoptr _md_next_chunk;
+  mchunkptr next_chunk;
 
-  if (_md_prev_chunk != NULL) {
-    _md_prev_chunk->size &= ~PREV_INUSE;
+  assert( (s == 0) || (s == chunksize(p))); 
+
+  next_chunk = (mchunkptr)(((char*)p) + s);
+  _md_next_chunk = lookup_chunk(av, next_chunk);
+
+  if (_md_next_chunk != NULL) {
+    _md_next_chunk->size &= ~PREV_INUSE;
   } else {
     fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
-            prev_chunk,  s);
+            next_chunk,  s);
     abort();
   }
 }
@@ -1380,17 +1388,17 @@ static inline void set_head_size(chunkinfoptr _md_p, size_t s)
 /* Set size at footer (only when chunk is not in use) */
 static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
 {
-  chunkinfoptr _md_prev_chunk;
-  mchunkptr prev_chunk;
+  chunkinfoptr _md_next_chunk;
+  mchunkptr next_chunk;
 
-  prev_chunk = (mchunkptr)((char*)p + s);
-  _md_prev_chunk = lookup_chunk(av, prev_chunk);
+  next_chunk = (mchunkptr)((char*)p + s);
+  _md_next_chunk = lookup_chunk(av, next_chunk);
 
-  if (_md_prev_chunk != NULL) {
-    _md_prev_chunk->prev_size =  s;
+  if (_md_next_chunk != NULL) {
+    _md_next_chunk->prev_size =  s;
   } else {
     fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
-            prev_chunk,  s);
+            next_chunk,  s);
     abort();
   }
 }
@@ -2895,7 +2903,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   bool tried_mmap = false;
 
   bool have_switched_lock = false;
-
+  
 
   /*
     If have mmap, and the request size meets the mmap threshold, and
@@ -5320,7 +5328,7 @@ static void malloc_consolidate(mstate av)
 	      /* correct the md_next & md_prev pointers */
 	      _md_temp = _md_nextchunk->md_next;
 	      _md_p->md_next = _md_temp;
-	      _md_temp->md_prev = _md_p;
+		_md_temp->md_prev = _md_p;
    
 	      check_metadata_chunk(av, p, _md_p);
 

@@ -762,7 +762,6 @@ heap_trim (heap_info *heap, size_t pad)
 
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
-      //FIXME: once twinned we can use the md_prev pointer here.
       p = chunk_at_offset (prev_heap, prev_size - misalign);
       _md_p = lookup_chunk(ar_ptr, p);
 
@@ -775,7 +774,6 @@ heap_trim (heap_info *heap, size_t pad)
       _md_fencepost = _md_p;
 
       p = prev_chunk (_md_p, p);
-      //FIXME: once twinned we can use the md_prev pointer here.
       _md_p = lookup_chunk(ar_ptr, p);
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p); 
@@ -808,9 +806,7 @@ heap_trim (heap_info *heap, size_t pad)
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
-      //fprintf(stderr, "heap %p DELETED heap->size = %zu\n", heap, heap->size);
       delete_heap (heap);
-
       lookup_delete_heap(heap);
       heap = prev_heap;
 

@@ -1309,6 +1309,8 @@ static inline bool inuse(mstate av, chunkinfoptr _md_p, mchunkptr p)
   return prev_inuse(_md_next, next) ==  PREV_INUSE;
 }
 
+static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci);
+  
 /* check/set/clear inuse bits in known places */
 static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
 {
@@ -1318,7 +1320,7 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
 
-  assert( (s == 0) || (s == chunksize(p))); 
+  assert( (s == 0) || (s == chunksize(_md_p))); 
 
   next =  chunk_at_offset(p, s);
   _md_next = lookup_chunk(av, next);
@@ -1335,7 +1337,7 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  assert( (s == 0) || (s == chunksize(p))); 
+  assert( (s == 0) || (s == chunksize(_md_p))); 
 
   next_chunk = (mchunkptr)(((char*)p) + s);
   _md_next_chunk = lookup_chunk(av, next_chunk);
@@ -1354,7 +1356,7 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  assert( (s == 0) || (s == chunksize(p))); 
+  assert( (s == 0) || (s == chunksize(_md_p))); 
 
   next_chunk = (mchunkptr)(((char*)p) + s);
   _md_next_chunk = lookup_chunk(av, next_chunk);
@@ -2261,6 +2263,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
     if (chunkinfo2chunk(ci) != c) {
       fprintf(stderr, "check_metadata_chunk of %p:\nmetadata and data do not match @ %s line %d\n",
               chunk2mem(c), file, lineno);
+      assert(false);
       return false;
     }
     
@@ -2274,6 +2277,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
               chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
 	      ci->md_next->md_prev, ci->md_next, 
 	      ci, cn->__canary__);
+      assert(false);
       return false;
       }
     }
@@ -2288,13 +2292,15 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 		chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
 		ci->md_prev->md_next, ci->md_prev,
 		ci, cp->__canary__);
+	assert(false);
 	return false;
       }
     }
     
 
     return true;
-  } 
+  }
+  assert(false);
   return false;
 }
 
@@ -2394,8 +2400,8 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_remalloced_chunk(A, P, MD_P, N)
 # define check_malloced_chunk(A, P, MD_P, N)
 # define check_malloc_state(A)
-# define check_metadata_chunk(A,P,MD_P)
-# define check_metadata(A,MD_P)
+# define check_metadata_chunk(A,P,MD_P)        do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
+# define check_metadata(A,MD_P)                do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__)
 
 #else
 
@@ -2406,6 +2412,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_remalloced_chunk(A, P, MD_P, N)  do_check_remalloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloced_chunk(A, P, MD_P, N)    do_check_malloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloc_state(A)                  do_check_malloc_state (A,__FILE__,__LINE__)
+# define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 # define check_metadata(A,MD_P)                 do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__)
 
 /*

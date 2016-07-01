@@ -1039,6 +1039,8 @@ typedef struct malloc_chunk* mchunkptr;
 
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno);
 
+static INTERNAL_SIZE_T chunksize(chunkinfoptr ci);
+
 static chunkinfoptr new_chunkinfoptr(mstate av);
 static bool replenish_metadata_cache(mstate av);
 
@@ -1311,7 +1313,6 @@ static inline bool inuse(mstate av, chunkinfoptr _md_p, mchunkptr p)
   return prev_inuse(_md_next, next) ==  PREV_INUSE;
 }
 
-/* MEFIXED: check/set/clear inuse bits in known places
 static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
 {
   chunkinfoptr _md_next;
@@ -1319,7 +1320,7 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
-  assert(s == chunksize(p)); 
+  assert(s == chunksize(_md_p)); 
 
   next =  chunk_at_offset(p, s);
   _md_next = lookup_chunk(av, next);
@@ -1330,7 +1331,8 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
   return prev_inuse(_md_next, next);
 }
- */
+
+/* MEFIXED: check/set/clear inuse bits in known places
 static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
 {
   chunkinfoptr _md_next;
@@ -1338,7 +1340,7 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
-  assert(s == chunksize(p)); 
+  assert(s == chunksize(_md_p)); 
 
   _md_next = _md_p->md_next;
   if(_md_next == NULL){
@@ -1348,14 +1350,14 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
 
   return prev_inuse(_md_next, next);
 }
+ */
 
-/* MEFIXED: check/set/clear inuse bits in known places
 static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchunkptr p, size_t s)
 {
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  assert(s == chunksize(p)); 
+  assert(s == chunksize(_md_p)); 
 
   next_chunk = (mchunkptr)(((char*)p) + s);
   _md_next_chunk = lookup_chunk(av, next_chunk);
@@ -1368,14 +1370,29 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
     abort();
   }
 }
-*/
+
+/* MEFIXED: check/set/clear inuse bits in known places
+
 static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchunkptr p, size_t s)
 {
   chunkinfoptr _md_next_chunk;
 
-  assert(s == chunksize(p)); 
+  assert(s == chunksize(_md_p)); 
 
   _md_next_chunk = _md_p->md_next;
+
+  //<workzone>
+  mchunkptr next_chunk = (mchunkptr)(((char*)p) + s);
+  chunkinfoptr _md_next_chunk_old = lookup_chunk(av, next_chunk);
+  if(_md_next_chunk_old != _md_next_chunk){
+    fprintf(stderr, "set_inuse_bit_at_offset: %zu %zu %zu\n", _md_next_chunk_old->size, _md_next_chunk->size, next_chunk->__canary__);
+    abort();
+  }
+
+
+
+  //</workzone>
+
 
   if (_md_next_chunk != NULL) {
     _md_next_chunk->size |= PREV_INUSE;
@@ -1386,6 +1403,7 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
   }
 }
 
+*/
 
 
 /* MEFIXED
@@ -1394,7 +1412,7 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  assert( (s == 0) || (s == chunksize(p))); 
+  assert( (s == 0) || (s == chunksize(_md_p))); 
 
   next_chunk = (mchunkptr)(((char*)p) + s);
   _md_next_chunk = lookup_chunk(av, next_chunk);
@@ -2326,6 +2344,7 @@ static void report_missing_metadata(mstate av, mchunkptr p, const char* file, in
 /* sanity check */
 static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, const char* file, int lineno)
 {
+
   if (ci != NULL) {
     if (chunkinfo2chunk(ci) != c) {
       fprintf(stderr, "check_metadata_chunk of %p:\nmetadata and data do not match @ %s line %d\n",
@@ -2360,7 +2379,18 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 	return false;
       }
     }
-    
+
+    /*
+    size_t s = chunksize(ci); 
+    mchunkptr next_chunk = (mchunkptr)(((char*)c) + s);
+    chunkinfoptr _md_next_chunk = ci->md_next;
+    chunkinfoptr _md_next_chunk_old = lookup_chunk(av, next_chunk);
+    if(_md_next_chunk_old != _md_next_chunk){
+      fprintf(stderr, "do_check_metadata_chunk: %zu %zu %zu\n",
+	      _md_next_chunk_old->size, _md_next_chunk->size, next_chunk->__canary__);
+      return false;
+    }
+    */
 
     return true;
   } 
@@ -2475,7 +2505,9 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_remalloced_chunk(A, P, MD_P, N)  do_check_remalloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloced_chunk(A, P, MD_P, N)    do_check_malloced_chunk (A, P, MD_P, N,__FILE__,__LINE__)
 # define check_malloc_state(A)                  do_check_malloc_state (A,__FILE__,__LINE__)
-# define check_metadata(A,MD_P)                 do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__)
+# define check_metadata_chunk(A,P,MD_P)         assert(do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__))
+# define check_metadata(A,MD_P)                 assert(do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__))
+
 
 /*
   Properties of all chunks
@@ -2570,6 +2602,9 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
   if (_md_next == NULL) { missing_metadata(av, next); }
   
   /* Chunk must claim to be free ... */
+  if(inuse(av, _md_p, p)){
+    fprintf(stderr, "arena = %zu, canary = %zu\n", p->arena_index,  p->__canary__);
+  }
   assert (!inuse(av, _md_p, p));
   assert (!chunk_is_mmapped (p));
 
@@ -2880,6 +2915,7 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
   /* top chunk is OK */
   check_chunk (av, topchunk, av->_md_top);
 }
+
 #endif
 
 
@@ -3069,7 +3105,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               
               /* SRI: the main_arena has jurisdiction over mmapped memory */
 	      _md_p = register_chunk(&main_arena, p, true, 2);
-	      check_metadata_chunk(av,p,_md_p);
 
               if (front_misalign > 0)
                 {
@@ -3081,6 +3116,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   set_head (_md_p, size);
                 }
 	      
+	      check_metadata_chunk(av,p,_md_p);
+
 	      lookup_add_mmap(p, size);
 
 	      
@@ -3546,7 +3583,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                       fencepost_1 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
                       _md_fencepost_1 = register_chunk(av, fencepost_1, false, 8);
 
-		      _md_fencepost_1->md_next = _md_fencepost_0->md_next;
+		      _md_fencepost_1->md_next =  av->_md_top; //NOT: _md_fencepost_0->md_next
 		      _md_fencepost_1->md_prev = _md_fencepost_0;
 		      _md_fencepost_0->md_next = _md_fencepost_1;
 
@@ -3557,6 +3594,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 		      check_metadata_chunk(av, fencepost_0, _md_fencepost_0);
 		      check_metadata_chunk(av, fencepost_1, _md_fencepost_1);
 		      check_metadata_chunk(av, old_top, _md_old_top);
+		      check_metadata_chunk(av, topchunk, av->_md_top);
 		      check_top(av);
 
                       /* If possible, release the rest. */
@@ -3761,8 +3799,8 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
     lookup_delete_mmap(op);
     lookup_add_mmap(p, new_size);
     _md_p = register_chunk(av, p, true, 9);
-    check_metadata_chunk(av, p, _md_p);
     _md_p->prev_size = offset;
+    check_metadata_chunk(av, p, _md_p);
   }
 
   assert ((_md_p->prev_size == offset));
@@ -5029,14 +5067,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   
   check_inuse_chunk(av, p, _md_p);
   
-  /* MEFIXED: Once twinned this lookup can be tossed.
   nextchunk = chunk_at_offset(p, size);  
   _md_nextchunk = lookup_chunk(av, nextchunk);
   if(_md_nextchunk == NULL){ missing_metadata(av, nextchunk); }
-  */
-  _md_nextchunk = _md_p->md_next;
-  if(_md_nextchunk == NULL){ missing_metadata(av, NULL); }
-  nextchunk = chunkinfo2chunk(_md_nextchunk);
   nextsize = chunksize (_md_nextchunk);
 
   /*
@@ -5057,6 +5090,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
     if (__builtin_expect (_md_nextchunk->size <= 2 * SIZE_SZ, 0)
         || __builtin_expect (nextsize >= av->system_mem, 0))
       {
+	fprintf(stderr, "_md_nextchunk->size = %zu canary = %zu, \n", _md_nextchunk->size, nextchunk->__canary__);
 	errstr = "free(): invalid next size (fast)";
 	goto errout;
       }

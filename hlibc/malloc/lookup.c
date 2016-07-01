@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "gassert.h"
 #include "lookup.h"
@@ -145,17 +146,31 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 }
 
 bool lookup_add_sbrk_region(void* lo, void* hi){
-  int nregion = sbrk_region_count + 1;
+  int nregion_count = sbrk_region_count + 1;
 
-  //FIXME!!
-  assert(nregion < SBRK_MAX_SEGMENTS);
+  if(nregion_count == sbrk_region_current_max){
+    /* need to grow the sbrk_regions array */
+    if(sbrk_region_current_max >= MAX_SBRK_TABLE_SIZE){ 
+      fprintf(stderr, "lookup_add_sbrk_region failed. Too big, but not too big to fail.");
+      return false;
+    } else {
 
-  sbrk_regions[nregion].mmapped = true;
-  sbrk_regions[nregion].lo = (uintptr_t)lo;
-  sbrk_regions[nregion].hi = (uintptr_t)hi;
-  sbrk_regions[nregion].max = (uintptr_t)hi;
+      uint32_t nregion_max = 2 * sbrk_region_current_max;
+      sbrk_region_t *nregions = sri_mmap(sbrk_regions, nregion_max * sizeof(sbrk_region_t));
+      if(nregions != sbrk_regions){
+	memcpy(nregions, sbrk_regions, sbrk_region_current_max * sizeof(sbrk_region_t));
+	sbrk_regions = nregions;
+      }
+      sbrk_region_current_max = nregion_max;
+    }
+  }
 
-  sbrk_region_count = nregion;
+  sbrk_regions[nregion_count].mmapped = true;
+  sbrk_regions[nregion_count].lo = (uintptr_t)lo;
+  sbrk_regions[nregion_count].hi = (uintptr_t)hi;
+  sbrk_regions[nregion_count].max = (uintptr_t)hi;
+
+  sbrk_region_count = nregion_count;
 
   return true;
 }

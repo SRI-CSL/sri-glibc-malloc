@@ -27,8 +27,8 @@ __malloc_assert (const char *assertion, const char *file, unsigned int line,
 		     file, line,
 		     function ? function : "", function ? ": " : "",
 		     assertion);
-  lookup_dump(stderr);
-  fflush (stderr);
+  //lookup_dump(stderr);
+  //fflush (stderr);
   abort ();
 }
 #endif

@@ -3485,7 +3485,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                       fencepost_1 = chunk_at_offset (old_top, old_size + 2 * SIZE_SZ);
                       _md_fencepost_1 = register_chunk(av, fencepost_1, false, 8);
 
-		      _md_fencepost_1->md_next = _md_fencepost_0->md_next;
+		      _md_fencepost_1->md_next = av->_md_top;
 		      _md_fencepost_1->md_prev = _md_fencepost_0;
 		      _md_fencepost_0->md_next = _md_fencepost_1;
 
@@ -5078,10 +5078,12 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       bin_unlink(av, _md_p, &bck, &fwd);
       /* correct the md_next pointer */
       _md_p->md_next = _md_temp->md_next;
-      _md_nextchunk->md_prev = _md_p;
+      _md_temp->md_next->md_prev = _md_p;
+      //assert(_md_temp->md_next == _md_nextchunk); this is false!
 
       check_metadata_chunk(av, p, _md_p);
-      check_metadata_chunk(av, nextchunk, _md_nextchunk);
+      check_metadata(av, _md_nextchunk);
+      check_metadata(av, _md_temp->md_next);
 
       /* do not leak the coalesced chunk's metadata */
       unregister_chunk(av, temp, 10); 
@@ -5321,9 +5323,11 @@ static void malloc_consolidate(mstate av)
             bin_unlink(av, _md_p, &bck, &fwd);
 	    /* correct the md_next and md_prev pointers */
 	    _md_p->md_next = _md_temp->md_next;
-	    _md_nextchunk->md_prev = _md_p;
+	    _md_temp->md_next->md_prev = _md_p;
+	    //again _md_nextchunk != _md_temp->md_next
 	    
 	    check_metadata_chunk(av, p, _md_p);
+	    check_metadata(av, _md_temp->md_next);
 	    check_metadata_chunk(av, nextchunk,  _md_nextchunk);
 
 	    /* do not leak the coalesced chunk's metadata */

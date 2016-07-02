@@ -2272,7 +2272,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       assert(false);
       return false;
     }
-    
+
+    //FIXME: clean up this mess
     if(ci->md_next != NULL){
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
@@ -2285,8 +2286,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 		"\tci                   = %p, with canary c %zu md %zu\n",
 		chunk2mem(c), ci, c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
 		cnp, ci->md_next,
-		cnp, cnp->__canary__, cnp->md_next->__canary__,
-		ci, cn->__canary__, ci->md_next->__canary__,
+		cnp, cnp->__canary__, cnp->__canary__,
+		ci->md_next, cn != NULL ? cn->__canary__ : 0, ci->md_next != NULL ? ci->md_next->__canary__ : 0,
 		ci, c->__canary__, ci->__canary__
 		);
 	assert(false);
@@ -2294,10 +2295,12 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       }
     }
 
+    //FIXME: clean up this mess
     if(ci->md_prev != NULL){
       mchunkptr cp = chunkinfo2chunk(ci->md_prev);
       if(ci->md_prev->md_next != ci){
 	chunkinfoptr cpn = ci->md_prev->md_next;
+	mchunkptr cpn_chunk = cpn != NULL ? chunkinfo2chunk(cpn) : NULL;
 	fprintf(stderr, 
 		"check_metadata_chunk of %p is %p in arena %zu with canary c %zu md %zu @ %s line %d:\n"
 		"\tci->md_prev->md_next = %p != ci = %p"
@@ -2306,8 +2309,8 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 		"\tci                   = %p, with canary c %zu md %zu\n",
 		chunk2mem(c), ci, c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
 		cpn, ci->md_prev,
-		cpn, cpn->__canary__, cpn->md_next->__canary__,
-		ci, cp->__canary__, ci->md_prev->__canary__,
+		cpn, cpn_chunk != NULL ? cpn_chunk->__canary__ : 0, cpn != NULL ? cpn->__canary__ : 0,
+		ci->md_prev, cp != NULL ? cp->__canary__ : 0, ci->md_prev != NULL ? ci->md_prev->__canary__ : 0,
 		ci, c->__canary__, ci->__canary__
 		);
 	assert(false);

@@ -1320,7 +1320,7 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
   assert(_md_p != NULL);
   assert(chunkinfo2chunk(_md_p) == p);
 
-  assert( (s == 0) || (s == chunksize(_md_p))); 
+  assert(s == chunksize(_md_p)); 
 
   next =  chunk_at_offset(p, s);
   _md_next = lookup_chunk(av, next);
@@ -1329,6 +1329,8 @@ static inline int inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p
     missing_metadata(av, next);
   } 
 
+  assert(_md_p->md_next == _md_next);
+  
   return prev_inuse(_md_next, next);
 }
 
@@ -1337,18 +1339,19 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  assert( (s == 0) || (s == chunksize(_md_p))); 
+  assert(s == chunksize(_md_p)); 
 
-  next_chunk = (mchunkptr)(((char*)p) + s);
+  next_chunk = chunk_at_offset(p, s); 
   _md_next_chunk = lookup_chunk(av, next_chunk);
 
-  if (_md_next_chunk != NULL) {
-    _md_next_chunk->size |= PREV_INUSE;
-  } else {
-    fprintf(stderr, "Setting inuse bit of %p to be %zu. _md is missing\n", 
-            next_chunk,  s);
-    abort();
-  }
+  if(_md_next_chunk  == NULL){
+    missing_metadata(av, next_chunk);
+  } 
+
+  assert(_md_p->md_next == _md_next_chunk);
+    
+  _md_next_chunk->size |= PREV_INUSE;
+    
 }
 
 static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
@@ -1358,16 +1361,17 @@ static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchu
 
   assert( (s == 0) || (s == chunksize(_md_p))); 
 
-  next_chunk = (mchunkptr)(((char*)p) + s);
+  next_chunk = chunk_at_offset(p, s); 
   _md_next_chunk = lookup_chunk(av, next_chunk);
 
-  if (_md_next_chunk != NULL) {
-    _md_next_chunk->size &= ~PREV_INUSE;
-  } else {
-    fprintf(stderr, "Clearing inuse bit of %p to be %zu. _md is missing\n", 
-            next_chunk,  s);
-    abort();
+  if(_md_next_chunk  == NULL){
+    missing_metadata(av, next_chunk);
   }
+  
+  assert(s == 0 || (_md_p->md_next == _md_next_chunk)); 
+    
+  _md_next_chunk->size &= ~PREV_INUSE;
+
 }
 
 /* Set size/use field */
@@ -1393,16 +1397,17 @@ static inline void set_foot(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s
   chunkinfoptr _md_next_chunk;
   mchunkptr next_chunk;
 
-  next_chunk = (mchunkptr)((char*)p + s);
+  next_chunk = chunk_at_offset(p, s); 
   _md_next_chunk = lookup_chunk(av, next_chunk);
 
-  if (_md_next_chunk != NULL) {
-    _md_next_chunk->prev_size =  s;
-  } else {
-    fprintf(stderr, "Setting prev_size of %p to be %zu. _md is missing\n", 
-            next_chunk,  s);
-    abort();
+  if(_md_next_chunk  == NULL){
+    missing_metadata(av, next_chunk);
   }
+  
+  assert(_md_p->md_next == _md_next_chunk);
+    
+  _md_next_chunk->prev_size =  s;
+    
 }
 
 /*
@@ -2506,7 +2511,10 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
   sz = _md_p->size & ~PREV_INUSE;
   next = chunk_at_offset (p, sz);
   _md_next = lookup_chunk(av, next);
+  
   if (_md_next == NULL) { missing_metadata(av, next); }
+
+  assert(_md_next = _md_p->md_next);
   
   /* Chunk must claim to be free ... */
   assert (!inuse(av, _md_p, p));

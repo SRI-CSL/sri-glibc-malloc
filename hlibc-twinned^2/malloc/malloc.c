@@ -5000,6 +5000,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   //FIXME: Once twinned this lookup can be tossed.
   _md_nextchunk = lookup_chunk(av, nextchunk);
   if(_md_nextchunk == NULL){ missing_metadata(av, nextchunk); }
+
+  assert(_md_nextchunk == _md_p->md_next);
+  
   nextsize = chunksize (_md_nextchunk);
 
   /*
@@ -5110,7 +5113,10 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       p = chunk_at_offset(p, -((long) prevsize));
       //FIXME: Once twinned this lookup can be tossed.
       _md_p = lookup_chunk(av, p);             
-      if (_md_p == NULL) { missing_metadata(av, p); }           
+      if (_md_p == NULL) { missing_metadata(av, p); }
+
+      assert(_md_p == _md_temp->md_prev);
+
       bin_unlink(av, _md_p, &bck, &fwd);
       /* correct the md_next pointer */
       _md_p->md_next = _md_temp->md_next;
@@ -5355,6 +5361,9 @@ static void malloc_consolidate(mstate av)
 	  //FIXME: Once twinned this lookup can be tossed.
 	  _md_nextchunk = lookup_chunk(av, nextchunk);
 	  if (_md_nextchunk == NULL) { missing_metadata(av, nextchunk); }
+
+	  assert(_md_nextchunk == _md_p->md_next);
+
           nextsize = chunksize(_md_nextchunk);
 
           if (!prev_inuse(_md_p, p)) {
@@ -5366,6 +5375,9 @@ static void malloc_consolidate(mstate av)
 	    //FIXME: Once twinned this lookup can be tossed.
             _md_p = lookup_chunk (av, p);
 	    if (_md_p == NULL) { missing_metadata(av, p); }
+
+	    assert(_md_p == _md_temp->md_prev);
+	    
             bin_unlink(av, _md_p, &bck, &fwd);
 	    /* correct the md_next and md_prev pointers */
 	    _md_p->md_next = _md_temp->md_next;

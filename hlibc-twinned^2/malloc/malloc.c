@@ -2226,6 +2226,7 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped, int 
   
 #ifdef SRI_DEBUG
   p->__canary__ = 123456789000 + tag;
+  _md_p->__canary__ = 123456789000 + tag;
 #endif
   
   set_arena_index(av, p, a_idx);
@@ -2271,12 +2272,12 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
       fprintf(stderr, 
-	      "check_metadata_chunk of %p in arena %zu with canary %zu @ %s line %d:\n" 
+	      "check_metadata_chunk of %p in arena %zu with canary c %zu md %zu @ %s line %d:\n" 
 	      "\tci->md_next->md_prev = %p != ci = %p\n"
-	      "\tci->md_next = %p with canary %zu\n",
-              chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
+	      "\tci->md_next = %p with canary c %zu md %zu\n",
+              chunk2mem(c), c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
 	      ci->md_next->md_prev, ci->md_next, 
-	      ci, cn->__canary__);
+	      ci, cn->__canary__, ci->md_next->__canary__);
       assert(false);
       return false;
       }
@@ -2286,12 +2287,12 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       mchunkptr cp = chunkinfo2chunk(ci->md_prev);
       if(ci->md_prev->md_next != ci){
 	fprintf(stderr, 
-		"check_metadata_chunk of %p in arena %zu with canary %zu @ %s line %d:\n"
+		"check_metadata_chunk of %p in arena %zu with canary c %zu md %zu @ %s line %d:\n"
 		"\tci->md_prev->md_next = %p != ci = %p\n"
-		"\tci->md_prev = %p with canary %zu\n",
-		chunk2mem(c), c->arena_index, c->__canary__, file, lineno, 
+		"\tci->md_prev = %p with canary c %zu md %zu \n",
+		chunk2mem(c), c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
 		ci->md_prev->md_next, ci->md_prev,
-		ci, cp->__canary__);
+		ci, cp->__canary__, ci->md_prev->__canary__);
 	assert(false);
 	return false;
       }
@@ -2897,6 +2898,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   mchunkptr p;                    /* the allocated/returned chunk */
   chunkinfoptr _md_p;             /* metadata of the allocated/returned chunk */
 
+  chunkinfoptr _md_fpost_prev;    /* metadata of the previous chunk to fencepost_0 */
+
   mchunkptr fencepost_0;          /* fenceposts */
   chunkinfoptr _md_fencepost_0;   /* metadata of fenceposts */
 
@@ -3171,14 +3174,16 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 	      check_metadata_chunk(av, old_top,_md_old_top);
 
               _int_free (av, _md_old_top, old_top, true);
-	      check_metadata_chunk(av, topchunk,av->_md_top);
+
+	      check_metadata(av, av->_md_top);
 
             }
           else
             {
+
               set_head (_md_old_top, (old_size + 2 * SIZE_SZ) | PREV_INUSE);
               set_foot (av, _md_old_top, old_top, (old_size + 2 * SIZE_SZ));
-	      check_metadata_chunk(av, old_top,_md_old_top);
+	      check_metadata_chunk(av, old_top, _md_old_top);
 
             }
 	  
@@ -3472,13 +3477,34 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                         old_top when old_size was previously MINSIZE.  This is
                         intentional. We need the fencepost, even if old_top otherwise gets
                         lost.
+
+		        _md_fpost_prev -  the metadata of the previous chunk to fencepost_0
+
+			if old_size was previously MINSIZE, then old_top will become a fencepost
+			we are careful to make sure it's metadata is only registered once and 
+			reflects its status as a fencepost.
+
                       */
+		      
+		      if(old_size == 0){
+			_md_fpost_prev = _md_old_top->md_prev;
+		      } else {
+			_md_fpost_prev = _md_old_top;
+		      }
+
                       fencepost_0 = chunk_at_offset (old_top, old_size);
+
+		      if(old_size == 0){
+			unregister_chunk(av, old_top, 13);
+		      }
+
 		      _md_fencepost_0 = register_chunk(av, fencepost_0, false, 7);
 
-		      _md_fencepost_0->md_next = _md_old_top->md_next;
-		      _md_fencepost_0->md_prev = _md_old_top;
-		      _md_old_top->md_next = _md_fencepost_0;
+		      //fprintf(stderr, "fencepost_0 =  %p old_size = %zu\n", fencepost_0,  old_size);
+
+		      _md_fencepost_0->md_next = NULL;
+		      _md_fencepost_0->md_prev = _md_fpost_prev;
+		      _md_fpost_prev->md_next = _md_fencepost_0;
 
                       set_head(_md_fencepost_0, (2 * SIZE_SZ) | PREV_INUSE); 
                                             
@@ -3495,7 +3521,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                       
 		      check_metadata_chunk(av, fencepost_0, _md_fencepost_0);
 		      check_metadata_chunk(av, fencepost_1, _md_fencepost_1);
-		      check_metadata_chunk(av, old_top, _md_old_top);
+		      check_metadata(av, _md_fpost_prev);
 		      check_top(av);
 
                       /* If possible, release the rest. */
@@ -3584,13 +3610,15 @@ systrim (size_t pad, mstate av)
         but the only thing we can do is adjust anyway, which will cause
         some downstream failure.)
       */
-
+ 
       MORECORE (-extra);
       /* Call the `morecore' hook if necessary.  */
       void (*hook) (void) = atomic_forced_read (__after_morecore_hook);
       if (__builtin_expect (hook != NULL, 0))
         (*hook)();
       new_brk = (char *) (MORECORE (0));
+
+      //fprintf(stderr, "systrim: %p <---- %p\n", new_brk, current_brk);
 
       LIBC_PROBE (memory_sbrk_less, 2, new_brk, extra);
 
@@ -5079,7 +5107,17 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       /* correct the md_next pointer */
       _md_p->md_next = _md_temp->md_next;
       _md_temp->md_next->md_prev = _md_p;
-      //assert(_md_temp->md_next == _md_nextchunk); this is false!
+
+      assert(_md_temp->md_next == _md_nextchunk);
+      
+      /*
+      if(_md_nextchunk != _md_temp->md_next){
+	mchunkptr tempnext = chunkinfo2chunk(_md_temp->md_next);
+	fprintf(stderr, "_md_nextchunk = %p nextchunk = %p (canary c %zu md %zu), _md_tempnext = %p tempnext = %p (canary c %zu md %zu)\n",
+		_md_nextchunk, nextchunk, nextchunk->__canary__, _md_nextchunk->__canary__, _md_temp->md_next, tempnext, tempnext->__canary__, _md_temp->md_next->__canary__
+		);
+      }
+      */
 
       check_metadata_chunk(av, p, _md_p);
       check_metadata(av, _md_nextchunk);
@@ -5324,7 +5362,17 @@ static void malloc_consolidate(mstate av)
 	    /* correct the md_next and md_prev pointers */
 	    _md_p->md_next = _md_temp->md_next;
 	    _md_temp->md_next->md_prev = _md_p;
-	    //again _md_nextchunk != _md_temp->md_next
+	    
+	    assert(_md_nextchunk == _md_temp->md_next);
+
+	    /*
+	    if(_md_nextchunk != _md_temp->md_next){
+	      mchunkptr tempnext = chunkinfo2chunk(_md_temp->md_next);
+	      fprintf(stderr, "_md_nextchunk = %p nextchunk = %p (canary  c %zu md %zu), _md_tempnext = %p tempnext = %p (canary c %zu  md %zu)\n",
+		      _md_nextchunk, nextchunk, nextchunk->__canary__, _md_nextchunk->__canary__, _md_temp->md_next, tempnext, tempnext->__canary__, _md_temp->md_next->__canary__
+		      );
+	    }
+	    */
 	    
 	    check_metadata_chunk(av, p, _md_p);
 	    check_metadata(av, _md_temp->md_next);

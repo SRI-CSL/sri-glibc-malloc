@@ -5191,11 +5191,11 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
       bin_unlink(av, _md_p, &bck, &fwd);
       /* correct the md_next and md_prev pointers */
       _md_p->md_next = _md_temp->md_next;
-      assert(_md_temp->md_next == _md_current);
+      assert(_md_temp->md_next == _md_nextchunk);
       _md_temp->md_next->md_prev = _md_p;
       
       check_metadata_chunk(av, p, _md_p);
-      check_metadata_chunk(av, _md_nextchunk);
+      check_metadata(av, _md_nextchunk);
       check_metadata(av, _md_temp->md_next);
 
       /* do not leak the coalesced chunk's metadata */

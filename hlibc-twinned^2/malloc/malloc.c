@@ -2431,7 +2431,6 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
   unsigned long sz;
   char *max_address;
   char *min_address;
-  bool metadata_ok;
   mchunkptr topchunk;
 
   /* no crashing in debugging when we are running out of memory */
@@ -2449,13 +2448,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
 
   check_top(av);
 
-  metadata_ok = do_check_metadata_chunk(av, p, _md_p, file, lineno);
-
-  assert(metadata_ok);
-  if (!metadata_ok) {
-    fprintf(stderr,  "do_check_chunk: metadata_ok, ...not. %s:%d\n", file, lineno);
-  }
-
+  do_check_metadata_chunk(av, p, _md_p, file, lineno);
 
   if (!chunk_is_mmapped (p))
     {
@@ -2580,7 +2573,11 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
       prv = prev_chunk (_md_p, p);
       _md_prv = lookup_chunk(av, prv);
       if (_md_prv == NULL) { missing_metadata(av, prv); }
+
       assert (next_chunk (_md_prv, prv) == p);
+
+      assert (_md_prv == _md_p->md_prev);
+      
       do_check_free_chunk (av, prv, _md_prv, file, lineno);
     }
 
@@ -2675,6 +2672,7 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
   chunkinfoptr _md_p;
   chunkinfoptr _md_q;
+  chunkinfoptr _md_oq;
 
   mchunkptr p;
   mchunkptr q;
@@ -2815,10 +2813,16 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 	  q = next_chunk(_md_p, p);
 	  _md_q = lookup_chunk(av, q);
 	  if (_md_q == NULL) { missing_metadata(av, q); }
+
+	  assert(_md_q = _md_p->md_next);
+
 	  while(q != topchunk && inuse(av, _md_q, q) && (unsigned long)(chunksize(_md_q)) >= MINSIZE){
+	    _md_oq = _md_q;
 	    do_check_inuse_chunk(av, q, _md_q, file, lineno);
 	    q = next_chunk(_md_q, q);
 	    _md_q = lookup_chunk(av, q);
+	    if (_md_q == NULL) { missing_metadata(av, q); }
+	    assert(_md_q = _md_oq->md_next);
 	  }
 
         }

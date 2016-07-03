@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/mman.h>
 
 /* for sanity checking */
 #ifndef NDEBUG

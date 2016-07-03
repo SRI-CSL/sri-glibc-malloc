@@ -5531,6 +5531,10 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
     {
+      mchunkptr oldp = chunkinfo2chunk(_md_oldp);
+      fprintf(stderr, "md_oldp = %p oldp = %p arena_index = %zu canary: md %zu  c %zu\n",
+	      _md_oldp, oldp, av->arena_index, _md_oldp->__canary__, oldp->__canary__);
+      
       errstr = "realloc(): invalid old size";
     errout:
       malloc_printerr (check_action, errstr, chunk2mem (oldp), av);
@@ -5753,6 +5757,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       
       _int_free (av, _md_remainder, remainder, 1);
     }
+
+  assert(_md_newp != NULL);
 
   check_inuse_chunk (av, newp, _md_newp);
     

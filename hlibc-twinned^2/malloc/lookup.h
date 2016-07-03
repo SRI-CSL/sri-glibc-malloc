@@ -76,6 +76,6 @@ extern bool lookup_delete_heap(void* ptr);
 extern bool lookup_add_mmap(void* ptr, size_t sz);
 extern bool lookup_delete_mmap(void* ptr);
 
-extern void lookup_dump(FILE*);
+extern void lookup_dump(FILE*, bool dumptables);
 
 #endif

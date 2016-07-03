@@ -3848,7 +3848,7 @@ __libc_free (void *mem)
     fprintf(stderr, 
 	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
 	    p, ar_ptr->arena_index, p->arena_index);
-    lookup_dump(stderr);
+    lookup_dump(stderr, true);
   }
   assert(success);
   
@@ -3941,7 +3941,7 @@ __libc_realloc (void *oldmem, size_t bytes)
     fprintf(stderr, 
 	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
 	    oldp, ar_ptr->arena_index, oldp->arena_index);
-    lookup_dump(stderr);
+    lookup_dump(stderr, true);
   }
   assert(success);
 
@@ -5793,7 +5793,6 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
 
   /* Call malloc with worst case padding to hit alignment. */
-
   _md_p = _int_malloc (av, nb + alignment + MINSIZE);
   m = (char *) (chunkinfo2mem(_md_p));
 
@@ -5842,10 +5841,14 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           _md_newp = register_chunk(&main_arena, newp, true, 15);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
 	  _md_newp->md_next = _md_newp->md_prev = NULL;
+          set_head (_md_newp, newsize);
 
 	  check_metadata_chunk(av, newp, _md_newp);
 
-          set_head (_md_newp, newsize);
+	  //remove the old p and add the new p
+	  lookup_add_mmap(newp, chunksize (_md_p));
+	  lookup_delete_mmap(p);
+	  unregister_chunk(&main_arena, p, 16);
 
 	  UNLOCK_ARENA(&main_arena, MEMALIGN_SITE);
 	  if(av != NULL){
@@ -6192,7 +6195,7 @@ __malloc_stats (void)
   fprintf (stderr, "max mmap regions = %10u\n", (unsigned int) mp_.max_n_mmaps);
   fprintf (stderr, "max mmap bytes   = %10lu\n",
            (unsigned long) mp_.max_mmapped_mem);
-  lookup_dump(stderr);
+  lookup_dump(stderr, false);
   ((_IO_FILE *) stderr)->_flags2 |= old_flags2;
   _IO_funlockfile (stderr);
 }

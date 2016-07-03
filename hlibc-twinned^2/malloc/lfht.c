@@ -572,3 +572,24 @@ void lfht_stats(FILE* fp, const char* name, lfht_t *ht){
     index++;
   }
 }
+
+
+void lfht_dump(FILE* fp, const char* name, lfht_t *ht){
+  uint32_t i, max;
+  lfht_hdr_t *hdr;
+  lfht_entry_t*  table;
+  lfht_entry_t  entry;
+
+  hdr = (lfht_hdr_t *)ht->table_hdr;
+  max = hdr->max;
+  table = hdr->table;
+
+  fprintf(fp, "%s table contents:\n", name);
+
+  for(i = 0; i < max; i++){
+    entry = table[i];
+    if(entry.key != 0){
+      fprintf(stderr, "\t%p => %"PRIu64"\n", (void*)entry.key, entry.val);
+    }
+  }
+}

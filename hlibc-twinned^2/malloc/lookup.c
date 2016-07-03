@@ -201,7 +201,7 @@ bool lookup_delete_mmap(void* ptr){
   return retval;
 }
 
-void lookup_dump(FILE* fp){
+void lookup_dump(FILE* fp, bool dumptables){
   uint32_t i;
   fprintf(fp, "lookup:\n");
   for(i = 0; i <= sbrk_region_count; i++){
@@ -216,5 +216,9 @@ void lookup_dump(FILE* fp){
   }
   lfht_stats(fp, " mmap_table", &mmap_tbl);
   lfht_stats(fp, " heap_table", &heap_tbl);
+  if(dumptables){
+    lfht_dump(fp,  " mmap_table", &mmap_tbl);
+    lfht_dump(fp,  " heap_table", &mmap_tbl);
+  }
   fflush(fp);
 }

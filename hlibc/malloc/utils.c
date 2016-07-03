@@ -90,3 +90,35 @@ bool mul_size(size_t s1, size_t s2, size_t* prod){
 }
 
 
+void* sri_mmap(void* oldaddr, size_t size){
+  void* memory;
+  int flags;
+  int protection;
+
+  /* beef this up later  */
+
+  protection = PROT_READ | PROT_WRITE;
+  flags = MAP_PRIVATE | MAP_ANON;
+
+  /* try extending the current region */
+  memory = mmap(oldaddr, size, protection, flags, -1, 0);
+
+  /* if extending fails, then just try and map a new one */
+  if((oldaddr != NULL) && (memory == MAP_FAILED)){
+    memory = mmap(0, size, protection, flags, -1, 0);
+  }
+  
+  if(memory == MAP_FAILED){
+    memory = NULL;
+  }
+
+  return memory;
+}
+
+bool sri_munmap(void* memory, size_t size){
+  int rcode;
+
+  rcode = munmap(memory, size);
+  
+  return rcode != -1;
+}

@@ -49,11 +49,6 @@ static segment_t* alloc_segment(memcxt_t* memcxt);
 
 static bool free_segment(memcxt_t* memcxt, segment_t* segp);
 
-static void* pool_mmap(void* oldaddr, size_t size);
-
-static bool pool_munmap(void* memory, size_t size);
-
-
 bool init_memcxt(memcxt_t* memcxt){
 
   assert(memcxt != NULL);
@@ -79,7 +74,7 @@ void delete_memcxt(memcxt_t* memcxt){
     while(segments != NULL){
       currseg = segments;
       segments = segments->next_segment_pool;
-      pool_munmap(currseg, sizeof(segment_pool_t));
+      sri_munmap(currseg, sizeof(segment_pool_t));
     }
   }
 
@@ -89,7 +84,7 @@ void delete_memcxt(memcxt_t* memcxt){
     while(buckets != NULL){
       currbuck = buckets;
       buckets = buckets->next_bucket_pool;
-      pool_munmap(currbuck, sizeof(bucket_pool_t));
+      sri_munmap(currbuck, sizeof(bucket_pool_t));
     }
   }
 
@@ -133,7 +128,7 @@ void memcxt_release(memcxt_t* memcxt, memtype_t type,  void* ptr, size_t sz){
   if(memcxt != NULL){
     switch(type){
     case DIRECTORY: {
-      pool_munmap(ptr, sz);
+      sri_munmap(ptr, sz);
       break;
     }
     case SEGMENT: {
@@ -204,48 +199,15 @@ static void init_segment_pool(segment_pool_t* sp){
 }
 
 
-static void* pool_mmap(void* oldaddr, size_t size){
-  void* memory;
-  int flags;
-  int protection;
-
-  /* beef this up later  */
-
-  protection = PROT_READ | PROT_WRITE;
-  flags = MAP_PRIVATE | MAP_ANON;
-
-  /* try extending the current region */
-  memory = mmap(oldaddr, size, protection, flags, -1, 0);
-
-  /* if extending fails, then just try and map a new one */
-  if((oldaddr != NULL) && (memory == MAP_FAILED)){
-    memory = mmap(0, size, protection, flags, -1, 0);
-  }
-  
-  if(memory == MAP_FAILED){
-    memory = NULL;
-  }
-
-  return memory;
-}
-
-static bool pool_munmap(void* memory, size_t size){
-  int rcode;
-
-  rcode = munmap(memory, size);
-  
-  return rcode != -1;
-}
-
 
 static void* new_directory(memcxt_t* memcxt, void* oldptr, size_t size){
-  return pool_mmap(oldptr, size);
+  return sri_mmap(oldptr, size);
 }
 
 static segment_pool_t* new_segments(void){
   segment_pool_t* sptr;
   
-  sptr = pool_mmap(NULL, sizeof(segment_pool_t));
+  sptr = sri_mmap(NULL, sizeof(segment_pool_t));
   if(sptr == NULL){
     return NULL;
   }
@@ -258,7 +220,7 @@ static segment_pool_t* new_segments(void){
 static void* new_buckets(void){
   bucket_pool_t* bptr;
   
-  bptr = pool_mmap(NULL, sizeof(bucket_pool_t));
+  bptr = sri_mmap(NULL, sizeof(bucket_pool_t));
   if(bptr == NULL){
     return NULL;
   }

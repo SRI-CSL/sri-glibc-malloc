@@ -19,9 +19,27 @@
 
 #include <stdbool.h>
 
-#include "lookup.h"
+/* Compile-time constants.  */
+
+#define HEAP_MIN_SIZE (32 * 1024)
+#ifndef HEAP_MAX_SIZE
+# ifdef DEFAULT_MMAP_THRESHOLD_MAX
+#  define HEAP_MAX_SIZE (2 * DEFAULT_MMAP_THRESHOLD_MAX)
+# else
+#  define HEAP_MAX_SIZE (1024 * 1024) /* must be a power of two */
+# endif
+#endif
+
+/* HEAP_MIN_SIZE and HEAP_MAX_SIZE limit the size of mmap()ed heaps
+   that are dynamically created for multi-threaded programs.  The
+   maximum size must be a power of two, for fast determination of
+   which heap belongs to a chunk.  It should be much larger than the
+   mmap threshold, so that requests with a size just below that
+   threshold can be fulfilled without creating too many heaps.  */
 
 /***************************************************************************/
+
+#define top(ar_ptr) ((ar_ptr)->top)
 
 /* A heap is a single contiguous memory region holding (coalesceable)
    malloc_chunks.  It is allocated with mmap() and always starts at an
@@ -65,25 +83,6 @@ static unsigned long arena_mem;
 /* Already initialized? */
 int __malloc_initialized = -1;
 
-
-/* SRI Additions:
- *
- * We have modified the main_arena.next list, so that new arenas are added on the end.
- * Thus it is a cyclic list of "length" of length arena_count ordered from 
- * smallest arena_index to largest arena index.
- * Note Bene: the main_arena has arena_index 1; thus the first non-main arena in this
- * list has arena_index 2.
- */
-
-/* the last arena in the main_arena.next list */
-static struct malloc_state *last_arena = &main_arena;
-
-/* number of arenas: arena_count. The narenas counter is not protected
- * by the list_lock so we can't use that.
- */
-static size_t arena_count = 1;
-
-
 /**************************************************************************/
 
 
@@ -95,14 +94,14 @@ static size_t arena_count = 1;
    is just a hint as to how much memory will be required immediately
    in the new arena. */
 
-#define arena_get(ptr, size, site) do {					\
+#define arena_get(ptr, size) do { \
       ptr = thread_arena;						      \
-      arena_lock (ptr, size, site);						\
+      arena_lock (ptr, size);						      \
   } while (0)
 
-#define arena_lock(ptr, size, site) do {					\
+#define arena_lock(ptr, size) do {					      \
       if (ptr && !arena_is_corrupt (ptr))				      \
-        LOCK_ARENA(ptr, site);						\
+        (void) mutex_lock (&ptr->mutex);				      \
       else								      \
         ptr = arena_get2 ((size), NULL);				      \
   } while (0)
@@ -110,58 +109,9 @@ static size_t arena_count = 1;
 /* find the heap and corresponding arena for a given ptr */
 
 #define heap_for_ptr(ptr) \
-  ((heap_info *)((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
+  ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
 #define arena_for_chunk(ptr) \
   (chunk_non_main_arena (ptr) ? heap_for_ptr (ptr)->ar_ptr : &main_arena)
-
-
-/* SRI: check that the arena_index of a chunk make sense */
-static bool _arena_is_sane(mchunkptr p, const char* file, int lineno){
-  size_t count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-  return p->arena_index <= count;
-}
-
-/* SRI:
- *
- * Returns the arena with the same index as ptr.  Though we try to
- * preserve the order in the cyclic linked list of arenas it is not
- * guaranteed. So we go through the list until we find it.
- *
- *
- */
-static mstate arena_from_chunk(mchunkptr ptr){
-  INTERNAL_SIZE_T index;
-  mstate arena;
-  size_t count;
-  
-  assert(ptr != NULL);
-
-  index = get_arena_index(ptr);
-
-  if(index < NON_MAIN_ARENA_INDEX){
-    return &main_arena;
-  }
-
-  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-  
-
-  assert(index  <= count + 1);
-
-  arena = main_arena.next;
-  
-  while(count > 0 && arena->arena_index != index){
-    arena = arena->next;
-    count--;
-  }
-
-  assert(arena != NULL);
-  assert(arena->arena_index == index);
-  
-  /* unsafe; but just a sanity check */
-  assert((heap_for_ptr(ptr))->ar_ptr == arena);
-
-  return arena;
-}
 
 
 /**************************************************************************/
@@ -189,25 +139,22 @@ ATFORK_MEM;
 static void *
 malloc_atfork (size_t sz, const void *caller)
 {
-  chunkinfoptr _md_victim;
-  void *mem;
+  void *victim;
 
   if (thread_arena == ATFORK_ARENA_PTR)
     {
       /* We are the only thread that may allocate at all.  */
       if (save_malloc_hook != malloc_check)
         {
-	  _md_victim = _int_malloc (&main_arena, sz);
-          return chunkinfo2mem(_md_victim);
+          return _int_malloc (&main_arena, sz);
         }
       else
         {
           if (top_check () < 0)
             return 0;
 
-          _md_victim = _int_malloc (&main_arena, sz + 1);
-	  mem = chunkinfo2mem(_md_victim);
-          return mem2mem_check (_md_victim, chunkinfo2chunk(_md_victim), mem, sz);
+          victim = _int_malloc (&main_arena, sz + 1);
+          return mem2mem_check (victim, sz);
         }
     }
   else
@@ -225,24 +172,21 @@ static void
 free_atfork (void *mem, const void *caller)
 {
   mstate ar_ptr;
-  mchunkptr p;                 /* chunk corresponding to mem */
-  chunkinfoptr _md_p;          /* metadata of chunk  */
+  mchunkptr p;                          /* chunk corresponding to mem */
 
-
-  if (mem == 0)                /* free(0) has no effect */
+  if (mem == 0)                              /* free(0) has no effect */
     return;
 
   p = mem2chunk (mem);         /* do not bother to replicate free_check here */
 
-  if (chunk_is_mmapped (p))    /* release mmapped memory. */
+  if (chunk_is_mmapped (p))                       /* release mmapped memory. */
     {
-      _md_p = lookup_chunk(&main_arena, p);  //SRI: do we have the lock here?
-      munmap_chunk(_md_p);
+      munmap_chunk (p);
       return;
     }
 
   ar_ptr = arena_for_chunk (p);
-  _int_free (ar_ptr, NULL, p, thread_arena == ATFORK_ARENA_PTR);
+  _int_free (ar_ptr, p, thread_arena == ATFORK_ARENA_PTR);
 }
 
 
@@ -259,12 +203,11 @@ static void
 ptmalloc_lock_all (void)
 {
   mstate ar_ptr;
-  int success;
 
   if (__malloc_initialized < 1)
     return;
-  success = mutex_trylock (&list_lock);
-  if (success)
+
+  if (mutex_trylock (&list_lock))
     {
       if (thread_arena == ATFORK_ARENA_PTR)
         /* This is the same thread which already locks the global list.
@@ -276,7 +219,7 @@ ptmalloc_lock_all (void)
     }
   for (ar_ptr = &main_arena;; )
     {
-      LOCK_ARENA(ar_ptr, ARENA_SITE);
+      (void) mutex_lock (&ar_ptr->mutex);
       ar_ptr = ar_ptr->next;
       if (ar_ptr == &main_arena)
         break;
@@ -314,7 +257,7 @@ ptmalloc_unlock_all (void)
   __free_hook = save_free_hook;
   for (ar_ptr = &main_arena;; )
     {
-      UNLOCK_ARENA(ar_ptr, ARENA_SITE);
+      (void) mutex_unlock (&ar_ptr->mutex);
       ar_ptr = ar_ptr->next;
       if (ar_ptr == &main_arena)
         break;
@@ -532,7 +475,6 @@ dump_heap (heap_info *heap)
 {
   char *ptr;
   mchunkptr p;
-  mchunkptr topchunk;
 
   fprintf (stderr, "Heap %p, size %10lx:\n", heap, (long) heap->size);
   ptr = (heap->ar_ptr != (mstate) (heap + 1)) ?
@@ -542,8 +484,7 @@ dump_heap (heap_info *heap)
   for (;; )
     {
       fprintf (stderr, "chunk %p size %10lx", p, (long) p->size);
-      topchunk = chunkinfo2chunk((heap->ar_ptr)->_md_top);
-      if (p == topchunk)
+      if (p == top (heap->ar_ptr))
         {
           fprintf (stderr, " (top)\n");
           break;
@@ -598,7 +539,7 @@ new_heap (size_t size, size_t top_pad)
   p2 = MAP_FAILED;
   if (aligned_heap_area)
     {
-      p2 = (char *) sys_MMAP (aligned_heap_area, HEAP_MAX_SIZE, PROT_NONE,
+      p2 = (char *) MMAP (aligned_heap_area, HEAP_MAX_SIZE, PROT_NONE,
                           MAP_NORESERVE);
       aligned_heap_area = NULL;
       if (p2 != MAP_FAILED && ((unsigned long) p2 & (HEAP_MAX_SIZE - 1)))
@@ -609,7 +550,7 @@ new_heap (size_t size, size_t top_pad)
     }
   if (p2 == MAP_FAILED)
     {
-      p1 = (char *) sys_MMAP (0, HEAP_MAX_SIZE << 1, PROT_NONE, MAP_NORESERVE);
+      p1 = (char *) MMAP (0, HEAP_MAX_SIZE << 1, PROT_NONE, MAP_NORESERVE);
       if (p1 != MAP_FAILED)
         {
           p2 = (char *) (((unsigned long) p1 + (HEAP_MAX_SIZE - 1))
@@ -625,7 +566,7 @@ new_heap (size_t size, size_t top_pad)
         {
           /* Try to take the chance that an allocation of only HEAP_MAX_SIZE
              is already aligned. */
-          p2 = (char *) sys_MMAP (0, HEAP_MAX_SIZE, PROT_NONE, MAP_NORESERVE);
+          p2 = (char *) MMAP (0, HEAP_MAX_SIZE, PROT_NONE, MAP_NORESERVE);
           if (p2 == MAP_FAILED)
             return 0;
 
@@ -692,7 +633,8 @@ shrink_heap (heap_info *h, long diff)
      inaccessible.  See malloc-sysdep.h to know when this is true.  */
   if (__glibc_unlikely (check_may_shrink_heap ()))
     {
-      if ((char *) sys_MMAP ((char *) h + new_size, diff, PROT_NONE, MAP_FIXED) == (char *) MAP_FAILED)
+      if ((char *) MMAP ((char *) h + new_size, diff, PROT_NONE,
+                         MAP_FIXED) == (char *) MAP_FAILED)
         return -2;
 
       h->mprotect_size = new_size;
@@ -721,151 +663,49 @@ heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = GLRO (dl_pagesize);
-
-  mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
-  chunkinfoptr _md_top_chunk = ar_ptr->_md_top;
-  chunkinfoptr _md_top_chunk_prev;
-  chunkinfoptr _md_top_chunk_next;
-
-  chunkinfoptr bck, fwd;
-
-
-  mchunkptr p;
-  chunkinfoptr _md_temp;
-  chunkinfoptr _md_p;
-  chunkinfoptr _md_fencepost;
-
-
+  mchunkptr top_chunk = top (ar_ptr), p, bck, fwd;
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
 
   /* Can this heap go away completely? */
-  /*
-   * SRI: the mstate part of the header only occurs in the first heap
-   * of this arena. all subsequent heaps in the arena start out
-   * with their top being the next pointer after the heap_info
-   * header.
-   *
-   * so this condition is asking: is this non-first heap of
-   * this arena empty.
-  */
   while (top_chunk == chunk_at_offset (heap, sizeof (*heap)))
     {
-
-      do_check_top(ar_ptr, __FILE__, __LINE__);
-
-      _md_top_chunk_prev = _md_top_chunk->md_prev;
-      _md_top_chunk_next = _md_top_chunk->md_next;
-
-      /* 
-       * SRI: note that we know prev_heap is not null,
-       * because we are in a non-first heap of this arena. 
-       */
       prev_heap = heap->prev;
       prev_size = prev_heap->size - (MINSIZE - 2 * SIZE_SZ);
-
-      /* SRI: we are going to delete this heap and consolidate the tail of the previous heap */
       p = chunk_at_offset (prev_heap, prev_size);
- 
-
       /* fencepost must be properly aligned.  */
       misalign = ((long) p) & MALLOC_ALIGN_MASK;
       p = chunk_at_offset (prev_heap, prev_size - misalign);
-      _md_p = lookup_chunk(ar_ptr, p);
-
-
-      if(_md_p == NULL){
-	missing_metadata(ar_ptr, p);
-	return 0;
-      }
-      assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost_0 */
-      
-      _md_fencepost = _md_p;
-
-      assert(_md_fencepost == _md_top_chunk_prev);
-
-      p = prev_chunk (_md_p, p);
-      _md_p = lookup_chunk(ar_ptr, p);
-      if(_md_p == NULL){
-	missing_metadata(ar_ptr, p); 
-	return 0;
-      }
- 
-      new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
-
-      assert (new_size > 0 && new_size < (long) (2 * MINSIZE)); /* must be fencepost_1 */
-
-      if (!prev_inuse(_md_p, p)){
-        new_size += _md_p->prev_size;
-      }
+      assert (p->size == (0 | PREV_INUSE)); /* must be fencepost */
+      p = prev_chunk (p);
+      new_size = chunksize (p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
+      assert (new_size > 0 && new_size < (long) (2 * MINSIZE));
+      if (!prev_inuse (p))
+        new_size += p->prev_size;
       assert (new_size > 0 && new_size < HEAP_MAX_SIZE);
-
-      if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz){
-        break;  /* SRI: are we in a sane state here? */
-      }
-
-      _md_temp = _md_fencepost->md_next;
-      
-      /* SRI: pulling out the fencepost */
-      unregister_chunk(ar_ptr, chunkinfo2chunk(_md_fencepost), 4); 
-      
-      /* fix the md_next and md_prev pointers */
-      _md_p->md_next = _md_temp;
-      if(_md_temp != NULL)
-	_md_temp->md_prev = _md_p;
-      
+      if (new_size + (HEAP_MAX_SIZE - prev_heap->size) < pad + MINSIZE + pagesz)
+        break;
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
-
-      /* heap is being deleted; so must its top */
-      unregister_chunk(ar_ptr, top_chunk, 14); 
       delete_heap (heap);
-
-      //fprintf(stderr, "deleteing heap with top chunk %p\n", top_chunk);
-      lookup_delete_heap(heap);
       heap = prev_heap;
-
-      if (!prev_inuse(_md_p, p)) /* consolidate backward; SRI: size already done above */
+      if (!prev_inuse (p)) /* consolidate backward */
         {
-	  mchunkptr op = p;
-	  _md_temp = _md_p->md_next;
-          p = prev_chunk (_md_p, p);
-	  unregister_chunk(ar_ptr, op, 5);  
-	  //FIXME: once twinned we can use the md_prev pointer here.
-	  _md_p = lookup_chunk(ar_ptr, p);
-	  if(_md_p == NULL){
-	    missing_metadata(ar_ptr, p);
-	    return 0;
-	  }
-          bin_unlink(ar_ptr, _md_p, &bck, &fwd);
-	  /* fix the md_next and md_prev pointers */
-	  _md_p->md_next = _md_temp;
-	  if(_md_temp != NULL)
-	    _md_temp->md_prev = _md_p;
+          p = prev_chunk (p);
+          unlink (ar_ptr, p, bck, fwd);
         }
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));
-      top_chunk = p;
-      _md_top_chunk = _md_p;
-
-      ar_ptr->_md_top = _md_p;
-      _md_p->md_next = _md_top_chunk_next;
-
-      do_check_metadata_chunk(ar_ptr, top_chunk, _md_top_chunk, __FILE__, __LINE__);
-
-      set_head (_md_p, new_size | PREV_INUSE);
-
-
-      do_check_top(ar_ptr, __FILE__, __LINE__);
-
-      /* check_chunk(ar_ptr, top_chunk); */
-    } /* while */
+      top (ar_ptr) = top_chunk = p;
+      set_head (top_chunk, new_size | PREV_INUSE);
+      /*check_chunk(ar_ptr, top_chunk);*/
+    }
 
   /* Uses similar logic for per-thread arenas as the main arena with systrim
      and _int_free by preserving the top pad and rounding down to the nearest
      page.  */
-  top_size = chunksize (ar_ptr->_md_top);
+  top_size = chunksize (top_chunk);
   if ((unsigned long)(top_size) <
       (unsigned long)(mp_.trim_threshold))
     return 0;
@@ -887,14 +727,10 @@ heap_trim (heap_info *heap, size_t pad)
   arena_mem -= extra;
 
   /* Success. Adjust top accordingly. */
-  set_head (ar_ptr->_md_top, (top_size - extra) | PREV_INUSE);
-
-  do_check_top(ar_ptr, __FILE__, __LINE__);
-
+  set_head (top_chunk, (top_size - extra) | PREV_INUSE);
   /*check_chunk(ar_ptr, top_chunk);*/
   return 1;
 }
-
 
 /* Create a new arena with initial size "size".  */
 
@@ -934,7 +770,7 @@ _int_new_arena (size_t size)
         return 0;
     }
   a = h->ar_ptr = (mstate) (h + 1);
-  malloc_init_state (a, false);
+  malloc_init_state (a);
   a->attached_threads = 1;
   /*a->next = NULL;*/
   a->system_mem = a->max_system_mem = h->size;
@@ -945,41 +781,23 @@ _int_new_arena (size_t size)
   misalign = (unsigned long) chunk2mem (ptr) & MALLOC_ALIGN_MASK;
   if (misalign > 0)
     ptr += MALLOC_ALIGNMENT - misalign;
-  a->_md_top = register_chunk(a, (mchunkptr) ptr, false, 18);
-  //Done a->_md_top->md_prev = a->_md_top->md_next = NULL
-  set_head (a->_md_top, (((char *) h + h->size) - ptr) | PREV_INUSE);
-
-  do_check_top(a, __FILE__, __LINE__);
+  top (a) = (mchunkptr) ptr;
+  set_head (top (a), (((char *) h + h->size) - ptr) | PREV_INUSE);
 
   LIBC_PROBE (memory_arena_new, 2, a, size);
   mstate replaced_arena = thread_arena;
   thread_arena = a;
   mutex_init (&a->mutex);
-  //BD moved this so we could call the LOCK_ARENA below.
-  //(void) mutex_lock (&a->mutex);
+  (void) mutex_lock (&a->mutex);
 
   (void) mutex_lock (&list_lock);
 
   detach_arena (replaced_arena);
 
-  /* Add the new arena to the "end" of the global cyclic list.  */
-  a->next = &main_arena;
-
-  last_arena->next = a;
-
-  catomic_increment (&arena_count);
-
+  /* Add the new arena to the global list.  */
+  a->next = main_arena.next;
   atomic_write_barrier ();
-
-  last_arena = a;
-
-  /* update the index of the new arena */
-  a->arena_index = arena_count;
-
-  lookup_add_heap(h, a->arena_index);
-
-  set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
-  LOCK_ARENA(a, ARENA_SITE);
+  main_arena.next = a;
 
   (void) mutex_unlock (&list_lock);
 
@@ -1008,10 +826,11 @@ get_free_list (void)
 	  detach_arena (replaced_arena);
 	}
       (void) mutex_unlock (&list_lock);
+
       if (result != NULL)
         {
           LIBC_PROBE (memory_arena_reuse_free_list, 1, result);
-	  LOCK_ARENA(result, ARENA_SITE);
+          (void) mutex_lock (&result->mutex);
 	  thread_arena = result;
         }
     }
@@ -1027,20 +846,15 @@ reused_arena (mstate avoid_arena)
 {
   mstate result;
   static mstate next_to_use;
-
-  int success;
-
   if (next_to_use == NULL)
     next_to_use = &main_arena;
 
   result = next_to_use;
   do
     {
-      if (!arena_is_corrupt (result))
-	  success = mutex_trylock (&result->mutex);
-	  if (!success) {
-	    goto out;
-	  }
+      if (!arena_is_corrupt (result) && !mutex_trylock (&result->mutex))
+        goto out;
+
       result = result->next;
     }
   while (result != next_to_use);
@@ -1066,7 +880,7 @@ reused_arena (mstate avoid_arena)
 
   /* No arena available without contention.  Wait for the next in line.  */
   LIBC_PROBE (memory_arena_reuse_wait, 3, &result->mutex, result, avoid_arena);
-  LOCK_ARENA(result, ARENA_SITE);
+  (void) mutex_lock (&result->mutex);
 
 out:
   {
@@ -1074,7 +888,7 @@ out:
     (void) mutex_lock (&list_lock);
     detach_arena (replaced_arena);
     ++result->attached_threads;
-  (void) mutex_unlock (&list_lock);
+    (void) mutex_unlock (&list_lock);
   }
 
   LIBC_PROBE (memory_arena_reuse, 2, result, avoid_arena);
@@ -1140,22 +954,22 @@ arena_get2 (size_t size, mstate avoid_arena)
    Otherwise, it is likely that sbrk() has failed and there is still a chance
    to mmap(), so try one of the other arenas.  */
 static mstate
-arena_get_retry (mstate ar_ptr, size_t bytes, int site)
+arena_get_retry (mstate ar_ptr, size_t bytes)
 {
   LIBC_PROBE (memory_arena_retry, 2, bytes, ar_ptr);
   if (ar_ptr != &main_arena)
     {
-      UNLOCK_ARENA(ar_ptr, site);
+      (void) mutex_unlock (&ar_ptr->mutex);
       /* Don't touch the main arena if it is corrupt.  */
       if (arena_is_corrupt (&main_arena))
 	return NULL;
 
       ar_ptr = &main_arena;
-      LOCK_ARENA(ar_ptr, site);
+      (void) mutex_lock (&ar_ptr->mutex);
     }
   else
     {
-      UNLOCK_ARENA(ar_ptr, site);
+      (void) mutex_unlock (&ar_ptr->mutex);
       ar_ptr = arena_get2 (bytes, ar_ptr);
     }
 
@@ -1171,7 +985,6 @@ arena_thread_freeres (void)
   if (a != NULL)
     {
       (void) mutex_lock (&list_lock);
-
       /* If this was the last attached thread for this arena, put the
 	 arena on the free list.  */
       assert (a->attached_threads > 0);

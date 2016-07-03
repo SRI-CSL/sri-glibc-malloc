@@ -110,7 +110,4 @@ extern bool lfht_find(lfht_t *ht, uint64_t key, uint64_t *valp);
 extern void lfht_stats(FILE* fp, const char* name, lfht_t *ht);
 
 
-extern void lfht_dump(FILE* fp, const char* name, lfht_t *ht);
-
-
 #endif

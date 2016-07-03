@@ -7,9 +7,7 @@
 
 #include "gassert.h"
 
-#ifndef NDEBUG
 extern bool is_power_of_two(uint32_t n);
-#endif
 
 /*
  *  Bruno Dutertre's versions of Jenkin's hash functions.
@@ -59,6 +57,12 @@ static inline uint32_t ctz64(uint64_t x) {
 }
 
 #endif
+
+
+extern void* sri_mmap(void* oldaddr, size_t size);
+
+
+extern bool sri_munmap(void* memory, size_t size);
 
 
 #endif

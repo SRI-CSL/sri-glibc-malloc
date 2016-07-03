@@ -19,10 +19,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "gassert.h"
 #include "lookup.h"
 #include "lfht.h"
+#include "utils.h"
+
+
+
 
 /* 
  * The sbrked regions of the main_arena.
@@ -45,6 +50,9 @@
 /* FIXME: make this dynamic I suppose. */
 #define SBRK_MAX_SEGMENTS 1024
 
+/* (1 << 31) or 2^31  */
+#define MAX_SBRK_TABLE_SIZE ((uint32_t)0x80000000u)
+
 /* Max is just for curiosity. */
 typedef struct sbrk_region_s {
   bool mmapped;
@@ -55,7 +63,9 @@ typedef struct sbrk_region_s {
 
 
 static int32_t sbrk_region_count = 0;
-static sbrk_region_t sbrk_regions[SBRK_MAX_SEGMENTS];
+static int32_t sbrk_region_current_max = SBRK_MAX_SEGMENTS;
+
+static sbrk_region_t *sbrk_regions;
 
 /* 
  *  Note that in our world 0 is an invalid value for either a heap
@@ -83,7 +93,9 @@ static lfht_t mmap_tbl;  // maps mmapped region --> size
 
 
 void lookup_init(void){
-  if( ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
+  sbrk_regions = sri_mmap(NULL, sbrk_region_current_max * sizeof(sbrk_region_t));
+  if( ! sbrk_regions ||
+      ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
       ! init_lfht(&mmap_tbl, MMAP_HTABLE_CAPACITY)  ){
     fprintf(stderr, "Off to a bad start: lfht inits failed\n");
     abort();
@@ -134,17 +146,31 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 }
 
 bool lookup_add_sbrk_region(void* lo, void* hi){
-  int nregion = sbrk_region_count + 1;
+  int nregion_count = sbrk_region_count + 1;
 
-  //FIXME!!
-  assert(nregion < SBRK_MAX_SEGMENTS);
+  if(nregion_count == sbrk_region_current_max){
+    /* need to grow the sbrk_regions array */
+    if(sbrk_region_current_max >= MAX_SBRK_TABLE_SIZE){ 
+      fprintf(stderr, "lookup_add_sbrk_region failed. Too big, but not too big to fail.");
+      return false;
+    } else {
 
-  sbrk_regions[nregion].mmapped = true;
-  sbrk_regions[nregion].lo = (uintptr_t)lo;
-  sbrk_regions[nregion].hi = (uintptr_t)hi;
-  sbrk_regions[nregion].max = (uintptr_t)hi;
+      uint32_t nregion_max = 2 * sbrk_region_current_max;
+      sbrk_region_t *nregions = sri_mmap(sbrk_regions, nregion_max * sizeof(sbrk_region_t));
+      if(nregions != sbrk_regions){
+	memcpy(nregions, sbrk_regions, sbrk_region_current_max * sizeof(sbrk_region_t));
+	sbrk_regions = nregions;
+      }
+      sbrk_region_current_max = nregion_max;
+    }
+  }
 
-  sbrk_region_count = nregion;
+  sbrk_regions[nregion_count].mmapped = true;
+  sbrk_regions[nregion_count].lo = (uintptr_t)lo;
+  sbrk_regions[nregion_count].hi = (uintptr_t)hi;
+  sbrk_regions[nregion_count].max = (uintptr_t)hi;
+
+  sbrk_region_count = nregion_count;
 
   return true;
 }
@@ -201,7 +227,7 @@ bool lookup_delete_mmap(void* ptr){
   return retval;
 }
 
-void lookup_dump(FILE* fp, bool dumptables){
+void lookup_dump(FILE* fp){
   uint32_t i;
   fprintf(fp, "lookup:\n");
   for(i = 0; i <= sbrk_region_count; i++){
@@ -216,9 +242,5 @@ void lookup_dump(FILE* fp, bool dumptables){
   }
   lfht_stats(fp, " mmap_table", &mmap_tbl);
   lfht_stats(fp, " heap_table", &heap_tbl);
-  if(dumptables){
-    lfht_dump(fp,  " mmap_table", &mmap_tbl);
-    lfht_dump(fp,  " heap_table", &mmap_tbl);
-  }
   fflush(fp);
 }

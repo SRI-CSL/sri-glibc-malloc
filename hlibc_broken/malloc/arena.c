@@ -721,11 +721,7 @@ heap_trim (heap_info *heap, size_t pad)
 {
   mstate ar_ptr = heap->ar_ptr;
   unsigned long pagesz = GLRO (dl_pagesize);
-
   mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
-  chunkinfoptr _md_top_chunk = ar_ptr->_md_top;
-  chunkinfoptr _md_top_chunk_prev;
-  chunkinfoptr _md_top_chunk_next;
 
   chunkinfoptr bck, fwd;
 
@@ -734,7 +730,6 @@ heap_trim (heap_info *heap, size_t pad)
   chunkinfoptr _md_temp;
   chunkinfoptr _md_p;
   chunkinfoptr _md_fencepost;
-
 
   heap_info *prev_heap;
   long new_size, top_size, top_area, extra, prev_size, misalign;
@@ -754,9 +749,6 @@ heap_trim (heap_info *heap, size_t pad)
 
       do_check_top(ar_ptr, __FILE__, __LINE__);
 
-      _md_top_chunk_prev = _md_top_chunk->md_prev;
-      _md_top_chunk_next = _md_top_chunk->md_next;
-
       /* 
        * SRI: note that we know prev_heap is not null,
        * because we are in a non-first heap of this arena. 
@@ -773,7 +765,6 @@ heap_trim (heap_info *heap, size_t pad)
       p = chunk_at_offset (prev_heap, prev_size - misalign);
       _md_p = lookup_chunk(ar_ptr, p);
 
-
       if(_md_p == NULL){
 	missing_metadata(ar_ptr, p);
 	return 0;
@@ -781,8 +772,6 @@ heap_trim (heap_info *heap, size_t pad)
       assert (_md_p->size == (0 | PREV_INUSE)); /* must be fencepost_0 */
       
       _md_fencepost = _md_p;
-
-      assert(_md_fencepost == _md_top_chunk_prev);
 
       p = prev_chunk (_md_p, p);
       _md_p = lookup_chunk(ar_ptr, p);
@@ -817,12 +806,7 @@ heap_trim (heap_info *heap, size_t pad)
       ar_ptr->system_mem -= heap->size;
       arena_mem -= heap->size;
       LIBC_PROBE (memory_heap_free, 2, heap, heap->size);
-
-      /* heap is being deleted; so must its top */
-      unregister_chunk(ar_ptr, top_chunk, 14); 
       delete_heap (heap);
-
-      //fprintf(stderr, "deleteing heap with top chunk %p\n", top_chunk);
       lookup_delete_heap(heap);
       heap = prev_heap;
 
@@ -830,14 +814,16 @@ heap_trim (heap_info *heap, size_t pad)
         {
 	  mchunkptr op = p;
 	  _md_temp = _md_p->md_next;
+	  /* MEFIXED: once twinned we can use the md_prev pointer here.
           p = prev_chunk (_md_p, p);
-	  unregister_chunk(ar_ptr, op, 5);  
-	  //FIXME: once twinned we can use the md_prev pointer here.
 	  _md_p = lookup_chunk(ar_ptr, p);
-	  if(_md_p == NULL){
-	    missing_metadata(ar_ptr, p);
-	    return 0;
-	  }
+	  */
+	  _md_p = _md_p->md_prev;
+	  if(_md_p == NULL){ missing_metadata(ar_ptr, NULL);  }
+	  p = chunkinfo2chunk(_md_p);
+
+	  /* don't leak the metadata of the coalesced chunk */
+	  unregister_chunk(ar_ptr, op, 5);  
           bin_unlink(ar_ptr, _md_p, &bck, &fwd);
 	  /* fix the md_next and md_prev pointers */
 	  _md_p->md_next = _md_temp;
@@ -847,15 +833,8 @@ heap_trim (heap_info *heap, size_t pad)
       assert (((unsigned long) ((char *) p + new_size) & (pagesz - 1)) == 0);
       assert (((char *) p + new_size) == ((char *) heap + heap->size));
       top_chunk = p;
-      _md_top_chunk = _md_p;
-
       ar_ptr->_md_top = _md_p;
-      _md_p->md_next = _md_top_chunk_next;
-
-      do_check_metadata_chunk(ar_ptr, top_chunk, _md_top_chunk, __FILE__, __LINE__);
-
       set_head (_md_p, new_size | PREV_INUSE);
-
 
       do_check_top(ar_ptr, __FILE__, __LINE__);
 

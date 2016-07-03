@@ -2278,17 +2278,17 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
 	chunkinfoptr cnp = ci->md_next->md_prev;
+	mchunkptr cnp_chunk = cnp != NULL ? chunkinfo2chunk(cnp) : NULL;
 	fprintf(stderr, 
 		"check_metadata_chunk of %p is %p in arena %zu with canary c %zu md %zu @ %s line %d:\n" 
-		"\tci->md_next->md_prev = %p != ci = %p\n"
-		"\tci->md_next->md_prev = %p, with canary c %zu md %zu\n"
-		"\tci->md_next          = %p, with canary c %zu md %zu\n"
-		"\tci                   = %p, with canary c %zu md %zu\n",
+		"\tci->md_next->md_prev != ci\n"
+		"\tci->md_next->md_prev = %p, chunk = %p, with canary c %zu md %zu\n"
+		"\tci->md_next          = %p, chunk = %p, with canary c %zu md %zu\n"
+		"\tci                   = %p, chunk = %p, with canary c %zu md %zu\n",
 		chunk2mem(c), ci, c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
-		cnp, ci->md_next,
-		cnp, cnp->__canary__, cnp->__canary__,
-		ci->md_next, cn != NULL ? cn->__canary__ : 0, ci->md_next != NULL ? ci->md_next->__canary__ : 0,
-		ci, c->__canary__, ci->__canary__
+		cnp,          cnp_chunk,  cnp_chunk != NULL ?  cnp_chunk->__canary__ : 0, cnp != NULL ? cnp->__canary__ : 0,
+		ci->md_next,  cn,         cn != NULL ? cn->__canary__ : 0,                ci->md_next->__canary__,
+		ci,           c,          c->__canary__,                                  ci->__canary__
 		);
 	assert(false);
 	return false;
@@ -2303,15 +2303,14 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 	mchunkptr cpn_chunk = cpn != NULL ? chunkinfo2chunk(cpn) : NULL;
 	fprintf(stderr, 
 		"check_metadata_chunk of %p is %p in arena %zu with canary c %zu md %zu @ %s line %d:\n"
-		"\tci->md_prev->md_next = %p != ci = %p"
-                "\tci->md_prev->md_next = %p with canary c %zu md %zu \n"
-		"\tci->md_prev          = %p with canary c %zu md %zu \n"
-		"\tci                   = %p, with canary c %zu md %zu\n",
+		"\tci->md_prev->md_next != ci\n"
+                "\tci->md_prev->md_next = %p, chunk = %p, with canary c %zu md %zu \n"
+		"\tci->md_prev          = %p, chunk = %p, with canary c %zu md %zu \n"
+		"\tci                   = %p, chunk = %p, with canary c %zu md %zu\n",
 		chunk2mem(c), ci, c->arena_index, c->__canary__, ci->__canary__, file, lineno, 
-		cpn, ci->md_prev,
-		cpn, cpn_chunk != NULL ? cpn_chunk->__canary__ : 0, cpn != NULL ? cpn->__canary__ : 0,
-		ci->md_prev, cp != NULL ? cp->__canary__ : 0, ci->md_prev != NULL ? ci->md_prev->__canary__ : 0,
-		ci, c->__canary__, ci->__canary__
+		cpn,          cpn_chunk, cpn_chunk != NULL ? cpn_chunk->__canary__ : 0, cpn != NULL ? cpn->__canary__ : 0,
+		ci->md_prev,  cp,        cp != NULL ? cp->__canary__ : 0,               ci->md_prev->__canary__,
+		ci,           c,         c->__canary__,                                 ci->__canary__
 		);
 	assert(false);
 	return false;

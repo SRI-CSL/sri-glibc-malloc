@@ -5769,6 +5769,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
   char *brk;                      /* alignment point within p */
   mchunkptr newp;                 /* chunk to return */
   chunkinfoptr _md_newp;          /* metadata of chunk to return */
+  chunkinfoptr _md_temp;          /* temporary handle on metadata of a chunk */
   INTERNAL_SIZE_T newsize;        /* its size */
   INTERNAL_SIZE_T leadsize;       /* leading space before alignment point */
   mchunkptr remainder;            /* spare room at end to split off */
@@ -5856,17 +5857,20 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
       /* Otherwise, give back leader, use the rest */
       _md_newp = register_chunk(av, newp, false, 16);
-
-      _md_newp->md_next = _md_p->md_next;
+      _md_temp = _md_p->md_next;
+      _md_newp->md_next = _md_temp;
+      _md_temp->md_prev = _md_newp;
       _md_newp->md_prev = _md_p;
       _md_p->md_next = _md_newp;
 
-      check_metadata_chunk(av, newp, _md_newp);
-
       set_head (_md_newp, newsize | PREV_INUSE);
-
       set_inuse_bit_at_offset (av, _md_newp, newp, newsize);
       set_head_size (_md_p, leadsize);
+
+      check_metadata(av, _md_p);
+      check_metadata(av, _md_temp);
+      check_metadata_chunk(av, newp, _md_newp);
+
       _int_free (av, _md_p, p, 1);
       p = newp;
       _md_p = _md_newp;
@@ -5884,21 +5888,25 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           remainder = chunk_at_offset (p, nb);
           _md_remainder = register_chunk(av, remainder, false, 17);
 
-	  _md_remainder->md_next = _md_p->md_next;
+	  _md_temp = _md_p->md_next;
+	  _md_remainder->md_next = _md_temp;
 	  _md_remainder->md_prev = _md_p;
+	  _md_temp->md_prev = _md_remainder;
 	  _md_p->md_next = _md_remainder;
-	  check_metadata_chunk(av,remainder,_md_remainder);
-	  check_metadata_chunk(av,p,_md_p);
-
           set_head (_md_remainder, remainder_size | PREV_INUSE);
           set_head_size (_md_p, nb);
+
+	  check_metadata_chunk(av,remainder,_md_remainder);
+	  check_metadata_chunk(av,p,_md_p);
+	  check_metadata(av,_md_temp);
+
 
 
           _int_free (av, _md_remainder, remainder, 1);
         }
     }
 
-  check_inuse_chunk (av, p, _md_newp);
+  check_inuse_chunk (av, p, _md_p);
   return _md_p;
 }
 

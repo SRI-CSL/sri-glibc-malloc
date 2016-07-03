@@ -5553,6 +5553,10 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
     {
+      mchunkptr next = chunkinfo2chunk(_md_next);
+      fprintf(stderr, "md_next = %p next = %p arena_index = %zu canary: md %zu  c %zu\n",
+	      _md_next, next, av->arena_index, _md_next->__canary__, next->__canary__);
+
       errstr = "realloc(): invalid next size";
       goto errout;
     }

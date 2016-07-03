@@ -1354,24 +1354,9 @@ static inline void set_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p,  mchun
     
 }
 
-static inline void clear_inuse_bit_at_offset(mstate av, chunkinfoptr _md_p, mchunkptr p, size_t s)
+static inline void clear_inuse_bit(mstate av, chunkinfoptr _md_p)
 {
-  chunkinfoptr _md_next_chunk;
-  mchunkptr next_chunk;
-
-  assert( (s == 0) || (s == chunksize(_md_p))); 
-
-  next_chunk = chunk_at_offset(p, s); 
-  _md_next_chunk = lookup_chunk(av, next_chunk);
-
-  if(_md_next_chunk  == NULL){
-    missing_metadata(av, next_chunk);
-  }
-  
-  assert(s == 0 || (_md_p->md_next == _md_next_chunk)); 
-    
-  _md_next_chunk->size &= ~PREV_INUSE;
-
+  _md_p->size &= ~PREV_INUSE;
 }
 
 /* Set size/use field */
@@ -5181,7 +5166,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 	/* do not leak the coalesced chunk's metadata */
 	unregister_chunk(av, nextchunk, 11); 
       } else
-        clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
+        clear_inuse_bit(av, _md_nextchunk);
 
       /*
         Place the chunk in unsorted chunk list. Chunks are
@@ -5445,7 +5430,7 @@ static void malloc_consolidate(mstate av)
 	      /* do not leak the coalesced chunk's metadata */
 	      unregister_chunk(av, nextchunk, 8); 
             } else
-              clear_inuse_bit_at_offset(av, _md_nextchunk, nextchunk, 0);
+              clear_inuse_bit(av, _md_nextchunk);
 
             first_unsorted = unsorted_bin->fd;
             unsorted_bin->fd = _md_p;

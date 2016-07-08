@@ -250,9 +250,6 @@
 */
 #include "gassert.h"
 
-/* SRI's  metatdata header */
-#include "metadata.h"
-#include "lookup.h"
 
 /*
   Debugging:
@@ -1017,6 +1014,34 @@ int      __posix_memalign(void **, size_t, size_t);
 #define DEFAULT_MMAP_MAX       (65536)
 #endif
 
+
+/* Compile-time constants.  
+   These once lived in arena.c, but are now needed
+   here ahead of initializing the lookup table.
+*/
+
+#define HEAP_MIN_SIZE (32 * 1024)
+#ifndef HEAP_MAX_SIZE
+# ifdef DEFAULT_MMAP_THRESHOLD_MAX
+#  define HEAP_MAX_SIZE (2 * DEFAULT_MMAP_THRESHOLD_MAX)
+# else
+#  define HEAP_MAX_SIZE (1024 * 1024) /* must be a power of two */
+# endif
+#endif
+
+/*
+ * HEAP_MIN_SIZE and HEAP_MAX_SIZE limit the size of mmap()ed heaps
+ *  that are dynamically created for multi-threaded programs.  The
+ *  maximum size must be a power of two, for fast determination of which
+ *  heap belongs to a chunk.  It should be much larger than the mmap
+ *  threshold, so that requests with a size just below that threshold
+ *  can be fulfilled without creating too many heaps.
+ */
+
+/* SRI's  metatdata header */
+#include "metadata.h"
+#include "lookup.h"
+
 #include <malloc.h>
 
 #ifndef RETURN_ADDRESS
@@ -1053,7 +1078,7 @@ static void*  chunkinfo2mem(chunkinfoptr _md_victim);
 
 
 static chunkinfoptr  _int_malloc(mstate, size_t);
-static void   _int_free(mstate, chunkinfoptr, mchunkptr, bool);
+static void   _int_free(mstate, chunkinfoptr, mchunkptr, bool, bool);
 static chunkinfoptr  _int_realloc(mstate, chunkinfoptr, INTERNAL_SIZE_T,
                                   INTERNAL_SIZE_T);
 static chunkinfoptr _int_memalign(mstate, size_t, size_t);
@@ -2039,8 +2064,9 @@ malloc_init_state (mstate av, bool is_main_arena)
   mbinptr bin;
 
   if(is_main_arena){
+
     log_init();
-    lookup_init();
+    lookup_init(HEAP_MAX_SIZE);
   }
 
   /* Establish circular links for normal bins */
@@ -2310,6 +2336,115 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 }
 
 
+static void
+do_check_bins (mstate av, const char* file, int lineno)
+{
+  int i;
+
+  chunkinfoptr _md_p;
+  chunkinfoptr _md_q;
+  chunkinfoptr _md_oq;
+
+  mchunkptr p;
+  mchunkptr q;
+
+  mbinptr b;
+  unsigned int idx;
+  INTERNAL_SIZE_T size;
+  unsigned long total = 0;
+
+  mchunkptr topchunk;
+
+  /* no debugging when we are running out of memory or before we have initialized */
+  if(av == NULL || av->_md_top == NULL){ return; }
+
+  topchunk = chunkinfo2chunk(av->_md_top);
+
+  /* check normal bins */
+  for (i = 1; i < NBINS; ++i)
+    {
+      b = bin_at (av, i);
+
+      /* binmap is accurate (except for bin 1 == unsorted_chunks) */
+      if (i >= 2)
+        {
+          unsigned int binbit = get_binmap (av, i);
+          int empty = last (b) == b;
+          if (!binbit)
+            assert (empty);
+          else if (!empty)
+            assert (binbit);
+        }
+
+      for (_md_p = last (b); _md_p != b; _md_p = _md_p->bk)
+        {
+          /* each chunk claims to be free */
+	  p = chunkinfo2chunk(_md_p);
+          //do_check_free_chunk (av, p, _md_p, file, lineno);
+          size = chunksize (_md_p);
+          total += size;
+          if (i >= 2)
+            {
+              /* chunk belongs in bin */
+              idx = bin_index (size);
+              assert (idx == i);
+              /* lists are sorted */
+              assert (_md_p->bk == b ||
+                      (unsigned long) chunksize (_md_p->bk) >= (unsigned long) chunksize (_md_p));
+
+              if (!in_smallbin_range (size))
+                {
+                  if (_md_p->fd_nextsize != NULL)
+                    {
+                      if (_md_p->fd_nextsize == _md_p)
+                        assert (_md_p->bk_nextsize == _md_p);
+                      else
+                        {
+                          if (_md_p->fd_nextsize == first (b))
+                            assert (chunksize (_md_p) < chunksize (_md_p->fd_nextsize));
+                          else
+                            assert (chunksize (_md_p) > chunksize (_md_p->fd_nextsize));
+
+                          if (_md_p == first (b))
+                            assert (chunksize (_md_p) > chunksize (_md_p->bk_nextsize));
+                          else {
+			    if(chunksize (_md_p) >= chunksize (_md_p->bk_nextsize)){
+			      fprintf(stderr, 
+				      "_md_p = %p _md_p->bk_nextsize = %p first (b) = %p\n",
+				      _md_p, _md_p->bk_nextsize, first (b));
+			    }
+                            assert (chunksize (_md_p) < chunksize (_md_p->bk_nextsize));
+
+			  }
+                        }
+                    }
+                  else
+                    assert (_md_p->bk_nextsize == NULL);
+                }
+            }
+          else if (!in_smallbin_range (size))
+            assert (_md_p->fd_nextsize == NULL && _md_p->bk_nextsize == NULL);
+
+          /* chunk is followed by a legal chain of inuse chunks */
+	  q = next_chunk(_md_p, p);
+	  _md_q = lookup_chunk(av, q);
+	  if (_md_q == NULL) { missing_metadata(av, q); }
+
+	  assert(_md_q = _md_p->md_next);
+
+	  while(q != topchunk && inuse(av, _md_q, q) && (unsigned long)(chunksize(_md_q)) >= MINSIZE){
+	    _md_oq = _md_q;
+	    //do_check_inuse_chunk(av, q, _md_q, file, lineno);
+	    q = next_chunk(_md_q, q);
+	    _md_q = lookup_chunk(av, q);
+	    if (_md_q == NULL) { missing_metadata(av, q); }
+	    assert(_md_q = _md_oq->md_next);
+	  }
+
+        }
+    }
+}
+
 /* -------------- Early definitions for debugging hooks ---------------- */
 
 /* Define and initialize the hook variables.  These weak definitions must
@@ -2385,20 +2520,40 @@ static void do_check_top(mstate av, const char* file, int lineno);
   in malloc. In which case, please report it!)
 */
 
+static inline bool top_is_aligned(mstate av){
+  chunkinfoptr _md_top = av->_md_top;
+  mchunkptr topchunk = chunkinfo2chunk(_md_top);
+  if(topchunk != &av->initial_top){
+    INTERNAL_SIZE_T topsize = chunksize (_md_top);
+    char *end = (char *) (chunk_at_offset (topchunk, topsize));
+    return ((unsigned long)end & (GLRO (dl_pagesize) - 1)) == 0;
+  } 
+  return true;
+}
+
+
 static void do_check_top(mstate av, const char* file, int lineno)
 {
-  if (av->_md_top) {
+  chunkinfoptr _md_top = av->_md_top; 
+
+  if (_md_top) {
+    
+    assert(top_is_aligned(av));
+
     if ( !do_check_metadata_chunk(av, chunkinfo2chunk(av->_md_top), av->_md_top, file, lineno)) {
       fprintf(stderr, "check top failed @ %s line %d\n", file, lineno);
       assert(false);
     }
+
+
   }
 }
 
 
 #if !MALLOC_DEBUG
 
-# define check_top(A)
+# define check_top(A)                          do_check_top(A, __FILE__,__LINE__)
+# define check_bins(A)                         do_check_bins(A, __FILE__,__LINE__)
 # define check_chunk(A, P, MD_P)
 # define check_free_chunk(A, P, MD_P)
 # define check_inuse_chunk(A, P, MD_P)
@@ -2411,6 +2566,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 #else
 
 # define check_top(A)                           do_check_top(A,__FILE__,__LINE__)
+# define check_bins(A)                          do_check_bins(A, __FILE__,__LINE__)
 # define check_chunk(A, P, MD_P)                do_check_chunk (A, P, MD_P,__FILE__,__LINE__)
 # define check_free_chunk(A, P, MD_P)           do_check_free_chunk (A, P, MD_P,__FILE__,__LINE__)
 # define check_inuse_chunk(A, P, MD_P)          do_check_inuse_chunk (A, P, MD_P,__FILE__,__LINE__)
@@ -2419,6 +2575,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 # define check_malloc_state(A)                  do_check_malloc_state (A,__FILE__,__LINE__)
 # define check_metadata_chunk(A,P,MD_P)         do_check_metadata_chunk(A,P,MD_P,__FILE__,__LINE__)
 # define check_metadata(A,MD_P)                 do_check_metadata_chunk(A,chunkinfo2chunk(MD_P),MD_P,__FILE__,__LINE__)
+
 
 /*
   Properties of all chunks
@@ -2684,8 +2841,8 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
 
   mchunkptr topchunk;
 
-  /* no debugging when we are running out of memory */
-  if(av == NULL){ return; }
+  /* no debugging when we are running out of memory or before we have initialized */
+  if(av == NULL || av->_md_top == NULL){ return; }
 
   topchunk = chunkinfo2chunk(av->_md_top);
 
@@ -2830,6 +2987,8 @@ do_check_malloc_state (mstate av, const char* file, int lineno)
   /* top chunk is OK */
   check_chunk (av, topchunk, av->_md_top);
 }
+
+
 #endif
 
 
@@ -3184,18 +3343,16 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               set_head (_md_old_top, old_size | PREV_INUSE);
 	      check_metadata_chunk(av, old_top,_md_old_top);
 
-              _int_free (av, _md_old_top, old_top, true);
+	      // make sure we do not trigger a heap_trim
+              _int_free (av, _md_old_top, old_top, true, true);
 
 	      check_metadata(av, av->_md_top);
-
             }
           else
             {
-
               set_head (_md_old_top, (old_size + 2 * SIZE_SZ) | PREV_INUSE);
               set_foot (av, _md_old_top, old_top, (old_size + 2 * SIZE_SZ));
 	      check_metadata_chunk(av, old_top, _md_old_top);
-
             }
 	  
 	  check_top(av);
@@ -3538,7 +3695,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                       /* If possible, release the rest. */
                       if (old_size >= MINSIZE)
                         {
-                          _int_free (av, _md_old_top, old_top, true);
+                          _int_free (av, _md_old_top, old_top, true, false);
                         }
                     }
                 }
@@ -3642,6 +3799,7 @@ systrim (size_t pad, mstate av)
               /* Success. Adjust top. */
               av->system_mem -= released;
               set_head (av->_md_top, (top_size - released) | PREV_INUSE);
+	      check_top(av);
               check_malloc_state (av);
 
 	      if(av == &main_arena){
@@ -3772,6 +3930,8 @@ __libc_malloc (size_t bytes)
   arena_get (ar_ptr, bytes, MALLOC_SITE);
 
   _md_victim = _int_malloc (ar_ptr, bytes);
+
+
   /* Retry with another arena only if we were able to find a usable arena
      before.  */
   if (!_md_victim && ar_ptr != NULL)
@@ -3869,7 +4029,7 @@ __libc_free (void *mem)
     }
 
 
-  _int_free (ar_ptr, NULL, p, false);
+  _int_free (ar_ptr, NULL, p, false, false);
 
   check_top(ar_ptr);
 
@@ -4026,7 +4186,7 @@ __libc_realloc (void *oldmem, size_t bytes)
       if (mem != NULL)
         {
           memcpy (mem, oldmem, oldsize - SIZE_SZ);
-          _int_free (ar_ptr,_md_oldp, oldp, false);
+          _int_free (ar_ptr,_md_oldp, oldp, false, false);
         }
     }
 
@@ -4316,6 +4476,8 @@ __libc_calloc (size_t n, size_t elem_size)
   ------------------------------ malloc ------------------------------
 */
 
+
+
 static chunkinfoptr
 _int_malloc (mstate av, size_t bytes)
 {
@@ -4345,6 +4507,9 @@ _int_malloc (mstate av, size_t bytes)
   void* mem;                        /* mem of _md_p        */
 
   const char *errstr = NULL;
+
+
+
 
   /*
     Convert request size to internal form by adding SIZE_SZ bytes
@@ -4378,9 +4543,6 @@ _int_malloc (mstate av, size_t bytes)
       return 0;
     } 
   
-
-
-
   /*
     If the size qualifies as a fastbin, first check corresponding bin.
     This code is safe to execute even if av is not yet initialized, so we
@@ -4876,6 +5038,7 @@ _int_malloc (mstate av, size_t bytes)
 
 
           av->_md_top = split_chunk(av, _md_victim, victim, size, nb);
+	  check_top(av);
           check_malloced_chunk (av, victim, _md_victim, nb);
           void *p = chunk2mem (victim);
           alloc_perturb (p, bytes);
@@ -4910,10 +5073,19 @@ _int_malloc (mstate av, size_t bytes)
 
 /*
   ------------------------------ free ------------------------------
+  
+  - have_lock : indicates that we have the arena lock.
+  - freshheap : indicates that we just created a fresh heap for this arena
+                and this call corresponds to freeing the old top of the 
+		previous arena (after putting in fenceposts). it is used to
+		prevent calling heap_trim which given the chance, will undo
+		what we have just done.
+
 */
 
+
 static void
-_int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
+_int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool freshheap)
 {
   INTERNAL_SIZE_T size;        /* its size */
   mfastbinptr *fb;             /* associated fastbin */
@@ -4930,6 +5102,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
   chunkinfoptr _md_top;        /* metadata of the top chunk */
   mchunkptr topchunk;          /* the top chunk */
 
+  char* topend;                /* the end of the top chunk */
   
   const char *errstr = NULL;
 
@@ -5127,15 +5300,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
 
       assert(_md_temp->md_next == _md_nextchunk);
       
-      /*
-      if(_md_nextchunk != _md_temp->md_next){
-	mchunkptr tempnext = chunkinfo2chunk(_md_temp->md_next);
-	fprintf(stderr, "_md_nextchunk = %p nextchunk = %p (canary c %zu md %zu), _md_tempnext = %p tempnext = %p (canary c %zu md %zu)\n",
-		_md_nextchunk, nextchunk, nextchunk->__canary__, _md_nextchunk->__canary__, _md_temp->md_next, tempnext, tempnext->__canary__, _md_temp->md_next->__canary__
-		);
-      }
-      */
-
       check_metadata_chunk(av, p, _md_p);
       check_metadata(av, _md_nextchunk);
       check_metadata(av, _md_temp->md_next);
@@ -5243,15 +5407,23 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock)
           systrim(mp_.top_pad, av);
 #endif
       } else {
-        /* Always try heap_trim(), even if the top chunk is not
-           large, because the corresponding heap might go away.  */
-        heap_info *heap = heap_for_ptr(topchunk);
+        /*
+	  Try heap_trim(), except in the case where we have just 
+	  created a new heap and are freeing the old top (minus
+	  the fenceposts). In the remaining cases, even if the top chunk is not
+	  large, the corresponding heap might go away.  
 
+	  The freshheap guard is missing in glibc and psmalloc2.
+	  Not sure why. It is rare, but it does seem to happen.
+	*/
+	if (!freshheap){
+        heap_info *heap = heap_for_ptr(topchunk);
         assert(heap->ar_ptr == av);
 	check_top(av);
         heap_trim(heap, mp_.top_pad);
 	check_top(av);
       }
+    }
     }
     
     if(!have_lock){
@@ -5468,6 +5640,10 @@ static void malloc_consolidate(mstate av)
   }
   else {
     malloc_init_state(av, true);
+    
+    //SRI: FIXME
+    check_bins(av);
+    
     check_malloc_state(av);
   }
 }
@@ -5516,7 +5692,6 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
     {
-      mchunkptr oldp = chunkinfo2chunk(_md_oldp);
       fprintf(stderr, "md_oldp = %p oldp = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_oldp, oldp, av->arena_index, _md_oldp->__canary__, oldp->__canary__);
       
@@ -5545,7 +5720,6 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       mchunkptr next = chunkinfo2chunk(_md_next);
       fprintf(stderr, "md_next = %p next = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_next, next, av->arena_index, _md_next->__canary__, next->__canary__);
-
       errstr = "realloc(): invalid next size";
       goto errout;
     }
@@ -5584,7 +5758,6 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
           check_inuse_chunk (av, oldp, _md_oldp);
 	  check_top(av);
-
           return _md_oldp;
         }
 
@@ -5599,9 +5772,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 	  
 	  /* fix the md_next and md_prev pointers */
 	  _md_temp = _md_next->md_next;
-	  if(_md_temp != NULL)
-	    _md_temp->md_prev = _md_oldp;
 	  _md_oldp->md_next = _md_temp;
+	  if(_md_temp != NULL){
+	    _md_temp->md_prev = _md_oldp;
+	    check_metadata(av, _md_temp);
+	  }
 
 	  check_metadata_chunk(av, oldp, _md_oldp);
 
@@ -5614,10 +5789,12 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       /* allocate, copy, free */
       else
         {
+
           _md_newp = _int_malloc (av, nb - MALLOC_ALIGN_MASK);
 
-          if (_md_newp == 0)
+          if (_md_newp == 0){
             return 0; /* propagate failure */
+	  }
           
           newp = chunkinfo2chunk(_md_newp);
           newmem = chunkinfo2mem(_md_newp);
@@ -5683,7 +5860,8 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
                     }
                 }
 
-              _int_free (av, _md_oldp, oldp, 1);
+              _int_free (av, _md_oldp, oldp, 1, false);
+
               check_inuse_chunk (av, newp, _md_newp);
               return _md_newp;
             }
@@ -5740,7 +5918,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
       set_inuse_bit_at_offset (av, _md_remainder, remainder, remainder_size);
 
       
-      _int_free (av, _md_remainder, remainder, 1);
+      _int_free (av, _md_remainder, remainder, 1, false);
     }
 
   assert(_md_newp != NULL);
@@ -5869,7 +6047,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       check_metadata(av, _md_temp);
       check_metadata_chunk(av, newp, _md_newp);
 
-      _int_free (av, _md_p, p, 1);
+      _int_free (av, _md_p, p, 1, false);
       p = newp;
       _md_p = _md_newp;
       assert (newsize >= nb &&
@@ -5900,7 +6078,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
 
 
 
-          _int_free (av, _md_remainder, remainder, 1);
+          _int_free (av, _md_remainder, remainder, 1, false);
         }
     }
 

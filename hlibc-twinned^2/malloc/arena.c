@@ -21,6 +21,8 @@
 
 #include "lookup.h"
 
+
+
 /***************************************************************************/
 
 /* A heap is a single contiguous memory region holding (coalesceable)
@@ -242,7 +244,7 @@ free_atfork (void *mem, const void *caller)
     }
 
   ar_ptr = arena_for_chunk (p);
-  _int_free (ar_ptr, NULL, p, thread_arena == ATFORK_ARENA_PTR);
+  _int_free (ar_ptr, NULL, p, thread_arena == ATFORK_ARENA_PTR, false);
 }
 
 
@@ -724,7 +726,6 @@ heap_trim (heap_info *heap, size_t pad)
 
   mchunkptr top_chunk = chunkinfo2chunk(ar_ptr->_md_top);
   chunkinfoptr _md_top_chunk = ar_ptr->_md_top;
-  chunkinfoptr _md_top_chunk_prev;
   chunkinfoptr _md_top_chunk_next;
 
   chunkinfoptr bck, fwd;
@@ -754,7 +755,6 @@ heap_trim (heap_info *heap, size_t pad)
 
       do_check_top(ar_ptr, __FILE__, __LINE__);
 
-      _md_top_chunk_prev = _md_top_chunk->md_prev;
       _md_top_chunk_next = _md_top_chunk->md_next;
 
       /* 
@@ -782,7 +782,7 @@ heap_trim (heap_info *heap, size_t pad)
       
       _md_fencepost = _md_p;
 
-      assert(_md_fencepost == _md_top_chunk_prev);
+      assert(_md_fencepost == _md_top_chunk->md_prev);
 
       p = prev_chunk (_md_p, p);
       _md_p = lookup_chunk(ar_ptr, p);
@@ -855,7 +855,6 @@ heap_trim (heap_info *heap, size_t pad)
       do_check_metadata_chunk(ar_ptr, top_chunk, _md_top_chunk, __FILE__, __LINE__);
 
       set_head (_md_p, new_size | PREV_INUSE);
-
 
       do_check_top(ar_ptr, __FILE__, __LINE__);
 

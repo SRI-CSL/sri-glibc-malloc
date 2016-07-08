@@ -124,9 +124,16 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #SRI hack to compile our version of malloc without optimizations.
 #you will need to make sure that you have commented out line 4 
 # of config.h in the glibc-build directory.
-# -DSRI_MALLOC_LOG=1 -DMALLOC_DEBUG=1
-
-
+# uses canaries to keep track of a chunks history.
+#-DSRI_DEBUG=1
+# logs calls to a file
+# -DSRI_MALLOC_LOG=1 
+# turns on all the assertion
+# -DMALLOC_DEBUG=1
+# uses the google hash rather than jenkins
+# -DSRI_NOT_JENKINS
+# includes a histogram of the bins in the stats per arena hashtable
+# -DSRI_HISTOGRAM   
 CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
 CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
 CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
@@ -147,7 +154,7 @@ CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
 #CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 #CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
 #CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
-#CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM -DSRI_NOT_JENKINS
+#CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
 
 

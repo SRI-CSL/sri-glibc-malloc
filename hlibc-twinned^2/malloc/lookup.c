@@ -85,14 +85,15 @@ static sbrk_region_t *sbrk_regions;
 
 static lfht_t heap_tbl;  // maps heap ptr --> arena_index
 static lfht_t mmap_tbl;  // maps mmapped region --> size 
-
+static size_t heap_max;  // value of HEAP_MAX_SIZE at runtime
 /*
  * N.B. We could eliminate the need for a mmapped arena 
  * if we also stored the offset of the region, somehow ...
  */
 
 
-void lookup_init(void){
+void lookup_init(size_t hmax){
+  heap_max = hmax;
   sbrk_regions = sri_mmap(NULL, sbrk_region_current_max * sizeof(sbrk_region_t));
   if( ! sbrk_regions ||
       ! init_lfht(&heap_tbl, HEAP_HTABLE_CAPACITY) ||  
@@ -132,7 +133,7 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
   }
 
   /* Compare with heap_for_ptr in arena.c */
-  uintptr_t heap = ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1));
+  uintptr_t heap = ((unsigned long) (ptr) & ~(heap_max - 1));
 
   success =  lfht_find(&heap_tbl, heap, &val);
   

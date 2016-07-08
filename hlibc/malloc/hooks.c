@@ -210,8 +210,10 @@ mem2chunk_check (chunkinfoptr _md_p, mchunkptr p, void *mem, unsigned char **mag
 	  if ((char*)prev_p < mp_.sbrk_base){ return NULL; }
 	}
 
-	_md_prev_p = lookup_chunk(&main_arena, prev_p);
-	if(_md_prev_p == NULL){ return NULL; }
+	assert(md_prev_sanity_check(&main_arena, _md_p, p));
+
+	_md_prev_p = _md_p->md_prev;
+
 	next_p = next_chunk(_md_prev_p, prev_p);
 	if (next_p != p){
 	  return NULL;

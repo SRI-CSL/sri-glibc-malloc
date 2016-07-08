@@ -134,19 +134,19 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # -DSRI_NOT_JENKINS
 # includes a histogram of the bins in the stats per arena hashtable
 # -DSRI_HISTOGRAM   
-CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
-CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
-CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
+#CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
+#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
+#CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
+#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
+#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
 
-#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   
-#CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    
-#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   
-#CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    
-#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   
-#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   
+CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    
+CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   
+CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    
+CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   
+CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
 
 #CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1

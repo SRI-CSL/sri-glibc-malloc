@@ -784,13 +784,10 @@ heap_trim (heap_info *heap, size_t pad)
 
       assert(_md_fencepost == _md_top_chunk->md_prev);
 
-      p = prev_chunk (_md_p, p);
-      _md_p = lookup_chunk(ar_ptr, p);
-      if(_md_p == NULL){
-	missing_metadata(ar_ptr, p); 
-	return 0;
-      }
- 
+      assert(md_prev_sanity_check(ar_ptr, _md_p, p));
+      _md_p =_md_p->md_prev;
+      p = chunkinfo2chunk(_md_p);
+	
       new_size = chunksize (_md_p) + (MINSIZE - 2 * SIZE_SZ) + misalign;
 
       assert (new_size > 0 && new_size < (long) (2 * MINSIZE)); /* must be fencepost_1 */
@@ -830,14 +827,14 @@ heap_trim (heap_info *heap, size_t pad)
         {
 	  mchunkptr op = p;
 	  _md_temp = _md_p->md_next;
-          p = prev_chunk (_md_p, p);
+
+	  assert(md_prev_sanity_check(ar_ptr, _md_p, p));
+
+	  _md_p = _md_p->md_prev;
+	  p = chunkinfo2chunk(_md_p);
+
 	  unregister_chunk(ar_ptr, op, 5);  
-	  //FIXME: once twinned we can use the md_prev pointer here.
-	  _md_p = lookup_chunk(ar_ptr, p);
-	  if(_md_p == NULL){
-	    missing_metadata(ar_ptr, p);
-	    return 0;
-	  }
+
           bin_unlink(ar_ptr, _md_p, &bck, &fwd);
 	  /* fix the md_next and md_prev pointers */
 	  _md_p->md_next = _md_temp;

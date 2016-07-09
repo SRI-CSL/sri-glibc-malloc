@@ -120,7 +120,7 @@ bool lookup_arena_index(void* ptr, size_t *arena_indexp){
 
   for(i = 0; i <= sbrk_region_count; i++){
     if( sbrk_regions[i].lo <= (uintptr_t)ptr && 
-	(uintptr_t)ptr <= sbrk_regions[i].hi ){ 
+	(uintptr_t)ptr < sbrk_regions[i].hi ){ 
       *arena_indexp = 1;
       return true;
     }

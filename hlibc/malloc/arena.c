@@ -229,14 +229,23 @@ free_atfork (void *mem, const void *caller)
   mstate ar_ptr;
   mchunkptr p;                 /* chunk corresponding to mem */
   chunkinfoptr _md_p;          /* metadata of chunk  */
-
-
+  size_t index;                /* index of chunk's arena */
+  bool success;
+  
   if (mem == 0)                /* free(0) has no effect */
     return;
 
   p = mem2chunk (mem);         /* do not bother to replicate free_check here */
 
-  if (chunk_is_mmapped (p))    /* release mmapped memory. */
+  index = 0;
+  success = lookup_arena_index(p, &index);
+  if(!success){
+    fprintf(stderr, "lookup_arena_index(%p) failed in free_at_fork\n", p);
+    lookup_dump(stderr, true);
+  }
+  assert(success);
+  
+  if (index == MMAPPED_ARENA_INDEX)                       /* release mmapped memory. */
     {
       _md_p = lookup_chunk(&main_arena, p);  //SRI: do we have the lock here?
       munmap_chunk(_md_p);

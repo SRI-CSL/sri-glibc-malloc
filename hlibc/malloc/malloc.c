@@ -1227,6 +1227,9 @@ static inline bool checked_request2size(size_t req, size_t *sz)
 /* size field is or'ed with PREV_INUSE when previous adjacent chunk in use */
 #define PREV_INUSE 0x1
 
+/* size field is or'ed with IS_MMAPPED if the chunk was obtained with mmap() */
+#define IS_MMAPPED 0x2
+
 /* extract inuse bit of previous chunk */
 static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 {
@@ -1281,8 +1284,10 @@ static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index
 
 
 /* check for mmap()'ed chunk */
-static inline bool chunk_is_mmapped(mchunkptr p)
+static inline bool chunk_is_mmapped(chunkinfoptr _md_p, mchunkptr p)
 {
+  assert(((_md_p->size & IS_MMAPPED) == IS_MMAPPED) == !p->arena_index);
+  
   return  p->arena_index == MMAPPED_ARENA_INDEX;
 }
 
@@ -1298,7 +1303,7 @@ static inline bool chunk_non_main_arena(mchunkptr p)
   Bits to mask off when extracting size
 
 */
-#define SIZE_BITS (PREV_INUSE)
+#define SIZE_BITS (PREV_INUSE | IS_MMAPPED)
 
 /* Ptr to next physical malloc_chunk. */
 static inline mchunkptr next_chunk(chunkinfoptr _md_p, mchunkptr p)
@@ -2247,8 +2252,8 @@ static inline INTERNAL_SIZE_T chunksize(chunkinfoptr ci)
 
 static void report_missing_metadata(mstate av, mchunkptr p, const char* file, int lineno)
 {
-  fprintf(stderr, "No metadata for %p. main_arena %d. chunk_is_mmapped: %d @ %s line %d\n", 
-          chunk2mem(p), av == &main_arena, chunk_is_mmapped(p), file, lineno);
+  fprintf(stderr, "No metadata for %p. main_arena %d @ %s line %d\n", 
+          chunk2mem(p), av == &main_arena, file, lineno);
   abort();
 }
 
@@ -2314,7 +2319,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
   return false;
 }
 
-
+#ifndef NDEBUG
 static void
 do_check_bins (mstate av, const char* file, int lineno)
 {
@@ -2423,6 +2428,7 @@ do_check_bins (mstate av, const char* file, int lineno)
         }
     }
 }
+#endif
 
 /* -------------- Early definitions for debugging hooks ---------------- */
 
@@ -2532,7 +2538,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 #if !MALLOC_DEBUG
 
 # define check_top(A)                          do_check_top(A, __FILE__,__LINE__)
-# define check_bins(A)                         do_check_bins(A, __FILE__,__LINE__)
+# define check_bins(A)                         
 # define check_chunk(A, P, MD_P)
 # define check_free_chunk(A, P, MD_P)
 # define check_inuse_chunk(A, P, MD_P)
@@ -2571,7 +2577,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
   /* no crashing in debugging when we are running out of memory */
   if(av == NULL){ return; }
 
-  assert(chunk_is_mmapped (p) || (av == arena_from_chunk(p)));
+  assert(chunk_is_mmapped (_md_p, p) || (av == arena_from_chunk(p)));
 
   sz = chunksize (_md_p);
   
@@ -2585,7 +2591,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
 
   do_check_metadata_chunk(av, p, _md_p, file, lineno);
 
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (_md_p, p))
     {
       /* Has legal address ... */
       if (p != topchunk)
@@ -2646,7 +2652,7 @@ do_check_free_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fil
   
   /* Chunk must claim to be free ... */
   assert (!inuse(av, _md_p, p));
-  assert (!chunk_is_mmapped (p));
+  assert (!chunk_is_mmapped (_md_p, p));
 
   /* Unless a special marker, must have OK fields */
   if ((unsigned long) (sz) >= MINSIZE)
@@ -2687,7 +2693,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* fi
 
   topchunk = chunkinfo2chunk(av->_md_top);
 
-  if (chunk_is_mmapped (p))
+  if (chunk_is_mmapped (_md_p, p))
     return; /* mmapped chunks have no next/prev */
 
   /* Check whether it claims to be in use ... */
@@ -2740,7 +2746,7 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p,
 
   sz = _md_p->size & ~PREV_INUSE;
 
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (_md_p, p))
     {
       assert (av == arena_for_chunk (p));
       if (chunk_non_main_arena (p))
@@ -3164,11 +3170,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               if (front_misalign > 0)
                 {
                   _md_p->prev_size = correction;
-                  set_head (_md_p, (size - correction));
+                  set_head (_md_p, (size - correction) | IS_MMAPPED);
                 }
               else
                 {
-                  set_head (_md_p, size);
+                  set_head (_md_p, size | IS_MMAPPED);
                 }
 	      
 	      lookup_add_mmap(p, size);
@@ -3262,8 +3268,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         {
           av->system_mem += old_heap->size - old_heap_size;
           arena_mem += old_heap->size - old_heap_size;
-          set_head (_md_old_top, (((char *) old_heap + old_heap->size) - (char *) old_top)
-                    | PREV_INUSE);
+          set_head (_md_old_top, (((char *) old_heap + old_heap->size) - (char *) old_top) | PREV_INUSE);
         }
       else if ((heap = new_heap (nb + (MINSIZE + sizeof (*heap)), mp_.top_pad)))
         {
@@ -3799,7 +3804,7 @@ munmap_chunk (chunkinfoptr _md_p)
   INTERNAL_SIZE_T size = chunksize (_md_p);
   mchunkptr p = chunkinfo2chunk(_md_p);
 
-  assert (chunk_is_mmapped (p));
+  assert (chunk_is_mmapped (_md_p, p));
 
   uintptr_t block = (uintptr_t) p - _md_p->prev_size;
   size_t total_size = _md_p->prev_size + size;
@@ -3842,7 +3847,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
   p = chunkinfo2chunk(_md_p);
   offset = _md_p->prev_size;
 
-  assert (chunk_is_mmapped (p));
+  assert (chunk_is_mmapped (_md_p, p));
   assert (((size + offset) & (GLRO (dl_pagesize) - 1)) == 0);
 
   /* remember for later */
@@ -3880,7 +3885,7 @@ mremap_chunk (mstate av, chunkinfoptr _md_p, size_t new_size)
 
   assert ((_md_p->prev_size == offset));
   
-  set_head (_md_p, (new_size - offset));
+  set_head (_md_p, (new_size - offset)| IS_MMAPPED);
 
 
   INTERNAL_SIZE_T new;
@@ -3925,7 +3930,7 @@ __libc_malloc (size_t bytes)
 
   mem = chunkinfo2mem(_md_victim);
 
-  assert (!mem || chunk_is_mmapped (mem2chunk (mem)) ||
+  assert (!mem || chunk_is_mmapped (_md_victim, mem2chunk (mem)) ||
           ar_ptr == arena_for_chunk (mem2chunk (mem)));
   
   if (ar_ptr != NULL)check_top(ar_ptr);
@@ -3976,7 +3981,7 @@ __libc_free (void *mem)
   }
   assert(success);
   
-  if (chunk_is_mmapped (p))                       /* release mmapped memory. */
+  if (index == MMAPPED_ARENA_INDEX)                       /* release mmapped memory. */
     {
       LOCK_ARENA(ar_ptr, FREE_SITE);
       
@@ -4108,7 +4113,7 @@ __libc_realloc (void *oldmem, size_t bytes)
     return 0;
   }
 
-  if (chunk_is_mmapped (oldp))
+  if (chunk_is_mmapped (_md_oldp, oldp))
     {
       void *newmem;
 #if HAVE_MREMAP
@@ -4154,7 +4159,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
 
-  assert (!mem || chunk_is_mmapped (newp) ||
+  assert (!mem || chunk_is_mmapped (_md_newp, newp) ||
           ar_ptr == arena_for_chunk (newp));
 
   if (mem == NULL)
@@ -4250,7 +4255,7 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
 
   p = chunkinfo2mem(_md_p);
 
-  assert (!p || chunk_is_mmapped (mem2chunk (p)) ||
+  assert (!p || chunk_is_mmapped (_md_p, mem2chunk (p)) ||
           ar_ptr == arena_for_chunk (mem2chunk (p)));
   return p;
 }
@@ -4375,7 +4380,7 @@ __libc_calloc (size_t n, size_t elem_size)
   victim = chunkinfo2chunk(_md_victim);
   mem = chunkinfo2mem(_md_victim);
 
-  assert (!mem || chunk_is_mmapped (victim) ||
+  assert (!mem || chunk_is_mmapped (_md_victim, victim) ||
           av == arena_for_chunk (victim));
 
   if (mem == 0 && av != NULL)
@@ -4395,7 +4400,7 @@ __libc_calloc (size_t n, size_t elem_size)
     return 0;
 
   /* Two optional cases in which clearing not necessary */
-  if (chunk_is_mmapped (victim))
+  if (chunk_is_mmapped (_md_victim, victim))
     {
       if (__builtin_expect (perturb_byte, 0))
         return memset (mem, 0, sz);
@@ -5154,7 +5159,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool fres
   _md_nextchunk = _md_p->md_next;
   nextchunk = chunkinfo2chunk(_md_nextchunk);
   nextsize = chunksize (_md_nextchunk);
-
+  
   /*
     If eligible, place chunk on a fastbin so it can be found
     and used quickly in malloc.
@@ -5221,7 +5226,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool fres
     Consolidate other non-mmapped chunks as they arrive.
   */
 
-  else if (!chunk_is_mmapped(p)) {
+  else if (!chunk_is_mmapped(_md_p, p)) {
 
     /* Lightweight tests: check whether the block is already the
        top block.  */
@@ -5662,7 +5667,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   check_inuse_chunk (av, oldp, _md_oldp);
 
   /* All callers already filter out mmap'ed chunks.  */
-  assert (!chunk_is_mmapped (oldp));
+  assert (!chunk_is_mmapped (_md_oldp, oldp));
 
   assert(md_next_sanity_check(av, _md_oldp, oldp));
   
@@ -5951,7 +5956,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
       newsize = chunksize (_md_p) - leadsize;
 
       /* For mmapped chunks, just adjust offset */
-      if (chunk_is_mmapped (p))
+      if (chunk_is_mmapped (_md_p, p))
         {
 	  /* make sure we the main_arena is good to handle this request */
 	  if (av != &main_arena) {
@@ -5972,7 +5977,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
           _md_newp = register_chunk(&main_arena, newp, true, 15);
           _md_newp->prev_size = _md_p->prev_size + leadsize;
 	  _md_newp->md_next = _md_newp->md_prev = NULL;
-          set_head (_md_newp, newsize);
+          set_head (_md_newp, newsize | IS_MMAPPED);
 
 	  check_metadata_chunk(av, newp, _md_newp);
 
@@ -6013,7 +6018,7 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
     }
 
   /* Also give back spare room at the end */
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (_md_p, p))
     {
       size = chunksize (_md_p);
       if ((unsigned long) (size) > (unsigned long) (nb + MINSIZE))
@@ -6167,7 +6172,7 @@ musable (void *mem)
       if (__builtin_expect (using_malloc_checking == 1, 0)){
         retval =  malloc_check_get_size (ar_ptr, _md_p, p);
       } 
-      else if (chunk_is_mmapped(p)){
+      else if (chunk_is_mmapped(_md_p, p)){
 	retval = chunksize(_md_p) - 2*SIZE_SZ; 
       }
       else if (inuse(ar_ptr, _md_p, p)){

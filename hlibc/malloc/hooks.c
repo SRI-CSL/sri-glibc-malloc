@@ -116,7 +116,7 @@ malloc_check_get_size (mstate av, chunkinfoptr _md_p, mchunkptr p)
 
   assert (using_malloc_checking == 1);
 
-  for (size = chunksize (_md_p) - 1 + (chunk_is_mmapped (p) ? 0 : SIZE_SZ);
+  for (size = chunksize (_md_p) - 1 + (chunk_is_mmapped (_md_p, p) ? 0 : SIZE_SZ);
        (c = ((unsigned char *) p)[size]) != magic;
        size -= c)
     {
@@ -124,7 +124,7 @@ malloc_check_get_size (mstate av, chunkinfoptr _md_p, mchunkptr p)
         {
           malloc_printerr (check_action, "malloc_check_get_size: memory corruption",
                            chunk2mem (p),
-			   chunk_is_mmapped (p) ? &main_arena : av);
+			   chunk_is_mmapped (_md_p, p) ? &main_arena : av);
           return 0;
         }
     }
@@ -151,7 +151,7 @@ mem2mem_check (chunkinfoptr _md_p, mchunkptr p, void *mem, size_t req_sz)
 
   magic = magicbyte (p);
   max_sz = chunksize (_md_p) - 2 * SIZE_SZ;
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (_md_p, p))
     max_sz += SIZE_SZ;
   for (i = max_sz - 1; i > req_sz; i -= block_sz)
     {
@@ -186,7 +186,7 @@ mem2chunk_check (chunkinfoptr _md_p, mchunkptr p, void *mem, unsigned char **mag
   assert(p == mem2chunk (mem));
   sz = chunksize (_md_p);
   magic = magicbyte (p);
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (_md_p, p))
     {
       // Must be a chunk in conventional heap memory. 
       int contig = contiguous (&main_arena);
@@ -238,7 +238,7 @@ mem2chunk_check (chunkinfoptr _md_p, mchunkptr p, void *mem, unsigned char **mag
            offset != 0x20 && offset != 0x40 && offset != 0x80 && offset != 0x100 &&
            offset != 0x200 && offset != 0x400 && offset != 0x800 && offset != 0x1000 &&
            offset < 0x2000) ||
-          !chunk_is_mmapped (p) || (_md_p->size & PREV_INUSE) ||
+          !chunk_is_mmapped (_md_p, p) || (_md_p->size & PREV_INUSE) ||
           ((((unsigned long) p - _md_p->prev_size) & page_mask) != 0) ||
           ((_md_p->prev_size + sz) & page_mask) != 0)
         return NULL;
@@ -271,7 +271,7 @@ top_check (void)
   unsigned long pagesz = GLRO (dl_pagesize);
 
   if (ot == &main_arena.initial_top ||
-      (!chunk_is_mmapped (ot) &&
+      (!chunk_is_mmapped (_md_ot, ot) &&
        ot_sz >= MINSIZE &&
        prev_inuse (_md_ot, ot) &&
        (!contiguous (&main_arena) ||
@@ -350,7 +350,7 @@ free_check (void *mem, const void *caller)
       return;
     }
 
-  if (chunk_is_mmapped (p))
+  if (chunk_is_mmapped (_md_p, p))
     {
       munmap_chunk(_md_p);
       unregister_chunk(&main_arena, p, false); 
@@ -409,7 +409,7 @@ realloc_check (void *oldmem, size_t bytes, const void *caller)
   }
   (void) mutex_lock (&main_arena.mutex);
 
-  if (chunk_is_mmapped (oldp))
+  if (chunk_is_mmapped (_md_oldp, oldp))
     {
 
 #if HAVE_MREMAP

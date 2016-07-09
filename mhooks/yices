@@ -1,9 +1,8 @@
 #!/bin/sh
 
 
-CMD=/home/iam/Repositories/yices2/build/x86_64-unknown-linux-gnu-release/bin/yices_smt2
-ARG=/home/iam/Repositories/yices2/tests/regress/coverage/smtlib/QF_IDL/queens_bench/super_queen/super_queen33-1.smt2
-
+CMD=/vagrant/yices2/build/x86_64-unknown-linux-gnu-release/bin/yices_smt2
+ARG=/vagrant/yices2/tests/regress/coverage/random/QF_AUFBV/80b4dce0.smt2
 #tests/regress/coverage/random/QF_AUFBV/2668e3c6.smt2
 rm -f /tmp/mhook.out
 OUT=$(basename $CMD)

@@ -117,12 +117,6 @@ static size_t arena_count = 1;
   (chunk_non_main_arena (ptr) ? heap_for_ptr (ptr)->ar_ptr : &main_arena)
 
 
-/* SRI: check that the arena_index of a chunk make sense */
-static bool _arena_is_sane(mchunkptr p, const char* file, int lineno){
-  size_t count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-  return p->arena_index <= count;
-}
-
 /* SRI:
  *
  * Returns the arena with the same index as ptr.  Though we try to
@@ -131,6 +125,35 @@ static bool _arena_is_sane(mchunkptr p, const char* file, int lineno){
  *
  *
  */
+static mstate arena_from_index(INTERNAL_SIZE_T index){
+  mstate arena;
+  size_t count;
+  
+  if(index < NON_MAIN_ARENA_INDEX){
+    return &main_arena;
+  }
+
+  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
+
+  assert(index  <= count + 1);
+
+  arena = main_arena.next;
+  
+  while(count > 0 && arena->arena_index != index){
+    arena = arena->next;
+    count--;
+  }
+
+  assert(arena != NULL);
+  assert(arena->arena_index == index);
+  
+  /* unsafe; but just a sanity check */
+  assert((heap_for_ptr(ptr))->ar_ptr == arena);
+
+  return arena;
+}
+
+#ifndef NDEBUG
 static mstate arena_from_chunk(mchunkptr ptr){
   INTERNAL_SIZE_T index;
   mstate arena;
@@ -164,7 +187,7 @@ static mstate arena_from_chunk(mchunkptr ptr){
 
   return arena;
 }
-
+#endif
 
 /**************************************************************************/
 

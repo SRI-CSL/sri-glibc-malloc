@@ -1259,14 +1259,6 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 #define MAIN_ARENA_INDEX     0x1
 #define NON_MAIN_ARENA_INDEX 0x2
 
-/*
- *  SRI: returns true if the arena_index in p makes sense, it doesn't
- * mean that p actually came from that arena, just that is claims to
- * have.  It returns false otherwise
-*/
-static bool _arena_is_sane(mchunkptr p, const char* file, int lineno);
-
-#define arena_is_sane(P) _arena_is_sane(P, __FILE__, __LINE__)
 
 INTERNAL_SIZE_T get_arena_index(mchunkptr p)
 {
@@ -3945,7 +3937,6 @@ __libc_free (void *mem)
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
   chunkinfoptr _md_p;                   /* metadata of chunk corresponding to mem */
-  bool sane;
 
   void (*hook) (void *, const void *)
     = atomic_forced_read (__free_hook);
@@ -3960,27 +3951,18 @@ __libc_free (void *mem)
 
   p = mem2chunk (mem);
 
-  /* proceed only if sane */
-  sane = arena_is_sane(p);
-  assert(sane);
-  if (!sane) { 
-    fprintf(stderr, "insane free: arena_index = %zu\n", p->arena_index);
-    abort();
-    return; 
-  }
-
-  ar_ptr = arena_from_chunk (p);
-
   size_t index = 0;
   bool success = lookup_arena_index(p, &index);
   if(!success){
-    fprintf(stderr, 
-	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
-	    p, ar_ptr->arena_index, p->arena_index);
+    fprintf(stderr, "lookup_arena_index(%p) failed.\n", p);
     lookup_dump(stderr, true);
   }
   assert(success);
-  
+
+  ar_ptr = arena_from_index(index);
+
+  assert(ar_ptr == arena_from_chunk (p));
+
   if (index == MMAPPED_ARENA_INDEX)                       /* release mmapped memory. */
     {
       LOCK_ARENA(ar_ptr, FREE_SITE);
@@ -4031,8 +4013,6 @@ __libc_realloc (void *oldmem, size_t bytes)
   mchunkptr newp;             /* chunk of mem to return  */
   chunkinfoptr _md_newp;      /* metadata of mem */
 
-  bool sane;                  /* arena_index is sane */
-
   void *(*hook) (void *, size_t, const void *) =
     atomic_forced_read (__realloc_hook);
   if (__builtin_expect (hook != NULL, 0))
@@ -4053,26 +4033,18 @@ __libc_realloc (void *oldmem, size_t bytes)
   const mchunkptr oldp = mem2chunk (oldmem);
 
 
-  /* proceed only if sane */
-  sane = arena_is_sane(oldp);
-  assert(sane);
-  if (!sane) { 
-    fprintf(stderr, "insane realloc: arena_index = %zu\n", oldp->arena_index);
-    abort();
-    return 0; 
-  }
-
-  ar_ptr = arena_from_chunk (oldp);
-
   size_t index = 0;
   bool success = lookup_arena_index(oldp, &index);
   if(!success){
-    fprintf(stderr, 
-	    "lookup_arena_index(%p) failed for the arena: %zu  p->arena_index = %zu\n", 
-	    oldp, ar_ptr->arena_index, oldp->arena_index);
+    fprintf(stderr, "lookup_arena_index(%p) failed.\n", oldp);
     lookup_dump(stderr, true);
   }
   assert(success);
+  
+
+  ar_ptr = arena_from_index(index);
+
+  assert(ar_ptr == arena_from_chunk (p));
 
   LOCK_ARENA(ar_ptr, REALLOC_SITE);
 
@@ -5107,8 +5079,6 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool fres
     Sometimes we have neither the lock nor _md_p (__libc_free)
 
   */
-
-  assert( (av == NULL) || arena_from_chunk(p) );
 
   assert( (_md_p == NULL) || chunkinfo2chunk(_md_p) == p );
 

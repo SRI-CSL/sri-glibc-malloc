@@ -263,7 +263,11 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   hist_limit = (log2_32(maxlength) + 2 < 33) ? (log2_32(maxlength) + 2) : 33;
 
   for(index = 0; index < hist_limit; index++){
-    fprintf(fp, "histogram[%zu] =\t%"PRIu32"\n", index, histogram[index]);
+    if(index){
+      fprintf(fp, "histogram[2^%zu] =\t%"PRIu32"\n", index, histogram[index]);
+    } else {
+      fprintf(fp, "histogram[%zu]   =\t%"PRIu32"\n", index, histogram[index]);
+    }
   }
 #endif
 }

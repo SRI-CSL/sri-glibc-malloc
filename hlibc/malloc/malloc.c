@@ -244,13 +244,6 @@
 /* For ALIGN_UP et. al.  */
 #include <libc-internal.h>
 
-/* 
-   SRI: we need to use assert as well, so we pull it out into it's own
-   header file
-*/
-#include "gassert.h"
-
-
 /*
   Debugging:
 
@@ -282,6 +275,13 @@
 #ifndef MALLOC_DEBUG
 #define MALLOC_DEBUG 0
 #endif
+
+/* 
+   SRI: we need to use assert as well, so we pull it out into it's own
+   header file
+*/
+#include "gassert.h"
+
 
 /*
   INTERNAL_SIZE_T is the word-size used for internal bookkeeping
@@ -1140,8 +1140,10 @@ static inline void *sys_MMAP(void *addr, size_t length, int prot, int flags)
 */
 
 struct malloc_chunk {
+#ifdef SRI_DEBUG
   INTERNAL_SIZE_T      __canary__;   /* where prev_size use to live.  */
   INTERNAL_SIZE_T      arena_index;  /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
+#endif
 };
 
 #define HEADER_SIZE  sizeof(struct malloc_chunk)
@@ -1260,35 +1262,24 @@ static inline bool prev_inuse(chunkinfoptr _md_p, mchunkptr p)
 #define NON_MAIN_ARENA_INDEX 0x2
 
 
-INTERNAL_SIZE_T get_arena_index(mchunkptr p)
-{
-  assert(p != NULL);
-  return p->arena_index;
-}
-  
 static int arena_index(mstate av);
-
-static inline void set_arena_index(mstate av, mchunkptr p, INTERNAL_SIZE_T index)
-{
-  assert(p != NULL);
-  p->arena_index = index;
-}
-
 
 /* check for mmap()'ed chunk */
 static inline bool chunk_is_mmapped(chunkinfoptr _md_p, mchunkptr p)
 {
-  assert(((_md_p->size & IS_MMAPPED) == IS_MMAPPED) == !p->arena_index);
+  bool retval;
+
+  retval = (_md_p->size & IS_MMAPPED) == IS_MMAPPED; 
+
+#ifdef SRI_DEBUG
+  assert(retval == !p->arena_index);
+#endif
   
-  return  p->arena_index == MMAPPED_ARENA_INDEX;
+  return retval;
 }
 
-/* check for chunk from non-main arena */
-static inline bool chunk_non_main_arena(mchunkptr p)
-{
- return  p->arena_index >= NON_MAIN_ARENA_INDEX;
-}
-
+/* debugging only */
+static mstate arena_for_chunk(mchunkptr p);
 
 /*
 
@@ -2215,15 +2206,14 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped, int 
   chunkinfoptr _md_p = new_chunkinfoptr(av);
   bool success;
   
-  size_t a_idx = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
   _md_p->chunk = chunk2mem(p);
   
 #ifdef SRI_DEBUG
   p->__canary__ = 123456789000 + tag;
   _md_p->__canary__ = 123456789000 + tag;
+  p->arena_index = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
 #endif
   
-  set_arena_index(av, p, a_idx);
   success = metadata_add(&av->htbl, _md_p);
   assert(success);
   if( ! success ) { return NULL; }
@@ -2262,6 +2252,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       return false;
     }
 
+#ifdef SRI_DEBUG
     if(ci->md_next != NULL){
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
@@ -2303,7 +2294,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
 	return false;
       }
     }
-    
+#endif    
 
     return true;
   }
@@ -2530,7 +2521,7 @@ static void do_check_top(mstate av, const char* file, int lineno)
 #if !MALLOC_DEBUG
 
 # define check_top(A)                          do_check_top(A, __FILE__,__LINE__)
-# define check_bins(A)                         
+# define check_bins(A)                         do_check_bins(A, __FILE__,__LINE__)
 # define check_chunk(A, P, MD_P)
 # define check_free_chunk(A, P, MD_P)
 # define check_inuse_chunk(A, P, MD_P)
@@ -2569,7 +2560,7 @@ do_check_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p, const char* file, in
   /* no crashing in debugging when we are running out of memory */
   if(av == NULL){ return; }
 
-  assert(chunk_is_mmapped (_md_p, p) || (av == arena_from_chunk(p)));
+  assert(chunk_is_mmapped (_md_p, p) || (av == arena_for_chunk(p)));
 
   sz = chunksize (_md_p);
   
@@ -2741,10 +2732,6 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, chunkinfoptr _md_p,
   if (!chunk_is_mmapped (_md_p, p))
     {
       assert (av == arena_for_chunk (p));
-      if (chunk_non_main_arena (p))
-        assert (av != &main_arena);
-      else
-        assert (av == &main_arena);
     }
 
   do_check_inuse_chunk (av, p, _md_p, file, lineno);
@@ -3922,8 +3909,7 @@ __libc_malloc (size_t bytes)
 
   mem = chunkinfo2mem(_md_victim);
 
-  assert (!mem || chunk_is_mmapped (_md_victim, mem2chunk (mem)) ||
-          ar_ptr == arena_for_chunk (mem2chunk (mem)));
+  assert (!mem || chunk_is_mmapped (_md_victim, mem2chunk (mem)) || ar_ptr == arena_for_chunk (mem2chunk (mem)));
   
   if (ar_ptr != NULL)check_top(ar_ptr);
 
@@ -3961,7 +3947,7 @@ __libc_free (void *mem)
 
   ar_ptr = arena_from_index(index);
 
-  assert(ar_ptr == arena_from_chunk (p));
+  assert(ar_ptr == arena_for_chunk (p));
 
   if (index == MMAPPED_ARENA_INDEX)                       /* release mmapped memory. */
     {
@@ -4044,7 +4030,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   ar_ptr = arena_from_index(index);
 
-  assert(ar_ptr == arena_from_chunk (p));
+  //assert(ar_ptr == arena_from_chunk (oldmem));
 
   LOCK_ARENA(ar_ptr, REALLOC_SITE);
 
@@ -4131,8 +4117,7 @@ __libc_realloc (void *oldmem, size_t bytes)
 
   UNLOCK_ARENA(ar_ptr, REALLOC_SITE);
 
-  assert (!mem || chunk_is_mmapped (_md_newp, newp) ||
-          ar_ptr == arena_for_chunk (newp));
+  assert (!mem || chunk_is_mmapped (_md_newp, newp) || ar_ptr == arena_for_chunk (newp));
 
   if (mem == NULL)
     {
@@ -4227,8 +4212,8 @@ _mid_memalign (size_t alignment, size_t bytes, void *address)
 
   p = chunkinfo2mem(_md_p);
 
-  assert (!p || chunk_is_mmapped (_md_p, mem2chunk (p)) ||
-          ar_ptr == arena_for_chunk (mem2chunk (p)));
+  assert (!p || chunk_is_mmapped (_md_p, mem2chunk (p)) || ar_ptr == arena_for_chunk (mem2chunk (p)));
+
   return p;
 }
 /* For ISO C11.  */
@@ -4352,8 +4337,7 @@ __libc_calloc (size_t n, size_t elem_size)
   victim = chunkinfo2chunk(_md_victim);
   mem = chunkinfo2mem(_md_victim);
 
-  assert (!mem || chunk_is_mmapped (_md_victim, victim) ||
-          av == arena_for_chunk (victim));
+  assert (!mem || chunk_is_mmapped (_md_victim, victim) ||  av == arena_for_chunk (victim));
 
   if (mem == 0 && av != NULL)
     {
@@ -5624,9 +5608,10 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
     {
+#ifdef SRI_DEBUG
       fprintf(stderr, "md_oldp = %p oldp = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_oldp, oldp, av->arena_index, _md_oldp->__canary__, oldp->__canary__);
-      
+#endif
       errstr = "realloc(): invalid old size";
     errout:
       malloc_printerr (check_action, errstr, chunk2mem (oldp), av);
@@ -5650,9 +5635,11 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
     {
+#ifdef SRI_DEBUG
       mchunkptr next = chunkinfo2chunk(_md_next);
       fprintf(stderr, "md_next = %p next = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_next, next, av->arena_index, _md_next->__canary__, next->__canary__);
+#endif
       errstr = "realloc(): invalid next size";
       goto errout;
     }
@@ -6127,9 +6114,16 @@ musable (void *mem)
     {
       p = mem2chunk (mem);
 
-      ar_ptr = arena_for_chunk(p);
+      size_t index = 0;
+      bool success = lookup_arena_index(p, &index);
+      if(!success){
+	fprintf(stderr, "lookup_arena_index(%p) failed.\n", p);
+	lookup_dump(stderr, true);
+      }
+      assert(success);
+  
 
-      
+      ar_ptr = arena_from_index(index);
 
       LOCK_ARENA(ar_ptr, MUSABLE_SITE);
 

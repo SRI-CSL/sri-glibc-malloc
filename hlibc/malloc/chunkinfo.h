@@ -28,7 +28,9 @@ typedef struct chunkinfo {
   struct chunkinfo* md_next;         /* metatdata of the next chunk        used in malloc.[ch]    */
   struct chunkinfo* md_prev;         /* metatdata of the prev chunk        used in malloc.[ch]    */
 
+#ifdef SRI_DEBUG
   INTERNAL_SIZE_T   __canary__;
+#endif
   
   struct chunkinfo* next_bucket;     /* next bucket in the bin             used in metadata.[ch]  */
   bucket_pool_t*    bucket_pool_ptr; /* pointer to my bucket pool.         used in metadata.[ch]  */

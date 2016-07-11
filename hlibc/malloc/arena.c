@@ -113,9 +113,6 @@ static size_t arena_count = 1;
 
 #define heap_for_ptr(ptr) \
   ((heap_info *)((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
-#define arena_for_chunk(ptr) \
-  (chunk_non_main_arena (ptr) ? heap_for_ptr (ptr)->ar_ptr : &main_arena)
-
 
 /* SRI:
  *
@@ -135,6 +132,9 @@ static mstate arena_from_index(INTERNAL_SIZE_T index){
 
   count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
 
+  if(index  > count + 1){
+    fprintf(stderr, "index = %zu count = %zu\n", index, count);
+  }
   assert(index  <= count + 1);
 
   arena = main_arena.next;
@@ -147,47 +147,23 @@ static mstate arena_from_index(INTERNAL_SIZE_T index){
   assert(arena != NULL);
   assert(arena->arena_index == index);
   
-  /* unsafe; but just a sanity check */
-  assert((heap_for_ptr(ptr))->ar_ptr == arena);
-
   return arena;
 }
 
-#ifndef NDEBUG
-static mstate arena_from_chunk(mchunkptr ptr){
-  INTERNAL_SIZE_T index;
-  mstate arena;
-  size_t count;
-  
-  assert(ptr != NULL);
-
-  index = get_arena_index(ptr);
-
-  if(index < NON_MAIN_ARENA_INDEX){
-    return &main_arena;
+/* debugging only */
+static mstate arena_for_chunk(mchunkptr p)
+{
+  size_t index = 0;
+  bool success = lookup_arena_index(p, &index);
+  if(!success){
+    fprintf(stderr, "lookup_arena_index(%p) failed.\n", p);
+    lookup_dump(stderr, true);
   }
+  assert(success);
 
-  count = __atomic_load_n(&arena_count, __ATOMIC_SEQ_CST);
-  
-
-  assert(index  <= count + 1);
-
-  arena = main_arena.next;
-  
-  while(count > 0 && arena->arena_index != index){
-    arena = arena->next;
-    count--;
-  }
-
-  assert(arena != NULL);
-  assert(arena->arena_index == index);
-  
-  /* unsafe; but just a sanity check */
-  assert((heap_for_ptr(ptr))->ar_ptr == arena);
-
-  return arena;
+  return arena_from_index(index);
 }
-#endif
+
 
 /**************************************************************************/
 
@@ -275,7 +251,7 @@ free_atfork (void *mem, const void *caller)
       return;
     }
 
-  ar_ptr = arena_for_chunk (p);
+  ar_ptr = arena_from_index (index);
   _int_free (ar_ptr, NULL, p, thread_arena == ATFORK_ARENA_PTR, false);
 }
 
@@ -1006,7 +982,13 @@ _int_new_arena (size_t size)
 
   lookup_add_heap(h, a->arena_index);
 
-  set_arena_index(a, chunkinfo2chunk(a->_md_top), arena_count);
+#ifdef SRI_DEBUG
+  mchunkptr topchunk = chunkinfo2chunk(a->_md_top);
+  topchunk->arena_index = arena_count;
+#endif
+
+
+
   LOCK_ARENA(a, ARENA_SITE);
 
   (void) mutex_unlock (&list_lock);

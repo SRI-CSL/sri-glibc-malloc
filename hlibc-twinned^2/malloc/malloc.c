@@ -5390,6 +5390,9 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool fres
       if(!top_is_aligned(av)){
 	fprintf(stderr, "topsize = %zu topend = %p GLRO (dl_pagesize) = %zu\n", 
 		topsize, topend, GLRO (dl_pagesize));
+	topend = (char *) (chunk_at_offset (chunkinfo2chunk(_md_p), size));
+	fprintf(stderr, "new topsize = %zu new topend = %p\n", 
+		size, topend);
       }
 
       check_top(av);  //iam: check it here before we toss the metadata.

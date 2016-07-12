@@ -1279,7 +1279,9 @@ static inline bool chunk_is_mmapped(chunkinfoptr _md_p, mchunkptr p)
 }
 
 /* debugging only */
+#ifndef NDEBUG
 static mstate arena_for_chunk(mchunkptr p);
+#endif
 
 /*
 
@@ -3951,6 +3953,9 @@ __libc_free (void *mem)
 
   if (index == MMAPPED_ARENA_INDEX)                       /* release mmapped memory. */
     {
+      
+      assert(ar_ptr == &main_arena);
+
       LOCK_ARENA(ar_ptr, FREE_SITE);
       
       _md_p = lookup_chunk(ar_ptr, p);  
@@ -5557,9 +5562,10 @@ static void malloc_consolidate(mstate av)
   else {
     malloc_init_state(av, true);
     
-    //SRI: FIXME
+#ifndef NDEBUG
     check_bins(av);
-    
+#endif
+
     check_malloc_state(av);
   }
 }

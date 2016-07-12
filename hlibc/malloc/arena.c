@@ -150,7 +150,9 @@ static mstate arena_from_index(INTERNAL_SIZE_T index){
   return arena;
 }
 
+
 /* debugging only */
+#ifndef NDEBUG
 static mstate arena_for_chunk(mchunkptr p)
 {
   size_t index = 0;
@@ -163,7 +165,7 @@ static mstate arena_for_chunk(mchunkptr p)
 
   return arena_from_index(index);
 }
-
+#endif
 
 /**************************************************************************/
 

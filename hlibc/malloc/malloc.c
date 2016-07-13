@@ -1166,7 +1166,11 @@ static inline mchunkptr mem2chunk(void* mem)
 }
 
 /* The smallest possible chunk */
+#ifdef SRI_DEBUG
 #define MIN_CHUNK_SIZE       2 * sizeof(struct malloc_chunk)
+#else
+#define MIN_CHUNK_SIZE       4 * sizeof(INTERNAL_SIZE_T)
+#endif
 
 /* The smallest size we can malloc is an aligned minimal chunk */
 
@@ -1580,9 +1584,16 @@ typedef struct chunkinfo *mfastbinptr;
 #define fastbin(ar_ptr, idx)                    \
   ((ar_ptr)->fastbinsY[idx])
 
+
 /* offset 2 to use otherwise unindexable first 2 bins */
+
+#ifdef SRI_DEBUG
 #define fastbin_index(sz)                                       \
   ((((unsigned int) (sz)) >> (SIZE_SZ == 8 ? 4 : 3)) - 2)
+#else
+#define fastbin_index(sz)                                       \
+  ((((unsigned int) (sz + 16)) >> (SIZE_SZ == 8 ? 4 : 3)) - 2)
+#endif
 
 /* The maximum fastbin request size we support */
 #define MAX_FAST_SIZE     (80 * SIZE_SZ / 4)
@@ -1871,11 +1882,17 @@ static inline void bin_unlink(mstate av, chunkinfoptr p, chunkinfoptr *bkp, chun
 
 static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 {
+#ifndef SRI_DEBUG
+  sz += 16;
+#endif  
   return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
 }
 
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 {
+#ifndef SRI_DEBUG
+  sz += 16;
+#endif  
   if (SMALLBIN_WIDTH == 16) {
     return ((unsigned int)sz) >> 4;
   } else {
@@ -1885,6 +1902,7 @@ static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 
 static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz)
 {
+  //FIXME: r we ever going to run on 32 bit?
   return (((((unsigned long) sz) >> 6) <= 38) ?  56 + (((unsigned long) sz) >> 6) :
           ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
           ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -1896,6 +1914,7 @@ static inline unsigned int largebin_index_32(INTERNAL_SIZE_T sz)
 
 static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz)
 {
+  //FIXME: r we ever going to run on 32 bit?
   return (((((unsigned long) sz) >> 6) <= 45) ?  49 + (((unsigned long) sz) >> 6) :
           ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
           ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -1909,6 +1928,9 @@ static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz)
 // XXX of two as well.
 static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz)
 {
+#ifndef SRI_DEBUG
+  sz += 16;
+#endif  
   return (((((unsigned long) sz) >> 6) <= 48) ?  48 + (((unsigned long) sz) >> 6) :
           ((((unsigned long) sz) >> 9) <= 20) ?  91 + (((unsigned long) sz) >> 9) :
           ((((unsigned long) sz) >> 12) <= 10) ? 110 + (((unsigned long) sz) >> 12) :
@@ -5094,6 +5116,7 @@ _int_free (mstate av, chunkinfoptr _md_p, mchunkptr p, bool have_lock, bool fres
   if (__builtin_expect ((uintptr_t) p > (uintptr_t) -size, 0)
       || __builtin_expect (misaligned_chunk (p), 0))
     {
+      fprintf(stderr, "p = %p size = %zu\n", p, size);
       errstr = "free(): invalid pointer";
     errout:
       if(!have_lock){
@@ -5598,10 +5621,6 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   chunkinfoptr     bck;             /* misc temp for linking */
   chunkinfoptr     fwd;             /* misc temp for linking */
 
-  unsigned long    copysize;        /* bytes to copy */
-  unsigned int     ncopies;         /* INTERNAL_SIZE_T words to copy */
-  INTERNAL_SIZE_T* s;               /* copy source */
-  INTERNAL_SIZE_T* d;               /* copy destination */
 
   mchunkptr    topchunk;            /* chunk of av->_md_top  */
 
@@ -5610,20 +5629,29 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
   oldp = chunkinfo2chunk(_md_oldp);
 
+#ifdef SRI_DEBUG
   /* oldmem size */
   if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
     {
-#ifdef SRI_DEBUG
       fprintf(stderr, "md_oldp = %p oldp = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_oldp, oldp, av->arena_index, _md_oldp->__canary__, oldp->__canary__);
-#endif
       errstr = "realloc(): invalid old size";
     errout:
       malloc_printerr (check_action, errstr, chunk2mem (oldp), av);
       return 0;
     }
-
+#else
+  /* oldmem size */
+  if (__builtin_expect (_md_oldp->size < 2 * SIZE_SZ, 0)
+      || __builtin_expect (oldsize >= av->system_mem, 0))
+    {
+      errstr = "realloc(): invalid old size";
+    errout:
+      malloc_printerr (check_action, errstr, chunk2mem (oldp), av);
+      return 0;
+    }
+#endif
 
   check_inuse_chunk (av, oldp, _md_oldp);
 
@@ -5749,8 +5777,17 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
             }
           else
             {
+
+#if 1
+	      assert(oldsize > HEADER_SIZE);
+	      memcpy (newmem, chunk2mem (oldp), oldsize - HEADER_SIZE);
+#else
+	      unsigned long    copysize;        /* bytes to copy */
+	      unsigned int     ncopies;         /* INTERNAL_SIZE_T words to copy */
+	      INTERNAL_SIZE_T* s;               /* copy source */
+	      INTERNAL_SIZE_T* d;               /* copy destination */
               /*
-                Unroll copy of <= 36 bytes (72 if 8byte sizes)
+                Unroll copy of <= 36 bytes (72 if 8 byte sizes)
                 We know that contents have an odd number of
                 INTERNAL_SIZE_T-sized words; minimally 3.
               */
@@ -5785,7 +5822,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
                         }
                     }
                 }
-
+#endif
               _int_free (av, _md_oldp, oldp, 1, false);
 
               check_inuse_chunk (av, newp, _md_newp);
@@ -6549,6 +6586,10 @@ extern char **__libc_argv attribute_hidden;
 static void
 malloc_printerr (int action, const char *str, void *ptr, mstate ar_ptr)
 {
+
+  lookup_dump(stderr, false);
+  fflush (stderr);
+
   /* Avoid using this arena in future.  We do not attempt to synchronize this
      with anything else because we minimally want to ensure that __libc_message
      gets its resources safely without stumbling on the current corruption.  */

@@ -65,8 +65,7 @@ run:  clean all
 	./stest2
 
 bug:
-	./replay ../../analysis/data/QF_AUFBV_2668e3c6.smt2
-	./replay ../../analysis/data/QF_AUFBV_80b4dce0.smt2
+	./replay ../../analysis/data/QF_AUFBV_2668e3c6.txt
 
 
 xalan:

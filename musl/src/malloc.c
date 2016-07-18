@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <limits.h>
 #include <stdint.h>
@@ -12,9 +13,6 @@
   #include "libc.h"
   #include "atomic.h"
   #include "pthread_impl.h"
-
-
-
 
 */
 
@@ -561,4 +559,8 @@ void free(void *p)
   }
 
   unlock_bin(i);
+}
+
+void malloc_stats(void){
+  fprintf(stderr, "Coming soon\n");
 }

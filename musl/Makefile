@@ -17,20 +17,44 @@ LIBFLAGS = -shared -Wl,-soname,${LIB}
 endif
 
 
-OBJECTS = __brk.o aligned_alloc.o calloc.o expand_heap.o lite_malloc.o malloc.o malloc_usable_size.o memalign.o posix_memalign.o
+SRC_GLOBS = $(addsuffix /*.c,src)
+SRC = $(sort $(wildcard $(SRC_GLOBS)))
+
+OBJ = $(patsubst src/%.c, obj/%.o, $(SRC))
+
+TARGET = lib/${LIB}
+
+.PHONY: clean
+
+all: ${TARGET}
+	@echo Done.	
+
+$(TARGET): $(OBJ) | lib
+	${CC} ${LIBFLAGS} ${OPT} -o $@ ${OBJ}
 
 
-all: ${LIB}
+obj:
+	mkdir -p obj
 
-${LIB}: ${OBJECTS}
-	$(CC) ${OBJECTS} ${LIBFLAGS} -o ${LIB} ${CFLAGS} ${LDFLAGS} 
+obj/%.o: src/%.c | obj
+	${CC} ${CFLAGS} ${OPT} $< -c -o $@
 
+lib:
+	mkdir -p lib
 
+UNIT_TESTS=./tests/static
+REPLAYS=./tests/replay
 
-%.o: %.c %.h 
-	${CC} ${CFLAGS} $< -c 
+check: $(TARGET)
+	make -C ${UNIT_TESTS} check
+	make -C ${REPLAYS} check
+
 
 clean:
-	rm -f ${OBJECTS} ${LIB}
+	rm -f *~ *.o
+	rm -rf obj lib
+	make -C ${UNIT_TESTS} clean
+	make -C ${REPLAYS} clean
+
 
 

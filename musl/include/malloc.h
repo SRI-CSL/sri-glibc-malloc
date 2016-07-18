@@ -5,10 +5,6 @@
 extern "C" {
 #endif
 
-#define __NEED_size_t
-
-#include <bits/alltypes.h>
-
 void *malloc (size_t);
 void *calloc (size_t, size_t);
 void *realloc (void *, size_t);
@@ -17,6 +13,8 @@ void *valloc (size_t);
 void *memalign(size_t, size_t);
 
 size_t malloc_usable_size(void *);
+
+void malloc_stats(void);
 
 #ifdef __cplusplus
 }

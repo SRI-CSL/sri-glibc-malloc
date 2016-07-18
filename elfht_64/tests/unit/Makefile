@@ -13,7 +13,9 @@ endif
 
 CFLAGS= -Wall  -I${LFHT_HOME}/include -I${LFHT_HOME}/arch/${ARCH} -g
 
-OBJS = ${LFHT_HOME}/obj/*.o
+OBJDIR= ${LFHT_HOME}/obj
+OBJ_GLOBS = $(addsuffix /*.o,${OBJDIR})
+OBJS = $(sort $(wildcard ${OBJ_GLOBS}))
 
 
 

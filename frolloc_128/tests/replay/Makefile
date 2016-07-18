@@ -1,8 +1,8 @@
 CFLAGS= -Wall -I../../../mhooks -I../../include/ -ggdb
 
 OBJDIR=../../obj
-
-OBJS= ${OBJDIR}/debug.o ${OBJDIR}/lfht.o ${OBJDIR}/util.o ${OBJDIR}/malloc.o
+OBJ_GLOBS = $(addsuffix /*.o,${OBJDIR})
+OBJS = $(sort $(wildcard ${OBJ_GLOBS}))
 
 REPLAYDIR=../../../replay
 

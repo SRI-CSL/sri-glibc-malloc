@@ -19,6 +19,9 @@ CFLAGS= -Wall -I../../include/  -I../../arch/${ARCH} -ggdb
 OBJDIR=../../obj
 
 OBJS = ${OBJDIR}/lf_fifo_queue.o
+OBJDIR=../../obj
+OBJ_GLOBS = $(addsuffix /*.o,${OBJDIR})
+OBJS = $(sort $(wildcard ${OBJ_GLOBS}))
 
 EXES = test0 test1 test2
 

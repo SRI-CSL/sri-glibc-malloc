@@ -4,8 +4,8 @@ CFLAGS= -Wall -I../../include/ -ggdb
 
 
 OBJDIR=../../obj
-
-OBJS= ${OBJDIR}/debug.o ${OBJDIR}/lf_queue.o ${OBJDIR}/lfht_128.o ${OBJDIR}/util.o ${OBJDIR}/malloc.o
+OBJ_GLOBS = $(addsuffix /*.o,${OBJDIR})
+OBJS = $(sort $(wildcard ${OBJ_GLOBS}))
 
 
 all:

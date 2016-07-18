@@ -47,8 +47,7 @@
  *
  */
 
-/* FIXME: make this dynamic I suppose. */
-#define SBRK_MAX_SEGMENTS 1024
+#define SBRK_INITIAL_MAX_SEGMENTS 1024
 
 /* (1 << 31) or 2^31  */
 #define MAX_SBRK_TABLE_SIZE ((uint32_t)0x80000000u)
@@ -63,7 +62,7 @@ typedef struct sbrk_region_s {
 
 
 static int32_t sbrk_region_count = 0;
-static int32_t sbrk_region_current_max = SBRK_MAX_SEGMENTS;
+static int32_t sbrk_region_current_max = SBRK_INITIAL_MAX_SEGMENTS;
 
 static sbrk_region_t *sbrk_regions;
 

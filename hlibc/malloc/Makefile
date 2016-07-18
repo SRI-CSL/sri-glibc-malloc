@@ -118,14 +118,13 @@ include ../Rules
 CFLAGS-mcheck-init.c = $(PIC-ccflag)
 CFLAGS-obstack.c = $(uses-callbacks)
 
+# SRI hack to compile our version of malloc without optimizations.
+# you will need to make sure that you have commented out line 4 
+# of config.h in the glibc-build directory.
 # can also use SRI_POOL_DEBUG to debug pool
 # and SRI_MALLOC_LOG to log events
-#FIXME: get this to work from the Makefile in src/glibc
-#SRI hack to compile our version of malloc without optimizations.
-#you will need to make sure that you have commented out line 4 
-# of config.h in the glibc-build directory.
 # uses canaries to keep track of a chunks history.
-#-DSRI_DEBUG=1
+# -DSRI_DEBUG=1
 # logs calls to a file
 # -DSRI_MALLOC_LOG=1 
 # turns on all the assertion
@@ -133,7 +132,11 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # uses the google hash rather than jenkins
 # -DSRI_NOT_JENKINS
 # includes a histogram of the bins in the stats per arena hashtable
-# -DSRI_HISTOGRAM   
+# -DSRI_HISTOGRAM
+# Here are some sample configurations.
+
+# Enable all debug checking. Very slow. Even a untouched glibc
+# can report issues. SO be warned.
 #CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
 #CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
 #CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
@@ -141,6 +144,10 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
 #CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
 
+# Good for using gdb on a core. The SRI_DEBUG flag adds debugging
+# metadata to the fray, and the canary indicates the state of the chunk.
+# it should also match the canary in the metadata.
+#
 # CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   
 # CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    
 # CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   
@@ -148,6 +155,7 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   
 # CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
+# no metadata; but good to debug with gdb.
 CFLAGS-malloc.c =  -O0
 CFLAGS-debug.c =  -O0 
 CFLAGS-lookup.c =  -O0
@@ -155,12 +163,21 @@ CFLAGS-utils.c =  -O0
 CFLAGS-memcxt.c =  -O0
 CFLAGS-metadata.c =  -O0 
 
+# production build with metadata
 # CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 # CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 # CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 # CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
 # CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
 # CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+
+# production build with NO metadata
+# CFLAGS-malloc.c =  -DNDEBUG -O2
+# CFLAGS-debug.c =  -DNDEBUG -O2
+# CFLAGS-lookup.c =  -DNDEBUG -O2
+# CFLAGS-utils.c =  -DNDEBUG  -O2
+# CFLAGS-memcxt.c = -DNDEBUG  -O2
+# CFLAGS-metadata.c = -DNDEBUG  -O2
 
 
 $(objpfx)libmcheck.a: $(objpfx)mcheck-init.o

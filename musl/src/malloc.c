@@ -8,48 +8,11 @@
 #include <sys/mman.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <inttypes.h>
+#include <stdatomic.h>
 
-/*
-  #include "libc.h"
-  #include "atomic.h"
-  #include "pthread_impl.h"
+#include "internals.h"
 
-*/
-
-#define PAGE_SIZE 4096
-
-#if defined(__GNUC__) && defined(__PIC__)
-#define inline inline __attribute__((always_inline))
-#endif
-
-#define a_and_64 a_and_64
-static inline void a_and_64(volatile uint64_t *p, uint64_t v)
-{
-	__asm__ __volatile(
-		"lock ; and %1, %0"
-		 : "=m"(*p) : "r"(v) : "memory" );
-}
-
-#define a_or_64 a_or_64
-static inline void a_or_64(volatile uint64_t *p, uint64_t v)
-{
-	__asm__ __volatile__(
-		"lock ; or %1, %0"
-		 : "=m"(*p) : "r"(v) : "memory" );
-}
-
-#define a_crash a_crash
-static inline void a_crash()
-{
-	__asm__ __volatile__( "hlt" : : : "memory" );
-}
-
-#define a_ctz_64 a_ctz_64
-static inline int a_ctz_64(uint64_t x)
-{
-	__asm__( "bsf %1,%0" : "=r"(x) : "r"(x) );
-	return x;
-}
 
 struct chunk {
   size_t psize, csize;
@@ -68,11 +31,32 @@ static struct {
   pthread_mutex_t  mutex;
 } mal;
 
+typedef struct {
+  atomic_size_t  bytes;
+  atomic_size_t  inuse;
+  atomic_size_t  mmapped;
+  atomic_int     nmmaps;
+} mal_info_t;
+
+static mal_info_t mal_info;
+
+static inline void mal_info_init(mal_info_t *mip){
+  atomic_init(&mal_info.bytes, 0);
+  atomic_init(&mal_info.inuse, 0);
+  atomic_init(&mal_info.mmapped, 0);
+  atomic_init(&mal_info.nmmaps, 0);
+}
+
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static volatile bool __inited = false;
 
 static void init(void){
   int i;
+  /* 
+   * ian says: double checked locking! needs to be fixed.
+   * http://www.aristeia.com/Papers/DDJ_Jul_Aug_2004_revised.pdf
+   * http://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/
+   */
   if( ! __inited ){
     pthread_mutex_lock(&mutex);
     if(__inited){  return; }
@@ -81,6 +65,7 @@ static void init(void){
     for(i = 0; i < 64; i++){ 
       pthread_mutex_init(&mal.bins[i].mutex, NULL);
     }
+    mal_info_init(&mal_info);  
     pthread_mutex_unlock(&mal.mutex);
     __inited = true;
     pthread_mutex_unlock(&mutex);
@@ -359,6 +344,11 @@ void *malloc(size_t n)
     c = (void *)(base + SIZE_ALIGN - OVERHEAD);
     c->csize = len - (SIZE_ALIGN - OVERHEAD);
     c->psize = SIZE_ALIGN - OVERHEAD;
+
+    atomic_fetch_add(&mal_info.mmapped, len);
+    atomic_fetch_add(&mal_info.nmmaps, 1);
+
+    
     return CHUNK_TO_MEM(c);
   }
   
@@ -438,6 +428,9 @@ void *realloc(void *p, size_t n)
       return newlen < oldlen ? p : 0;
     self = (void *)(base + extra);
     self->csize = newlen - extra;
+
+    atomic_fetch_add(&mal_info.mmapped, newlen - oldlen);
+    
     return CHUNK_TO_MEM(self);
   }
   
@@ -495,6 +488,10 @@ void free(void *p)
     /* Crash on double free */
     if (extra & 1) a_crash();
     munmap(base, len);
+
+    atomic_fetch_sub(&mal_info.mmapped, len);
+    atomic_fetch_sub(&mal_info.nmmaps, 1);
+
     return;
   }
 
@@ -562,5 +559,11 @@ void free(void *p)
 }
 
 void malloc_stats(void){
-  fprintf(stderr, "Coming soon\n");
+  fprintf(stderr,
+	  "total bytes: %zu\n"
+	  "inuse bytes: %zu\n"
+	  "mmapped bytes: %zu\n"
+	  "mmap count: %d\n",
+	  mal_info.bytes, mal_info.inuse,
+	  mal_info.mmapped, mal_info.nmmaps);
 }

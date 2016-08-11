@@ -76,6 +76,14 @@ crypto:
 
 gcc:
 	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194243.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194304.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194346.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194422.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194447.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194514.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194555.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194644.txt
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194726.txt
 
 omnet:
 	./replay ../../analysis/data/omnetpp_base.gcc49-64bit.20160613202413

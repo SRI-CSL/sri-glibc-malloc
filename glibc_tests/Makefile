@@ -75,16 +75,16 @@ crypto:
 	./replay ../../analysis/data/cryptominisat4-hook.out.txt
 
 gcc:
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194243.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194304.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194346.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194422.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194447.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194514.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194555.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194644.txt
-	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160613194726.txt
-
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142414
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142438
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142528
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142610
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142637
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142713
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142758
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142855
+	./replay ../../analysis/data/gcc_base.gcc49-64bit.20160812142943
+ 
 omnet:
 	./replay ../../analysis/data/omnetpp_base.gcc49-64bit.20160613202413
 

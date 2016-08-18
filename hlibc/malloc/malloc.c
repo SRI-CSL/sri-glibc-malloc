@@ -4448,7 +4448,7 @@ __libc_calloc (size_t n, size_t elem_size)
 static chunkinfoptr
 _int_malloc (mstate av, size_t bytes)
 {
-  INTERNAL_SIZE_T nb;               /* normalized request size */
+  INTERNAL_SIZE_T nb = 0;           /* normalized request size (iam: -Og) */
   unsigned int idx;                 /* associated bin index */
   mbinptr bin;                      /* associated bin */
 
@@ -5898,7 +5898,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 static chunkinfoptr
 _int_memalign (mstate av, size_t alignment, size_t bytes)
 {
-  INTERNAL_SIZE_T nb;             /* padded  request size */
+  INTERNAL_SIZE_T nb = 0;         /* padded  request size (iam: -Og)*/
   char *m;                        /* memory returned by malloc call */
   chunkinfoptr _md_p;             /* metadata of memory returned by malloc call */
   mchunkptr p;                    /* corresponding chunk returned by malloc call */

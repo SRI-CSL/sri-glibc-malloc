@@ -1048,11 +1048,12 @@ reused_arena (mstate avoid_arena)
   result = next_to_use;
   do
     {
-      if (!arena_is_corrupt (result))
-	  success = mutex_trylock (&result->mutex);
-	  if (!success) {
-	    goto out;
-	  }
+      if (!arena_is_corrupt (result)){
+	success = mutex_trylock (&result->mutex);
+	if (!success) {
+	  goto out;
+	}
+      }
       result = result->next;
     }
   while (result != next_to_use);

@@ -156,28 +156,28 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
 # no metadata; but good to debug with gdb.
-CFLAGS-malloc.c =  -Og
-CFLAGS-debug.c =  -Og
-CFLAGS-lookup.c =  -Og
-CFLAGS-utils.c =  -Og
-CFLAGS-memcxt.c =  -Og
-CFLAGS-metadata.c =  -Og
+#CFLAGS-malloc.c =  -Og
+#CFLAGS-debug.c =  -Og
+#CFLAGS-lookup.c =  -Og
+#CFLAGS-utils.c =  -Og
+#CFLAGS-memcxt.c =  -Og
+#CFLAGS-metadata.c =  -Og
 
 # production build with metadata
-# CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-# CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-# CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-# CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
-# CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
-# CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
+#CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
+#CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
+#CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
+#CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
+#CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
 # production build with NO metadata
-#CFLAGS-malloc.c =  -DNDEBUG -O2
-#CFLAGS-debug.c =  -DNDEBUG -O2
-#CFLAGS-lookup.c =  -DNDEBUG -O2
-#CFLAGS-utils.c =  -DNDEBUG  -O2
-#CFLAGS-memcxt.c = -DNDEBUG  -O2
-#CFLAGS-metadata.c = -DNDEBUG  -O2
+CFLAGS-malloc.c =  -DNDEBUG -O2
+CFLAGS-debug.c =  -DNDEBUG -O2
+CFLAGS-lookup.c =  -DNDEBUG -O2
+CFLAGS-utils.c =  -DNDEBUG  -O2
+CFLAGS-memcxt.c = -DNDEBUG  -O2
+CFLAGS-metadata.c = -DNDEBUG  -O2
 
 
 $(objpfx)libmcheck.a: $(objpfx)mcheck-init.o

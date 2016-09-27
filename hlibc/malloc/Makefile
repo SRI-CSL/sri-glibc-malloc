@@ -163,6 +163,14 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #CFLAGS-memcxt.c =  -Og
 #CFLAGS-metadata.c =  -Og
 
+# metadata and good to debug with gdb.
+#CFLAGS-malloc.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-debug.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-lookup.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-utils.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-memcxt.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-metadata.c =  -Og -DSRI_DEBUG=1
+
 # production build with metadata
 #CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
 #CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1

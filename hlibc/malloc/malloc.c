@@ -4290,9 +4290,11 @@ __libc_calloc (size_t n, size_t elem_size)
   mchunkptr victim;         /* chunk of memory from malloc */
   chunkinfoptr _md_victim;  /* metadata of memory from malloc */
 
+#if 0
   unsigned long clearsize;
   unsigned long nclears;
   INTERNAL_SIZE_T *d;
+#endif
 
   /* size_t is unsigned so the behavior on overflow is defined.  */
   bytes = n * elem_size;
@@ -4401,6 +4403,10 @@ __libc_calloc (size_t n, size_t elem_size)
     }
 #endif
 
+#if 1
+  memset (mem, 0, sz);
+#else
+
   /* Unroll clear of <= 36 bytes (72 if 8byte sizes).  We know that
      contents have an odd number of INTERNAL_SIZE_T-sized words;
      minimally 3.  */
@@ -4433,6 +4439,8 @@ __libc_calloc (size_t n, size_t elem_size)
             }
         }
     }
+
+#endif
 
   check_top(av);
 

@@ -148,20 +148,20 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # metadata to the fray, and the canary indicates the state of the chunk.
 # it should also match the canary in the metadata.
 #
-# CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   
-# CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    
-# CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   
-# CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    
-# CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   
-# CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1
+#CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1
+#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1
+#CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1
+#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1
+#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
 
 # no metadata; but good to debug with gdb.
-#CFLAGS-malloc.c =  -Og
-#CFLAGS-debug.c =  -Og
-#CFLAGS-lookup.c =  -Og
-#CFLAGS-utils.c =  -Og
-#CFLAGS-memcxt.c =  -Og
-#CFLAGS-metadata.c =  -Og
+#CFLAGS-malloc.c =  -O0 -g
+#CFLAGS-debug.c =  -O0 -g
+#CFLAGS-lookup.c =  -O0 -g
+#CFLAGS-utils.c =  -O0 -g
+#CFLAGS-memcxt.c =  -O0 -g
+#CFLAGS-metadata.c =  -O0 -g
 
 # metadata and good to debug with gdb.
 #CFLAGS-malloc.c =  -Og -DSRI_DEBUG=1

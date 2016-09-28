@@ -984,7 +984,7 @@ _int_new_arena (size_t size)
 
   lookup_add_heap(h, a->arena_index);
 
-#ifdef SRI_DEBUG
+#if SRI_DEBUG
   mchunkptr topchunk = chunkinfo2chunk(a->_md_top);
   topchunk->arena_index = arena_count;
 #endif

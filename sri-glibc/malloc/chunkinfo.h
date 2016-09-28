@@ -1,5 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
+#include "sri.h"
+
 
 typedef struct bucket_pool_s bucket_pool_t;
 
@@ -28,7 +30,7 @@ typedef struct chunkinfo {
   struct chunkinfo* md_next;         /* metatdata of the next chunk        used in malloc.[ch]    */
   struct chunkinfo* md_prev;         /* metatdata of the prev chunk        used in malloc.[ch]    */
 
-#ifdef SRI_DEBUG
+#if SRI_DEBUG
   INTERNAL_SIZE_T   __canary__;
 #endif
   

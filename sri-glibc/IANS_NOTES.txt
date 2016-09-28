@@ -1,0 +1,59 @@
+
+Need to replace the lfht by the elfht (but this will require
+us to figure out how to use pthreadish stuff (cond vars & mutexes)
+inside glibc.
+
+Why the non-determinism in sbrk layout for cryptominisat?
+
+Can we improve glibc by reclaiming mmmapped sbbrk regions?
+
+
+============= old notes below; new notes above =============
+
+
+1. hooks.  NEEDS TESTING!!
+
+2. cache. NEEDS TESTING!!
+
+3. issue #5. memory pool optimization.
+
+14[X]. FIXMES
+
+4. the (old and now inaccurate) code comments need to be trimmed.
+
+5. I use some stdatomics in arena.c which should prolly use glibc atomics.
+
+
+========
+
+To push this upstream we need to eliminate prev_size with pointers
+to the next_md and prev_md.
+
+
+Memory Exhaustion Design
+
+We need to improve the psmalloc2 design so that we can recover
+from memory exhaustion, specifically when we need to create metadata.
+
+The idea would be that prior to any memory allocation
+the necessary new metadata would be preallocated.
+
+Say as part of the arena.
+
+chunkinfoptr  md_pool[4];
+
+
+=========
+
+Other Ideas.
+
+The pool allocator for the metadata could be a trimmed down maged michael
+version, since there are only two sizes. Might have to think this through
+carefully, since our pool allocator is designed with Larsen's hashtable 
+in mind...
+
+
+Need to write a fair bit of commentary in the code, especially in the 
+metadata code.
+
+

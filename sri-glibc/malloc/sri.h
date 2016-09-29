@@ -6,8 +6,8 @@
 /* SRI_DEBUG */
 
 
-#ifndef SRI_DEBUG
-#define SRI_DEBUG 0
+#ifndef SRI_DEBUG_HEADERS
+#define SRI_DEBUG_HEADERS 0
 #endif
 
 #ifndef SRI_METADATA_CACHE

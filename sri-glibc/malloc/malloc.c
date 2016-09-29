@@ -1140,7 +1140,7 @@ static inline void *sys_MMAP(void *addr, size_t length, int prot, int flags)
 */
 
 struct malloc_chunk {
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   INTERNAL_SIZE_T      __canary__;   /* where prev_size use to live.  */
   INTERNAL_SIZE_T      arena_index;  /* index of arena:  0: mmapped 1: Main Arena  N+1: Nth arena */
 #endif
@@ -1166,7 +1166,7 @@ static inline mchunkptr mem2chunk(void* mem)
 }
 
 /* The smallest possible chunk */
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
 #define MIN_CHUNK_SIZE       2 * sizeof(struct malloc_chunk)
 #else
 #define MIN_CHUNK_SIZE       4 * sizeof(INTERNAL_SIZE_T)
@@ -1275,7 +1275,7 @@ static inline bool chunk_is_mmapped(chunkinfoptr _md_p, mchunkptr p)
 
   retval = (_md_p->size & IS_MMAPPED) == IS_MMAPPED; 
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   assert(retval == !p->arena_index);
 #endif
   
@@ -1587,7 +1587,7 @@ typedef struct chunkinfo *mfastbinptr;
 
 /* offset 2 to use otherwise unindexable first 2 bins */
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
 #define fastbin_index(sz)                                       \
   ((((unsigned int) (sz)) >> (SIZE_SZ == 8 ? 4 : 3)) - 2)
 #else
@@ -1882,7 +1882,7 @@ static inline void bin_unlink(mstate av, chunkinfoptr p, chunkinfoptr *bkp, chun
 
 static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG == 0
+#if SRI_DEBUG_HEADERS == 0
   sz += 16;
 #endif  
   return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
@@ -1890,7 +1890,7 @@ static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG == 0
+#if SRI_DEBUG_HEADERS == 0
   sz += 16;
 #endif  
   if (SMALLBIN_WIDTH == 16) {
@@ -1928,7 +1928,7 @@ static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz)
 // XXX of two as well.
 static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG == 0
+#if SRI_DEBUG_HEADERS == 0
   sz += 16;
 #endif  
   return (((((unsigned long) sz) >> 6) <= 48) ?  48 + (((unsigned long) sz) >> 6) :
@@ -2201,7 +2201,7 @@ unregister_chunk (mstate av, mchunkptr p, int tag)
   assert(av != NULL);
   assert(p != NULL);
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   if(tag){
     p->__canary__ = tag;
   }
@@ -2232,7 +2232,7 @@ static chunkinfoptr register_chunk(mstate av, mchunkptr p, bool is_mmapped, int 
   
   _md_p->chunk = chunk2mem(p);
   
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   p->__canary__ = 123456789000 + tag;
   _md_p->__canary__ = 123456789000 + tag;
   p->arena_index = is_mmapped ? MMAPPED_ARENA_INDEX : arena_index(av);
@@ -2276,7 +2276,7 @@ static bool do_check_metadata_chunk(mstate av, mchunkptr c, chunkinfoptr ci, con
       return false;
     }
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
     if(ci->md_next != NULL){
       mchunkptr cn = chunkinfo2chunk(ci->md_next);
       if(ci->md_next->md_prev != ci){
@@ -4290,7 +4290,7 @@ __libc_calloc (size_t n, size_t elem_size)
   mchunkptr victim;         /* chunk of memory from malloc */
   chunkinfoptr _md_victim;  /* metadata of memory from malloc */
 
-#if 0
+#if SRI_DEBUG_HEADERS
   unsigned long clearsize;
   unsigned long nclears;
   INTERNAL_SIZE_T *d;
@@ -4403,7 +4403,7 @@ __libc_calloc (size_t n, size_t elem_size)
     }
 #endif
 
-#if 1
+#if SRI_DEBUG_HEADERS == 0
   memset (mem, 0, sz);
 #else
 
@@ -5637,7 +5637,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
 
   oldp = chunkinfo2chunk(_md_oldp);
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   /* oldmem size */
   if (__builtin_expect (_md_oldp->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (oldsize >= av->system_mem, 0))
@@ -5677,7 +5677,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
   if (__builtin_expect (_md_next->size <= 2 * SIZE_SZ, 0)
       || __builtin_expect (nextsize >= av->system_mem, 0))
     {
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
       mchunkptr next = chunkinfo2chunk(_md_next);
       fprintf(stderr, "md_next = %p next = %p arena_index = %zu canary: md %zu  c %zu\n",
 	      _md_next, next, av->arena_index, _md_next->__canary__, next->__canary__);
@@ -5786,7 +5786,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           else
             {
 
-#if 1
+#if SRI_DEBUG_HEADERS == 0
 	      assert(oldsize > HEADER_SIZE);
 	      memcpy (newmem, chunk2mem (oldp), oldsize - HEADER_SIZE);
 #else

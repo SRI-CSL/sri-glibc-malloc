@@ -124,7 +124,7 @@ CFLAGS-obstack.c = $(uses-callbacks)
 # can also use SRI_POOL_DEBUG to debug pool
 # and SRI_MALLOC_LOG to log events
 # uses canaries to keep track of a chunks history.
-# -DSRI_DEBUG=1
+# -DSRI__HEADERS_DEBUG=1
 # logs calls to a file
 # -DSRI_MALLOC_LOG=1 
 # turns on all the assertion
@@ -137,23 +137,23 @@ CFLAGS-obstack.c = $(uses-callbacks)
 
 # Enable all debug checking. Very slow. Even a untouched glibc
 # can report issues. SO be warned.
-#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-#CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
-#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-#CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1    -DMALLOC_DEBUG=1 
-#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1   -DMALLOC_DEBUG=1
-#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG_HEADERS=1   -DMALLOC_DEBUG=1
+#CFLAGS-debug.c =  -O0 -DSRI_DEBUG_HEADERS=1    -DMALLOC_DEBUG=1 
+#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG_HEADERS=1   -DMALLOC_DEBUG=1
+#CFLAGS-utils.c =  -O0 -DSRI_DEBUG_HEADERS=1    -DMALLOC_DEBUG=1 
+#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG_HEADERS=1   -DMALLOC_DEBUG=1
+#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG_HEADERS=1 -DMALLOC_DEBUG=1 -DSRI_HISTOGRAM
 
 # Good for using gdb on a core. The SRI_DEBUG flag adds debugging
 # metadata to the fray, and the canary indicates the state of the chunk.
 # it should also match the canary in the metadata.
 #
-#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG=1
-#CFLAGS-debug.c =  -O0 -DSRI_DEBUG=1
-#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG=1
-#CFLAGS-utils.c =  -O0 -DSRI_DEBUG=1
-#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG=1
-#CFLAGS-metadata.c =  -O0 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -O0 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-debug.c =  -O0 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-lookup.c =  -O0 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-utils.c =  -O0 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-memcxt.c =  -O0 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-metadata.c =  -O0 -DSR_HEADERSI_DEBUG=1 -DSRI_HISTOGRAM
 
 # no metadata; but good to debug with gdb.
 #CFLAGS-malloc.c =  -O0 -g
@@ -164,20 +164,20 @@ CFLAGS-obstack.c = $(uses-callbacks)
 #CFLAGS-metadata.c =  -O0 -g
 
 # metadata and good to debug with gdb.
-#CFLAGS-malloc.c =  -Og -DSRI_DEBUG=1
-#CFLAGS-debug.c =  -Og -DSRI_DEBUG=1
-#CFLAGS-lookup.c =  -Og -DSRI_DEBUG=1
-#CFLAGS-utils.c =  -Og -DSRI_DEBUG=1
-#CFLAGS-memcxt.c =  -Og -DSRI_DEBUG=1
-#CFLAGS-metadata.c =  -Og -DSRI_DEBUG=1
+#CFLAGS-malloc.c =  -Og -DSRI_DEBUG_HEADERS=1
+#CFLAGS-debug.c =  -Og -DSRI_DEBUG_HEADERS=1
+#CFLAGS-lookup.c =  -Og -DSRI_DEBUG_HEADERS=1
+#CFLAGS-utils.c =  -Og -DSRI_DEBUG_HEADERS=1
+#CFLAGS-memcxt.c =  -Og -DSRI_DEBUG_HEADERS=1
+#CFLAGS-metadata.c =  -Og -DSRI_DEBUG_HEADERS=1
 
 # production build with metadata
-#CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-#CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-#CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG=1
-#CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG=1
-#CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG=1
-#CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG=1 -DSRI_HISTOGRAM
+#CFLAGS-malloc.c =  -DNDEBUG -O2 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-debug.c =  -DNDEBUG -O2 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-lookup.c =  -DNDEBUG -O2 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-utils.c =  -DNDEBUG  -O2 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-memcxt.c = -DNDEBUG  -O2 -DSRI_DEBUG_HEADERS=1
+#CFLAGS-metadata.c = -DNDEBUG  -O2 -DSRI_DEBUG_HEADERS=1 -DSRI_HISTOGRAM
 
 # production build with NO metadata
 CFLAGS-malloc.c =  -DNDEBUG -O2

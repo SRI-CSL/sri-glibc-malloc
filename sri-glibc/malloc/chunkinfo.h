@@ -30,7 +30,7 @@ typedef struct chunkinfo {
   struct chunkinfo* md_next;         /* metatdata of the next chunk        used in malloc.[ch]    */
   struct chunkinfo* md_prev;         /* metatdata of the prev chunk        used in malloc.[ch]    */
 
-#if SRI_DEBUG
+#if SRI_DEBUG_HEADERS
   INTERNAL_SIZE_T   __canary__;
 #endif
   

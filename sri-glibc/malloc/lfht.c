@@ -82,12 +82,6 @@ static inline uint64_t set_assimilated(uint64_t key){
   return (key | ASSIMILATED);
 }
 
-/*
-static inline uint64_t clear_assimilated(uint64_t key){
-  return (key & ~ASSIMILATED);
-}
-*/
-
 bool free_lfht_hdr(lfht_hdr_t *hdr){
   if (hdr != NULL){
     int retcode = munmap(hdr, hdr->sz);
@@ -219,6 +213,11 @@ static inline void _migrate_table(lfht_t *ht, uint64_t key, uint32_t hash){
       } else {
 	if(VERBOSE){ fprintf(stderr, "Table expanding, not marking as expanded\n");}
       }
+      /* 
+	 note that we never free the old table. To do so we would have to do more work
+	 like maintaining a reference count.
+      */
+
     }
 
   }

@@ -1,0 +1,153 @@
+#!/usr/bin/env python
+#
+
+explain_usage = """
+./parse_data
+
+will print this explanation.
+
+./parse_data  <path to malloc hook data>
+ 
+will print out ...
+"""
+
+import sys
+import os
+import re
+import operator
+import math
+from subprocess import Popen, PIPE
+
+class Parser(object):
+
+    
+    
+    def __init__(self, filename):
+        self.count = 0
+        self.filename = filename
+        self.output = '{0}.profile'.format(self.filename)
+        
+        self.calloc  = 0
+        self.malloc  = 0
+        self.realloc = 0
+        self.free = 0
+
+        (root, ext) = os.path.splitext(self.filename)
+        if ext == '.bz2':
+            cmd = ['bzcat', self.filename]
+            p = Popen(cmd, stdout=PIPE)
+            self.input = p.stdout
+        else:
+            self.input =  open(self.filename, "r")
+
+        self.output = open(self.output, "w")
+        
+        self.size = {} 
+        self.bins = {} 
+
+
+    def cleanup(self):
+        self.input.close()
+        self.output.close()
+
+        
+
+    def  record(self, sz):
+       #log2int_slow = int(floor(log(sz, 2.0)))
+        log2int_fast = math.frexp(sz)[1]-1
+        #b = max(log2int_fast, 3)
+        b = log2int_fast
+        if b in self.bins:
+            self.bins[b] += 1
+        else:
+            self.bins[b] = 1
+        if sz in self.size:
+            self.size[sz] += 1 
+        else:
+            self.size[sz] = 1  
+
+        
+    def process_calloc(self, arr):
+        self.calloc += 1
+        sz = int(arr[1], 16) * int(arr[2], 16)
+        self.record(sz)
+
+    def process_malloc(self, arr):
+        self.malloc += 1
+        sz = int(arr[1], 16)
+        self.record(sz)
+
+    def process_realloc(self, arr):
+        self.realloc += 1
+        sz = int(arr[2], 16)
+        self.record(sz)
+
+    def process_free(self, arr):
+        self.free += 1
+
+
+        
+        
+    def process_line(self, line):
+        self.count += 1
+        arr = line.split()
+        if arr[0] == 'c':
+            self.process_calloc(arr)
+        elif arr[0] == 'm':
+            self.process_malloc(arr)
+        elif arr[0] == 'r':
+            self.process_realloc(arr)
+        elif arr[0] == 'f':
+            self.process_free(arr)
+        elif arr[0] in ('i', 'e'):
+            pass
+        else:
+            print line
+            
+            
+
+            
+    def splat(self, string):
+        print string
+        self.output.write('{0}\n'.format(string))
+    
+    def process_file(self):
+        for line in self.input:
+            self.process_line(line)
+        self.splat("{0} contains {1} mallocs ".format(self.filename, self.malloc))
+        self.splat("{0} contains {1} callocs ".format(self.filename, self.calloc))
+        self.splat("{0} contains {1} reallocs ".format(self.filename, self.realloc))
+        self.splat("{0} contains {1} frees ".format(self.filename, self.free))
+        #self.print_sizes()
+        self.print_bins()
+        self.cleanup()
+
+    def print_sizes(self):
+        sorted_size = sorted(self.size.items(), key=operator.itemgetter(0))
+        #sorted_size.reverse()
+        for instr in sorted_size:
+            print "{0:12} {1}".format(instr[0], instr[1])
+            
+    def print_bins(self):
+        sorted_bins = sorted(self.bins.items(), key=operator.itemgetter(0))
+        #sorted_bins.reverse()
+        for instr in sorted_bins:
+            self.splat('{0:12} {1}'.format(2**instr[0], instr[1]))
+
+def process_file(file):
+    Parser(file).process_file()
+  
+
+cmd = list(sys.argv)
+
+if len(cmd) == 1:
+    print explain_usage
+
+else:
+    
+    for f in cmd[1:]:
+        process_file(f)
+    
+
+
+

@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+#
+
+explain_usage = """
+./{0}
+
+will print this explanation.
+
+./{0}  <path to lock logging file>
+ 
+will print out ...
+"""
+
+import sys
+import os
+import re
+import operator
+import math
+
+
+class Arena(object):
+    
+    def __init__(self, address, index):
+        self.address = address
+        self.index = index
+        self.mutex = -1
+
+
+    def __str__(self):
+        return 'arena {0} @ address {1}'.format(self.index, self.address)
+
+class Parser(object):
+
+    
+
+
+    def __init__(self, filename):
+        self.filename = filename
+        self.count = 0
+        self.arenas = {}
+        self.threads = {} 
+        
+
+    def get_arena(self, address, index):
+        if address in self.arenas:
+            arena = self.arenas[address]
+            assert(index == arena.index)
+        else:
+            arena = Arena(address, index)
+            self.arenas[address] = arena
+        return arena
+
+        
+    def process_line(self, line):
+        self.count += 1
+        (operation, address, arena_index, site, thread_id) = line.split()
+        thread_id = int(thread_id, 0)
+        arena_index = int(arena_index, 0)
+        arena = self.get_arena(address, arena_index)
+        if operation == 'L':
+            self.process_lock(arena, site, thread_id)
+        elif operation == 'U':
+            self.process_unlock(arena, site, thread_id)
+        else:
+            print 'UNKNOWN: line number {0}'.format(self.count)
+
+    def process_lock(self, arena, site, thread_id):
+        if arena.mutex != -1:
+            print 'LOCK: line number {0} arena {1}'.format(self.count, str(arena))
+            assert(False)
+        arena.mutex = thread_id
+
+    def process_unlock(self, arena, site, thread_id):
+        if arena.mutex != thread_id:
+            print 'UNLOCK: line number {0} arena {1}'.format(self.count, str(arena))
+            assert(False)
+        arena.mutex = -1
+        
+    
+    def process_file(self):
+        with open(self.filename) as asm:
+            for line in asm:
+                self.process_line(line)
+        self.print_result()        
+
+    def print_result(self):
+        print 'Done: count = {0}'.format(self.count)
+        for key, val in self.arenas.iteritems():
+            print val
+        
+def process_file(file):
+    Parser(file).process_file()
+  
+
+cmd = list(sys.argv)
+
+if len(cmd) == 1:
+    print explain_usage.format(cmd[0])
+else:
+    file = cmd[1]
+    process_file(file)
+    
+
+
+

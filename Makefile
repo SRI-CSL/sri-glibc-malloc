@@ -1,21 +1,22 @@
 #ian's kludgey way of developing.
 
 HERE=$(shell pwd)
-GLIBC_SRC=$(HERE)/build/glibc
 
 OUR_SRC=$(HERE)/src/sri-glibc/malloc
 
-ifeq ($(shell whoami),vagrant)
 #building uses hard links (can't be on the shared drive)
-GLIBC_BUILD=/home/vagrant/glibc-build
-GLIBC_INSTALL=/home/vagrant/glibc-install
+ifeq ($(shell whoami),vagrant)
+BUILD=/home/vagrant
 else
-GLIBC_BUILD=$(HERE)/build/glibc-build
-GLIBC_INSTALL=$(HERE)/build/glibc-install
+BUILD=$(HERE)/build
 endif
 
-all: install
+GLIBC_SRC=$(BUILD)/build/glibc
+GLIBC_BUILD=$(BUILD)/glibc-build
+GLIBC_INSTALL=$(BUILD)/glibc-install
 
+
+all: install
 
 $(GLIBC_SRC):
 	mkdir -p $(GLIBC_SRC)
@@ -28,7 +29,7 @@ $(GLIBC_SRC):
 
 $(GLIBC_BUILD): $(GLIBC_SRC)
 	mkdir -p $(GLIBC_INSTALL)  $(GLIBC_BUILD)
-	cd $(GLIBC_BUILD); ../glibc/configure  --prefix=$(GLIBC_INSTALL)
+	cd $(GLIBC_BUILD); $(GLIBC_SRC)/configure  --prefix=$(GLIBC_INSTALL)
 
 
 update: $(GLIBC_BUILD)

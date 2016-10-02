@@ -4,7 +4,7 @@ HERE=$(shell pwd)
 
 OUR_SRC=$(HERE)/src/sri-glibc/malloc
 
-#building uses hard links (can't be on the shared drive)
+#building or installing uses hard links (can't be on the shared drive)
 ifeq ($(shell whoami),vagrant)
 BUILD=/home/vagrant
 else
@@ -36,8 +36,8 @@ update: $(GLIBC_BUILD)
 	cp $(OUR_SRC)/*.[ch]  $(OUR_SRC)/Makefile  $(GLIBC_SRC)/malloc
 
 
-#N.B. if our malloc/Makefile does not optimize, now be a **very good time** to comment out 
-#line 4 in `config.h` in the `glibc-build`.
+#N.B. if our $(OUR_SRC)/Makefile does not optimize, now be a **very good time** to comment out 
+#line 4 in `config.h` in the $(GLIBC_BUILD) directory.
 compile: update
 	$(MAKE) -C $(GLIBC_BUILD)
 

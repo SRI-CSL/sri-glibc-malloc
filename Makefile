@@ -26,12 +26,12 @@ $(GLIBC_SRC):
 #probably should move towards a release or have branches per release.
 #git checkout origin/release/2.24/master
 
-$(GLIBC_INSTALL): $(GLIBC_SRC)
+$(GLIBC_BUILD): $(GLIBC_SRC)
 	mkdir -p $(GLIBC_INSTALL)  $(GLIBC_BUILD)
 	cd $(GLIBC_BUILD); ../glibc/configure  --prefix=$(GLIBC_INSTALL)
 
 
-update:
+update: $(GLIBC_BUILD)
 	cp $(OUR_SRC)/*.[ch]  $(OUR_SRC)/Makefile  $(GLIBC_SRC)/malloc
 
 
@@ -50,5 +50,4 @@ test: compile
 
 distclean:
 	rm -rf build
-
 

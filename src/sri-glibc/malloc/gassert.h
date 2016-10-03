@@ -4,6 +4,7 @@
 #include <features.h>
 #include <stddef.h>
 #include <stdio.h>
+#include "sri.h"
 #include "debug.h"
 #include "lookup.h"
 
@@ -27,7 +28,7 @@ __malloc_assert (const char *assertion, const char *file, unsigned int line,
 		     file, line,
 		     function ? function : "", function ? ": " : "",
 		     assertion);
-#ifdef SRI_DEBUG
+#if SRI_DUMP_LOOKUP
   lookup_dump(stderr, false);
   fflush (stderr);
 #endif

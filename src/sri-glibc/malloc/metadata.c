@@ -52,7 +52,7 @@ static bucket_t** bindex2bin(metadata_t* lhtbl, uint32_t bindex);
 /* returns the length of the linked list starting at the given bucket */
 static size_t bucket_length(bucket_t* bucket);
 
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
 /* drastic dump of long chains */
 static void bucket_dump(int fd, bucket_t* bucket);
 #endif
@@ -182,7 +182,7 @@ bool init_metadata(metadata_t* lhtbl, memcxt_t* memcxt){
   return true;
 }
 
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
 
 const int tab32[32] = {
      0,  9,  1, 10, 13, 21,  2, 29,
@@ -210,7 +210,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   size_t maxlength;
   size_t maxindex;
   
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
   static uint32_t dumpcount = 0;
   char dumpfile[1024] = {'\0'};
   uint32_t histogram[33] = {0};
@@ -241,7 +241,7 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
     bp = bindex2bin(lhtbl, index);
     blen = bucket_length(*bp);
 
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
     if( blen == 0){
       histogram[0]++;
     } else {
@@ -266,9 +266,9 @@ extern void dump_metadata(FILE* fp, metadata_t* lhtbl, bool showloads){
   fprintf(fp, "\n");
   fprintf(fp, "maximum length = %" PRIuPTR " @ index %zu\n", maxlength, maxindex);
 
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
 
-#ifndef SRI_NOT_JENKINS
+#if SRI_JENKINS_HASH
   const char hashname[] = "jenkins";
 #else
   const char hashname[] = "google";
@@ -409,7 +409,7 @@ static uint32_t metadata_bindex(metadata_t* lhtbl, const void *p){
   uint32_t l;
   size_t next_maxp;
 
-#ifndef SRI_NOT_JENKINS
+#if SRI_JENKINS_HASH
   jhash  = jenkins_hash_ptr(p);
 #else
   jhash  = (uint32_t)Fingerprint((uintptr_t)p);
@@ -799,7 +799,7 @@ size_t metadata_delete_all(metadata_t* lhtbl, const void *chunk){
 }
 
 
-#ifdef SRI_HISTOGRAM 
+#if SRI_HISTOGRAM 
 void bucket_dump(int fd, bucket_t* bucket){
   bucket_t* current;
 

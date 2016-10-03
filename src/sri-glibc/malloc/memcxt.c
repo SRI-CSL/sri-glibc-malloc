@@ -3,12 +3,10 @@
 #include <sys/mman.h>
 #include <inttypes.h>
 
+#include "sri.h"
 #include "memcxt.h"
 #include "utils.h"
 
-#ifndef SRI_POOL_DEBUG
-#define SRI_POOL_DEBUG 0
-#endif
 
 #define BITS_IN_MASK  64
 

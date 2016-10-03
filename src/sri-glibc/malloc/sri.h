@@ -49,9 +49,47 @@ struct malloc_chunk {
 #endif
 
 
+/*
+  SRI_HISTOGRAM in {0, 1}, DEFAULT is 0: This a diagnostic tool when
+  dumping infomation about each arena's hash table. With the flag on we
+  get a histogram of how long each chain is.
+*/
+
+#ifndef SRI_HISTOGRAM
+#define SRI_HISTOGRAM  0
+#endif
 
 
+/* SRI_DUMP_LOOKUP in {0, 1}, DEFAULT is 0: This is a diagnostic tool, that
+   will dump the state of the lookup hashtable as part of an assert failure.
+   Very useful when metadata goes missing.
+*/
+
+#ifndef SRI_DUMP_LOOKUP
+#define SRI_DUMP_LOOKUP  0
 #endif
 
 
 
+/* SRI_JENKINS_HASH in {0, 1}, DEFAULT is 0: This determines the 
+hashing function used in each arena's hash table. If 1 then we use the
+Jenkin's hash. If 0 we use the google hash. Both are defined in 
+metadata.c.
+*/
+
+#ifndef SRI_JENKINS_HASH
+#define SRI_JENKINS_HASH  0
+#endif
+
+/* SRI_POOL_DEBUG in {0, 1}, DEFAULT is 0: This truns on some serious
+sanity checking of the memory pool. It will cause a dramitic slow down,
+sometimes mistaken for haning by the impatient.
+*/
+
+#ifndef SRI_POOL_DEBUG
+#define SRI_POOL_DEBUG 0
+#endif
+
+
+
+#endif

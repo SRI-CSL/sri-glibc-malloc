@@ -1,12 +1,12 @@
 # N.B You need to add some linux headers/libs to sysroot
 # to get the replay stuff to compile.
 #
-# cd ../../Variants/glibc-install/include
+# cd $(GLIBC_INSTALL)/include
 # ln -s /usr/include/linux . 
 # ln -s /usr/include/x86_64-linux-gnu/asm .
 # ln -s /usr/include/asm-generic .
 #
-# cd ../../Variants/glibc-install/lib
+# cd $(GLIBC_INSTALL)/lib
 # ln -s /lib/x86_64-linux-gnu/libgcc_s.so.1 .
 #
 #
@@ -18,7 +18,7 @@ MY_LD=ld-2.23.90.so
 ifeq ($(shell whoami),vagrant)
 SYSROOT=${HOME}/glibc-install
 else
-SYSROOT=../../Variants/glibc-install
+SYSROOT=../../build/glibc-install
 endif
 
 
@@ -59,7 +59,7 @@ clean:
 	rm -f $(TESTS) $(OBJECTS) 
 
 
-run:  clean all 
+check:  clean all 
 	./stest0
 	./stest1
 	./stest2

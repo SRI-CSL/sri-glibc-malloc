@@ -1882,7 +1882,7 @@ static inline void bin_unlink(mstate av, chunkinfoptr p, chunkinfoptr *bkp, chun
 
 static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG_HEADERS == 0
+#if !SRI_DEBUG_HEADERS
   sz += 16;
 #endif  
   return  (unsigned long)sz < (unsigned long) MIN_LARGE_SIZE;
@@ -1890,7 +1890,7 @@ static inline bool in_smallbin_range(INTERNAL_SIZE_T sz)
 
 static inline unsigned int smallbin_index(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG_HEADERS == 0
+#if !SRI_DEBUG_HEADERS
   sz += 16;
 #endif  
   if (SMALLBIN_WIDTH == 16) {
@@ -1928,7 +1928,7 @@ static inline unsigned int largebin_index_32_big(INTERNAL_SIZE_T sz)
 // XXX of two as well.
 static inline unsigned int largebin_index_64(INTERNAL_SIZE_T sz)
 {
-#if SRI_DEBUG_HEADERS == 0
+#if !SRI_DEBUG_HEADERS
   sz += 16;
 #endif  
   return (((((unsigned long) sz) >> 6) <= 48) ?  48 + (((unsigned long) sz) >> 6) :
@@ -4403,7 +4403,7 @@ __libc_calloc (size_t n, size_t elem_size)
     }
 #endif
 
-#if SRI_DEBUG_HEADERS == 0
+#if !SRI_DEBUG_HEADERS
   memset (mem, 0, sz);
 #else
 
@@ -5786,7 +5786,7 @@ _int_realloc(mstate av, chunkinfoptr _md_oldp, INTERNAL_SIZE_T oldsize,
           else
             {
 
-#if SRI_DEBUG_HEADERS == 0
+#if !SRI_DEBUG_HEADERS
 	      assert(oldsize > HEADER_SIZE);
 	      memcpy (newmem, chunk2mem (oldp), oldsize - HEADER_SIZE);
 #else

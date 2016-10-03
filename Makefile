@@ -6,12 +6,12 @@ OUR_SRC=$(HERE)/src/sri-glibc/malloc
 
 #building or installing uses hard links (can't be on the shared drive)
 ifeq ($(shell whoami),vagrant)
-BUILD=/home/vagrant
+BUILD=/home/vagrant/build
 else
 BUILD=$(HERE)/build
 endif
 
-GLIBC_SRC=$(BUILD)/build/glibc
+GLIBC_SRC=$(BUILD)/glibc
 GLIBC_BUILD=$(BUILD)/glibc-build
 GLIBC_INSTALL=$(BUILD)/glibc-install
 
@@ -30,6 +30,10 @@ $(GLIBC_SRC):
 $(GLIBC_BUILD): $(GLIBC_SRC)
 	mkdir -p $(GLIBC_INSTALL)  $(GLIBC_BUILD)
 	cd $(GLIBC_BUILD); $(GLIBC_SRC)/configure  --prefix=$(GLIBC_INSTALL)
+	cd $(GLIBC_INSTALL)/include; ln -s /usr/include/linux . ; ln -s /usr/include/x86_64-linux-gnu/asm . ;  ln -s /usr/include/asm-generic .
+	cd $(GLIBC_INSTALL)/lib; ln -s /lib/x86_64-linux-gnu/libgcc_s.so.1 .
+
+
 
 
 update: $(GLIBC_BUILD)
@@ -44,8 +48,8 @@ compile: update
 install: compile
 	$(MAKE) -C $(GLIBC_BUILD) install
 
-test: compile
-	$(MAKE) -C src/sri-glibc/glibc_tests  run
+check: compile
+	$(MAKE) -C src/glibc_tests  check
 
 
 

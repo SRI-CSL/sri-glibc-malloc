@@ -30,10 +30,6 @@ $(GLIBC_SRC):
 $(GLIBC_BUILD): $(GLIBC_SRC)
 	mkdir -p $(GLIBC_INSTALL)  $(GLIBC_BUILD)
 	cd $(GLIBC_BUILD); $(GLIBC_SRC)/configure  --prefix=$(GLIBC_INSTALL)
-	cd $(GLIBC_INSTALL)/include; ln -s /usr/include/linux . ; ln -s /usr/include/x86_64-linux-gnu/asm . ;  ln -s /usr/include/asm-generic .
-	cd $(GLIBC_INSTALL)/lib; ln -s /lib/x86_64-linux-gnu/libgcc_s.so.1 .
-
-
 
 
 update: $(GLIBC_BUILD)
@@ -47,6 +43,12 @@ compile: update
 
 install: compile
 	$(MAKE) -C $(GLIBC_BUILD) install
+	cd $(GLIBC_INSTALL)/include; ln -sf /usr/include/linux . 
+	cd $(GLIBC_INSTALL)/include; ln -sf /usr/include/x86_64-linux-gnu/asm . 
+	cd $(GLIBC_INSTALL)/include;  ln -sf /usr/include/asm-generic .
+	cd $(GLIBC_INSTALL)/lib; ln -sf /lib/x86_64-linux-gnu/libgcc_s.so.1 .
+
+
 
 check: compile
 	$(MAKE) -C src/glibc_tests  check

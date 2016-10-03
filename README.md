@@ -41,15 +41,18 @@ If your executable relies on other dynamic libraries, then they will
 need to be linked/copied into the ./build/glibc-build area. 
 
 Example:
-
+```
 cd ./build/glibc-build
+
 ln -s /lib/x86_64-linux-gnu/libselinux.so.1 .
 ln -s /lib/x86_64-linux-gnu/libacl.so.1 .
 ln -s /lib/x86_64-linux-gnu/libpcre.so.3 .
 ln -s /lib/x86_64-linux-gnu/libattr.so.1 .
 
-./build/glibc-build/testrun.sh /bin/ls
+cd ../../
 
+./build/glibc-build/testrun.sh /bin/ls
+```
 
 
 

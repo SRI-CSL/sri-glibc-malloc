@@ -16,9 +16,9 @@ of Glibc with our modifications in place.
 
 This will:
 
-* download the glibc source in ./build/glibc and checkout XXX
-* configure the build in ./build/glibc-build
-* compile and install in ./build/glibc-install
+* download the glibc source in `./build/glibc` and checkout XXX
+* configure the build in `./build/glibc-build`
+* compile and install in `./build/glibc-install`
 
 
 ### Testing 
@@ -28,17 +28,17 @@ A very basic test can be done by doing `make check` at the top level.
 #### Using the testrun.sh script to test applications.
 
 * The simple case. 
-
+```
 ./build/glibc-build/testrun.sh /bin/echo "Boo!"
-
-should run the /bin/echo program with argument "Boo!" using the
+```
+should run the `/bin/echo` program with argument `"Boo!"` using the
 built GLibc, in particular using SRI's malloc. This works as
 long as your binary does not require an other library than GLibc.
 
 * The not so simple case.
 
 If your executable relies on other dynamic libraries, then they will
-need to be linked/copied into the ./build/glibc-build area. 
+need to be linked/copied into the `./build/glibc-build` area. 
 
 Example:
 ```

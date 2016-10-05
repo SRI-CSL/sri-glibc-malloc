@@ -24,8 +24,9 @@ $(GLIBC_SRC):
 #there seems to be a reasonable amount of movement in malloc (locks, at_fork) recently.
 #so some work to bring upto date ...
 	cd $(GLIBC_SRC); git checkout 317b199b4aff8cfa27f2302ab404d2bb5032b9a4
-#probably should move towards a release or have branches per release.
-#git checkout origin/release/2.24/master
+#	cd $(GLIBC_SRC); git checkout origin/release/2.24/master
+#
+
 
 $(GLIBC_BUILD): $(GLIBC_SRC)
 	mkdir -p $(GLIBC_INSTALL)  $(GLIBC_BUILD)

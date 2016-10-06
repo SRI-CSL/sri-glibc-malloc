@@ -63,9 +63,44 @@ cd ../../
 
 # Design Details
 
+We have attempted to make as few changes to the underlying
+glibc/ptmalloc/dlmalloc algorithms in order to achieve our
+goal.
+
+The metadata for a client pointer is contained in a per arena hash table.
+Access to this table is protected by the same lock that protects access
+to other aspects of the arena (such as the bins etc). So no additional
+synchronization overhead is incurred in accessing a pointer's metadata,
+once the pointer's arena has been established.
+The per arena hash table is an implementation of Dynamic hashing
+by Per-Ake Larson (CACM April 1988 pp 446-457), supported underneath
+by a custom pool allocator that relies on mmapped regions.
+
+Determining which arena a client pointer belongs to is done by
+a *lock-free* algorithm that keeps track of the underlying
+regions that are under our control.
+
+
+
+Pointers to the files in question?
+
+Maintaining the important glibc invariant
+
+Mmapped memory also has metadata, which we store in the main arena.
+
+Chunks no longer overlap.
+
+Minimum size increased so as to avoid messing with the fenceposts.
+
+Psmalloc?
+
+# Testing Regime
+
 
 # Performance Measurements
 
+
+# Possible Improvements
 
 
 # Acknowledgements

@@ -1,7 +1,7 @@
 
 
 
-### Overview
+# Overview
 
 This software is a variant of the malloc subsystem of GNU's Standard C
 library (GLibc).  It separates the metadata from the client memory for
@@ -9,7 +9,7 @@ increased security.  The software currently targets the x86_64 linux
 architecture and has been tested mainly on Ubuntu 14.04.
 
 
-###  Building
+#  Building
 
 Typing `make` at the toplevel should build an entire installation
 of Glibc with our modifications in place. 
@@ -21,11 +21,11 @@ This will:
 * compile and install in `./build/glibc-install`
 
 
-### Testing 
+# Testing 
 
 A very basic test can be done by doing `make check` at the top level.
 
-#### Using the testrun.sh script to test applications.
+### Using the testrun.sh script to test applications.
 
 * The simple case. 
 ```
@@ -56,19 +56,19 @@ cd ../../
 
 
 
-#### Using the mhooks and replay programs to debug scenarios.
+### Using the mhooks and replay programs to debug scenarios.
 
-#### Using gdb ...
-
-
-### Design Details
+### Using gdb ...
 
 
-### Performance Measurements
+# Design Details
+
+
+# Performance Measurements
 
 
 
-### Acknowledgements
+# Acknowledgements
 
 This document summarizes the research performed under Darpa Contract
 Number N66001-15-C-4061 by SRI International, and presents the

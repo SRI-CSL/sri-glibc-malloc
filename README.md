@@ -106,38 +106,21 @@ benchmark suite.
 # Performance Measurements
 
 We ran the SPEC CPU 2006 integer benchmark suite. In this table we present the 
-standard SPEC CPU results format, as well the overhead percentage.
+average runtime over 8 iterations, as well the overhead percentage.
 ```
-dust sri-glibc (8 iterations)
-                 Ref        Runtime    Ref Ratio  % Overhead
-400.perlbench    9770        387       25.2       15.52 
-401.bzip2        9650        458       21.1       1.55 
-403.gcc          8050        295       27.3       1.37 
-429.mcf          9120        536       17.0       3.47 
-445.gobmk       10490        427       24.6       -0.23 
-456.hmmer        9330        397       23.5       0.0 
-458.sjeng       12100        490       24.7       0.0 
-462.libquantum  20720        342       60.7       0.0 
-464.h264ref     22130        510       43.4       0.2 
-471.omnetpp      6250        547       11.4       42.08 
-473.astar        7020        450       15.6       1.81 
-483.xalancbmk    6900        364       19.0       12.69 
-
-dust glibc (8 iterations)
-
-400.perlbench    9770        335       29.2       - 
-401.bzip2        9650        451       21.4       - 
-403.gcc          8050        291       27.7       - 
-429.mcf          9120        518       17.6       - 
-445.gobmk       10490        428       24.5       - 
-456.hmmer        9330        397       23.5       - 
-458.sjeng       12100        490       24.7       - 
-462.libquantum  20720        342       60.5       - 
-464.h264ref     22130        509       43.5       - 
-471.omnetpp      6250        385       16.2       - 
-473.astar        7020        442       15.9       -
-483.xalancbmk    6900        323       21.3       - 
-
+               sri-glibc   glibc     % Overhead
+400.perlbench    387       335       15.52 
+401.bzip2        458       451       1.55 
+403.gcc          295       291       1.37 
+429.mcf          536       518       3.47 
+445.gobmk        427       428       -0.23 
+456.hmmer        397       397       0.0 
+458.sjeng        490       490       0.0 
+462.libquantum   342       342       0.0 
+464.h264ref      510       509       0.2 
+471.omnetpp      547       385       42.08 
+473.astar        450       442       1.81 
+483.xalancbmk    364       323       12.69 
 ```
 Note the these benchmarks are single threaded, and so are not a complete picture.
 We would be very interested to hear of some multithreaded benchmarks that we could

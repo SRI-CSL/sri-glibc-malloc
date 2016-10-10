@@ -1,0 +1,280 @@
+##############################################################################
+#   INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN  #
+#                                                                            #
+# 'reportable' flag not set during run                                       #
+#                                                                            #
+#   INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN  #
+##############################################################################
+                           SPEC(R) CINT2006 Summary
+                           System Vendor Supermicro
+         Test Sponsor: Test Sponsor (Optional, defaults to hw_vendor)
+                           Fri Oct  7 09:37:19 2016
+
+CPU2006 License: 0                                       Test date: Oct-2016
+Test sponsor: Test Sponsor (Optional, defaults to hw_vendor)  Hardware availability: Dec-2014
+Tested by:    (Optional, defaults to hw_vendor)  Software availability: Feb-2016
+
+                                  Estimated                       Estimated
+                Base     Base       Base        Peak     Peak       Peak
+Benchmarks      Ref.   Run Time     Ratio       Ref.   Run Time     Ratio
+-------------- ------  ---------  ---------    ------  ---------  ---------
+400.perlbench    9770        340       28.7 S                                  
+400.perlbench    9770        346       28.2 S                                  
+400.perlbench    9770        333       29.3 S                                  
+400.perlbench    9770        335       29.1 S                                  
+400.perlbench    9770        340       28.7 S                                  
+400.perlbench    9770        337       29.0 S                                  
+400.perlbench    9770        336       29.1 S                                  
+400.perlbench    9770        338       28.9 *                                  
+401.bzip2        9650        420       23.0 S                                  
+401.bzip2        9650        422       22.9 S                                  
+401.bzip2        9650        426       22.7 S                                  
+401.bzip2        9650        423       22.8 S                                  
+401.bzip2        9650        441       21.9 S                                  
+401.bzip2        9650        424       22.7 *                                  
+401.bzip2        9650        425       22.7 S                                  
+401.bzip2        9650        419       23.0 S                                  
+403.gcc          8050        262       30.7 S                                  
+403.gcc          8050        264       30.5 S                                  
+403.gcc          8050        266       30.3 S                                  
+403.gcc          8050        264       30.5 S                                  
+403.gcc          8050        263       30.6 S                                  
+403.gcc          8050        266       30.3 S                                  
+403.gcc          8050        265       30.4 *                                  
+403.gcc          8050        269       29.9 S                                  
+429.mcf          9120        233       39.1 S                                  
+429.mcf          9120        230       39.6 S                                  
+429.mcf          9120        231       39.4 S                                  
+429.mcf          9120        225       40.5 S                                  
+429.mcf          9120        232       39.3 *                                  
+429.mcf          9120        232       39.3 S                                  
+429.mcf          9120        233       39.2 S                                  
+429.mcf          9120        218       41.8 S                                  
+445.gobmk       10490        404       26.0 S                                  
+445.gobmk       10490        404       26.0 S                                  
+445.gobmk       10490        404       25.9 S                                  
+445.gobmk       10490        404       26.0 S                                  
+445.gobmk       10490        404       26.0 S                                  
+445.gobmk       10490        404       26.0 S                                  
+445.gobmk       10490        404       26.0 *                                  
+445.gobmk       10490        404       26.0 S                                  
+456.hmmer        9330        384       24.3 S                                  
+456.hmmer        9330        384       24.3 S                                  
+456.hmmer        9330        384       24.3 S                                  
+456.hmmer        9330        384       24.3 S                                  
+456.hmmer        9330        384       24.3 *                                  
+456.hmmer        9330        384       24.3 S                                  
+456.hmmer        9330        383       24.3 S                                  
+456.hmmer        9330        384       24.3 S                                  
+458.sjeng       12100        462       26.2 S                                  
+458.sjeng       12100        462       26.2 S                                  
+458.sjeng       12100        464       26.1 *                                  
+458.sjeng       12100        464       26.1 S                                  
+458.sjeng       12100        462       26.2 S                                  
+458.sjeng       12100        461       26.2 S                                  
+458.sjeng       12100        464       26.1 S                                  
+458.sjeng       12100        475       25.5 S                                  
+462.libquantum  20720        328       63.2 S                                  
+462.libquantum  20720        340       60.9 S                                  
+462.libquantum  20720        329       63.0 S                                  
+462.libquantum  20720        334       62.0 S                                  
+462.libquantum  20720        334       62.1 *                                  
+462.libquantum  20720        331       62.7 S                                  
+462.libquantum  20720        332       62.3 S                                  
+462.libquantum  20720        340       61.0 S                                  
+464.h264ref     22130        478       46.3 S                                  
+464.h264ref     22130        477       46.4 S                                  
+464.h264ref     22130        476       46.5 S                                  
+464.h264ref     22130        476       46.5 S                                  
+464.h264ref     22130        476       46.5 *                                  
+464.h264ref     22130        475       46.6 S                                  
+464.h264ref     22130        476       46.5 S                                  
+464.h264ref     22130        479       46.2 S                                  
+471.omnetpp      6250        436       14.3 S                                  
+471.omnetpp      6250        465       13.4 S                                  
+471.omnetpp      6250        468       13.3 S                                  
+471.omnetpp      6250        457       13.7 S                                  
+471.omnetpp      6250        462       13.5 S                                  
+471.omnetpp      6250        459       13.6 S                                  
+471.omnetpp      6250        439       14.2 S                                  
+471.omnetpp      6250        461       13.6 *                                  
+473.astar        7020        333       21.1 S                                  
+473.astar        7020        332       21.1 S                                  
+473.astar        7020        331       21.2 S                                  
+473.astar        7020        332       21.2 S                                  
+473.astar        7020        329       21.3 S                                  
+473.astar        7020        332       21.2 *                                  
+473.astar        7020        328       21.4 S                                  
+473.astar        7020        329       21.3 S                                  
+483.xalancbmk    6900        249       27.8 S                                  
+483.xalancbmk    6900        246       28.1 S                                  
+483.xalancbmk    6900        250       27.7 S                                  
+483.xalancbmk    6900        237       29.2 S                                  
+483.xalancbmk    6900        249       27.8 S                                  
+483.xalancbmk    6900        246       28.1 S                                  
+483.xalancbmk    6900        248       27.8 *                                  
+483.xalancbmk    6900        235       29.4 S                                  
+==============================================================================
+400.perlbench    9770        338       28.9 *                                  
+401.bzip2        9650        424       22.7 *                                  
+403.gcc          8050        265       30.4 *                                  
+429.mcf          9120        232       39.3 *                                  
+445.gobmk       10490        404       26.0 *                                  
+456.hmmer        9330        384       24.3 *                                  
+458.sjeng       12100        464       26.1 *                                  
+462.libquantum  20720        334       62.1 *                                  
+464.h264ref     22130        476       46.5 *                                  
+471.omnetpp      6250        461       13.6 *                                  
+473.astar        7020        332       21.2 *                                  
+483.xalancbmk    6900        248       27.8 *                                  
+ Est. SPECint(R)_base2006              28.6
+ Est. SPECint2006                                                   Not Run
+
+
+                                   HARDWARE
+                                   --------
+            CPU Name: Intel Xeon E5-2637 v2
+ CPU Characteristics:  
+             CPU MHz: 3500
+                 FPU: Integrated
+      CPU(s) enabled: number of cores enabled cores, 2 chips, number of cores manufactured into each chip cores/chip, number of threads enabled per core threads/core
+    CPU(s) orderable: 1,2 chips
+       Primary Cache: 9999 KB I + 9999 KB D on chip per core
+     Secondary Cache: 9999 KB I+D on chip per core
+            L3 Cache: 9999 MB I+D on chip per chip
+         Other Cache: None
+              Memory: 62.723 GB fixme: If using DDR3, format is:
+                      'N GB (M x N GB nRxn PCn-nnnnnR-n, ECC)'
+      Disk Subsystem: 939 GB  add more disk info here
+      Other Hardware: None
+
+
+                                   SOFTWARE
+                                   --------
+    Operating System: Ubuntu 14.04.5 LTS
+                      3.13.0-96-generic
+            Compiler: gcc, g++ & gfortran 4.9.3
+       Auto Parallel: No
+         File System: ext4
+        System State: Run level 2 (add definition here)
+       Base Pointers: 64-bit
+       Peak Pointers: 64-bit
+      Other Software: None
+
+
+                                 Submit Notes
+                                 ------------
+    The config file option 'submit' was used.
+    'numactl' was used to bind copies to the cores.
+    See the configuration file for details.
+
+                            Operating System Notes
+                            ----------------------
+    'ulimit -s unlimited' was used to set environment stack size
+
+                                Platform Notes
+                                --------------
+     Sysinfo program /space/ddean/SPECcpu2006/Docs/sysinfo
+     $Rev: 6775 $ $Date:: 2011-08-16 #$ 8787f7622badcf24e01c368b1db4377c
+     running on shaman Fri Oct  7 09:37:20 2016
+    
+     This section contains SUT (System Under Test) info as seen by
+     some common utilities.  To remove or add to this section, see:
+       http://www.spec.org/cpu2006/Docs/config.html#sysinfo
+    
+     From /proc/cpuinfo
+        model name : Intel(R) Xeon(R) CPU E5-2637 v2 @ 3.50GHz
+           2 "physical id"s (chips)
+           16 "processors"
+        cores, siblings (Caution: counting these is hw and system dependent.  The
+        following excerpts from /proc/cpuinfo might not be reliable.  Use with
+        caution.)
+           cpu cores : 4
+           siblings  : 8
+           physical 0: cores 1 2 3 4
+           physical 1: cores 1 2 3 4
+        cache size : 15360 KB
+    
+     From /proc/meminfo
+        MemTotal:       65770040 kB
+        HugePages_Total:       0
+        Hugepagesize:       2048 kB
+    
+     /usr/bin/lsb_release -d
+        Ubuntu 14.04.5 LTS
+    
+     From /etc/*release* /etc/*version*
+        debian_version: jessie/sid
+        os-release:
+           NAME="Ubuntu"
+           VERSION="14.04.5 LTS, Trusty Tahr"
+           ID=ubuntu
+           ID_LIKE=debian
+           PRETTY_NAME="Ubuntu 14.04.5 LTS"
+           VERSION_ID="14.04"
+           HOME_URL="http://www.ubuntu.com/"
+           SUPPORT_URL="http://help.ubuntu.com/"
+    
+     uname -a:
+        Linux shaman 3.13.0-96-generic #143-Ubuntu SMP Mon Aug 29 20:15:20 UTC 2016
+        x86_64 x86_64 x86_64 GNU/Linux
+    
+     run-level 2 Sep 27 11:50
+    
+     SPEC is set to: /space/ddean/SPECcpu2006
+        Filesystem     Type  Size  Used Avail Use% Mounted on
+        /dev/sdd1      ext4  939G  379G  513G  43% /space
+    
+     (End of data from sysinfo program)
+
+                           Base Compiler Invocation
+                           ------------------------
+C benchmarks: 
+     /usr/bin/gcc
+
+C++ benchmarks: 
+     /usr/bin/g++
+
+
+                            Base Portability Flags
+                            ----------------------
+  400.perlbench: -DSPEC_CPU_LP64 -DSPEC_CPU_LINUX_X64
+      401.bzip2: -DSPEC_CPU_LP64
+        403.gcc: -DSPEC_CPU_LP64
+        429.mcf: -DSPEC_CPU_LP64
+      445.gobmk: -DSPEC_CPU_LP64
+      456.hmmer: -DSPEC_CPU_LP64
+      458.sjeng: -DSPEC_CPU_LP64
+ 462.libquantum: -DSPEC_CPU_LP64 -DSPEC_CPU_LINUX
+    464.h264ref: -DSPEC_CPU_LP64
+    471.omnetpp: -DSPEC_CPU_LP64
+      473.astar: -DSPEC_CPU_LP64
+  483.xalancbmk: -DSPEC_CPU_LP64 -DSPEC_CPU_LINUX
+
+
+                           Base Optimization Flags
+                           -----------------------
+C benchmarks: 
+     -O2 -fno-strict-aliasing
+
+C++ benchmarks: 
+     -O2 -fno-strict-aliasing
+
+
+    SPEC and SPECint are registered trademarks of the Standard Performance
+    Evaluation Corporation.  All other brand and product names appearing
+    in this result are trademarks or registered trademarks of their
+    respective holders.
+##############################################################################
+#   INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN  #
+#                                                                            #
+# 'reportable' flag not set during run                                       #
+#                                                                            #
+#   INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN -- INVALID RUN  #
+##############################################################################
+-----------------------------------------------------------------------------
+For questions about this result, please contact the tester.
+For other inquiries, please contact webmaster@spec.org.
+Copyright 2006-2016 Standard Performance Evaluation Corporation
+Tested with SPEC CPU2006 v1.2.
+Report generated on Fri Oct  7 19:33:31 2016 by CPU2006 ASCII formatter v6400.

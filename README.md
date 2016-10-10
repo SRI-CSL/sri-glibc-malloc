@@ -102,7 +102,8 @@ of allocation in the hook file:
        16384 1
        32768 1
 ```
-
+The analysis consists of an overview and a log histogram of the allocations 
+(3 of size < 2, 6 of size < 4, ...)
 
 ### Using gdb ...
 
@@ -169,6 +170,9 @@ average runtime over 8 iterations, as well the overhead percentage.
 483.xalancbmk    364       323       12.69 
 ```
 Note the these benchmarks are single threaded, and so are not a complete picture.
+Determining that a pointer belongs to the `main_arena` is faster than 
+determining that it is either mmapped or belongs to a non main arena.
+
 We would be very interested to hear of some multithreaded benchmarks that we could
 include.
 

@@ -53,10 +53,56 @@ cd ../../
 
 ./build/glibc-build/testrun.sh /bin/ls
 ```
-
+More information about testing glibc builds can be found [here](https://sourceware.org/glibc/wiki/Testing/Builds).
 
 
 ### Using the mhooks and replay programs to debug scenarios.
+
+Another approach we developed to testing and analysis is to use the malloc
+hooks to record (using the tool in `src/mhooks`) in a file the pattern 
+of allocation of a particular program:
+```
+MHOOK=/tmp/mhook.out LD_PRELOAD=./mhook.so /bin/ls -la
+```
+will produce a log of the allocations, that can be replayed (or analyzed).
+To replay it one would (in `src/glibc_test`) do 
+```
+ ./replay /tmp/mhook.out
+```
+which will repeat the pattern of allocation and return some statistics.
+```
+...
+malloc   0.22  clocks per call
+free   0.19  clocks per call
+calloc   1.89  clocks per call
+realloc  1.00  clocks per call
+...
+```
+The replying is currently only implemented for single threaded programs,
+though in principle it could be extended to multithreaded programs. We have
+also included a script `analysis/parse_data` that will summarize the pattern
+of allocation in the hook file:
+```
+>./parse_data ../src/mhooks/mhook.out
+../src/mhooks/mhook.out contains 405 mallocs
+../src/mhooks/mhook.out contains 9 callocs
+../src/mhooks/mhook.out contains 3 reallocs
+../src/mhooks/mhook.out contains 295 frees
+           2 3
+           4 6
+           8 30
+          16 54
+          32 230
+          64 49
+         128 15
+         256 11
+         512 7
+        1024 9
+        2048 1
+       16384 1
+       32768 1
+```
+
 
 ### Using gdb ...
 

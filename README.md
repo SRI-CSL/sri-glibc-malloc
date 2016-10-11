@@ -80,12 +80,12 @@ calloc   1.89  clocks per call
 realloc  1.00  clocks per call
 ...
 ```
-The replying is currently only implemented for single threaded programs,
+The replaying is currently only implemented for single threaded programs,
 though in principle it could be extended to multithreaded programs. We have
 also included a script `analysis/parse_data` that will summarize the pattern
 of allocation in the hook file:
 ```
->./parse_data ../src/mhooks/mhook.out
+>./parse_data /tmp/mhook.out
 ../src/mhooks/mhook.out contains 405 mallocs
 ../src/mhooks/mhook.out contains 9 callocs
 ../src/mhooks/mhook.out contains 3 reallocs

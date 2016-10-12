@@ -16,9 +16,7 @@ of Glibc with our modifications in place.
 
 This will:
 
-* download the glibc source in `./build/glibc` and checkout XXX 
-(here XXX could either be `317b199b`, `origin/release/2.22/master` or
-`origin/release/2.23/master`, or `origin/release/2.24/master`. the closest to ours looks to be 2.22)
+* download the glibc source in `./build/glibc` and `git checkout glibc-2.23`.
 * configure the build in `./build/glibc-build`
 * compile and install in `./build/glibc-install`
 

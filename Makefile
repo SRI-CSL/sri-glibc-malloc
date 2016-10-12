@@ -22,10 +22,9 @@ $(GLIBC_SRC):
 	mkdir -p $(GLIBC_SRC)
 	git clone git://sourceware.org/git/glibc.git $(GLIBC_SRC)
 #there seems to be a reasonable amount of movement in malloc (locks, at_fork) recently.
-#so some work to bring upto date ...
-	cd $(GLIBC_SRC); git checkout 317b199b4aff8cfa27f2302ab404d2bb5032b9a4
-#	cd $(GLIBC_SRC); git checkout origin/release/2.24/master
-#
+#so some work to bring upto date (2.24)
+	cd $(GLIBC_SRC); git checkout glibc-2.23
+#	cd $(GLIBC_SRC); git checkout 317b199b4aff8cfa27f2302ab404d2bb5032b9a4
 
 
 $(GLIBC_BUILD): $(GLIBC_SRC)

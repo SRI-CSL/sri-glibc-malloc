@@ -6,7 +6,8 @@
 This software is a variant of the malloc subsystem of GNU's Standard C
 library (GLibc).  It separates the metadata from the client memory for
 increased security.  The software currently targets the x86_64 linux
-architecture and has been tested mainly on Ubuntu 14.04.
+architecture and has been tested mainly on Ubuntu 14.04. It is based
+on glibc-2.23.
 
 
 #  Building
@@ -25,22 +26,23 @@ This will:
 
 A very basic test can be done by doing `make check` at the top level.
 
-### Using the testrun.sh script to test applications.
+### Using the testrun.sh script to test applications
 
-* The simple case. 
+In the simple case, your executable does not require any dynamic library other than glibc.
+You can test our library as follows:
 ```
 ./build/glibc-build/testrun.sh /bin/echo "Boo!"
 ```
-should run the `/bin/echo` program with argument `"Boo!"` using the
-built GLibc, in particular using SRI's malloc. This works as
-long as your binary does not require an other library than GLibc.
+This example runs the `/bin/echo` program with argument `"Boo!"` using the
+GLibc built in `./build/glibc-build`. In particular, the executable will use SRI's malloc.
 
-* The not so simple case.
 
-If your executable relies on other dynamic libraries, then they will
-need to be linked/copied into the `./build/glibc-build` area. 
+If your executable relies on other dynamic libraries than glibc, then either add symbolic
+links or copy the libraries into the  `./build/glibc-build` area. 
+For example, `/bin/ls` on Ubuntu 14.04 requires four dynamic libraries. To run it with
+our malloc implementation:
 
-Example:
+* link the required libraries into the `./build/glibc-build` directory:
 ```
 cd ./build/glibc-build
 
@@ -48,17 +50,20 @@ ln -s /lib/x86_64-linux-gnu/libselinux.so.1 .
 ln -s /lib/x86_64-linux-gnu/libacl.so.1 .
 ln -s /lib/x86_64-linux-gnu/libpcre.so.3 .
 ln -s /lib/x86_64-linux-gnu/libattr.so.1 .
-
+```
+* use the `testrun.sh` script:
+```
 cd ../../
 
 ./build/glibc-build/testrun.sh /bin/ls
 ```
+
 More information about testing glibc builds can be found [here](https://sourceware.org/glibc/wiki/Testing/Builds).
 
 
-### Using the mhooks and replay programs to debug scenarios.
+### Using the mhooks and replay programs for debugging
 
-Another approach we developed to testing and analysis is to use the malloc
+We have developed another approach to testing and analysis is to use the malloc
 hooks to record (using the tool in `src/mhooks`) in a file the pattern 
 of allocation of a particular program:
 ```

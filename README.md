@@ -63,18 +63,18 @@ More information about testing glibc builds can be found [here](https://sourcewa
 
 ### Using the mhooks and replay programs for debugging
 
-We have developed another approach to testing and analysis is to use the malloc
+We have developed another approach to testing and analysis. This technique uses the malloc
 hooks to record (using the tool in `src/mhooks`) in a file the pattern 
 of allocation of a particular program:
 ```
 MHOOK=/tmp/mhook.out LD_PRELOAD=./mhook.so /bin/ls -la
 ```
-will produce a log of the allocations, that can be replayed (or analyzed).
+This will produce a log of the allocations/deallocation/reallocation operations, that can be replayed (or analyzed).
 To replay it one would (in `src/glibc_test`) do 
 ```
  ./replay /tmp/mhook.out
 ```
-which will repeat the pattern of allocation and return some statistics.
+This will replay the pattern of allocation and return some statistics.
 ```
 ...
 malloc   0.22  clocks per call

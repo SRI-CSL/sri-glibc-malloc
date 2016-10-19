@@ -133,18 +133,14 @@ a *lock-free* algorithm that keeps track of the underlying
 regions that are under our control.
 
 
-
-Pointers to the files in question?
-
-Maintaining the important glibc invariant
-
-Mmapped memory also has metadata, which we store in the main arena.
-
-Chunks no longer overlap.
-
-Minimum size increased so as to avoid messing with the fenceposts.
-
-Psmalloc?
+* Things that we could elaborate on: 
+  * Pointers to the files in question?
+  * Maintaining the important glibc invariant (no adjacent free chunks).
+  * Mmapped memory also has metadata, which we store in the main arena.
+  * Chunks no longer overlap.
+  * Minimum size increased so as to avoid messing with the fenceposts.
+  * Memory exhaustion robustness
+  
 
 # Testing Regime
 

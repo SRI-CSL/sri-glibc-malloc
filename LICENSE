@@ -5,6 +5,8 @@ This file is part of the GNU C Library.
 Contributed by Wolfram Gloger <wg@malloc.de>
 and Doug Lea <dl@cs.oswego.edu>, 2001.
 
+
+Copyright (c) 2015-2017 SRI International
 Metadata removal by Ian A. Mason <iam@csl.sri.com>,
 Bruno Dutertre <bruno@csl.sri.com>, Drew Dean <drewdean@gmail.com>, and
 Dan Wallach <dwallach@cs.rice.edu>.
@@ -22,5 +24,3 @@ Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public
 License along with the GNU C Library; see the file COPYING.LIB.  If
 not, see <http://www.gnu.org/licenses/>.
-
-

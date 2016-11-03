@@ -179,6 +179,18 @@ include.
 
 # Possible Improvements
 
+* It needs to be fully assimilated into glibc, for example the atomics we use are
+not the glibc versions.
+
+* It should be brought upto date with the more recent changes in glibc's malloc.
+
+* The lock free hash table is probably not as polished as it could be.
+
+* The minimun chunksize could drop, provided the fencepost code was rewritten.
+
+* Understanding the omnetpp slow down could be illuminating.
+
+* Multithreaded benchmarking would be nice, and hopefully not too embarrasing.
 
 # Acknowledgements
 
